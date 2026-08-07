@@ -82,11 +82,6 @@ struct FeaturePlaceholder: View {
     }
 }
 
-struct IntakeView: View {
-    var body: some View { ScreenScaffold(title: "대나무숲 접수") {
-        FeaturePlaceholder(icon: "tray.and.arrow.down.fill", text: "익명/실명 의견 접수 — 네이티브 구현 예정")
-    } }
-}
 struct AgendaView: View {
     var body: some View { ScreenScaffold(title: "안건 / 투표") {
         FeaturePlaceholder(icon: "checkmark.square.fill", text: "안건·투표 — 네이티브 구현 예정")
