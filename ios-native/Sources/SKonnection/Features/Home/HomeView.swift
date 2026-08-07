@@ -2,6 +2,9 @@ import SwiftUI
 
 /// 홈 통합 피드(웹 Dashboard 이식). 스토리 줄 + 3열 인스타식 타일 그리드.
 struct HomeView: View {
+    /// 피드 타일 탭 시 이동할 탭 인덱스를 상위에 알린다.
+    var onOpen: (Int) -> Void = { _ in }
+
     private let feed = HomeFeedItem.seed
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 3), count: 3)
 
@@ -9,8 +12,23 @@ struct HomeView: View {
         ScreenScaffold(title: "홈") {
             storyRow
             LazyVGrid(columns: columns, spacing: 3) {
-                ForEach(feed) { FeedTile(item: $0) }
+                ForEach(feed) { item in
+                    Button { Haptics.selection(); onOpen(tabFor(item.kind)) } label: {
+                        FeedTile(item: item)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+        }
+    }
+
+    /// 피드 종류 → 탭 인덱스(유머 1·모임 2·장터 3, 안건·액션은 더보기 4).
+    private func tabFor(_ kind: FeedKind) -> Int {
+        switch kind {
+        case .humor: return 1
+        case .gathering: return 2
+        case .market: return 3
+        case .agenda, .action: return 4
         }
     }
 

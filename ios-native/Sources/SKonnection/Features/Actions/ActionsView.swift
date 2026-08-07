@@ -11,7 +11,7 @@ struct ActionsView: View {
     }
 
     var body: some View {
-        ScreenScaffold(title: "액션아이템") {
+        ScreenScaffold(title: "액션아이템", showUserChip: false) {
             filterTabs
             if store.overdueCount > 0 {
                 HStack(spacing: Theme.Space.x2) {

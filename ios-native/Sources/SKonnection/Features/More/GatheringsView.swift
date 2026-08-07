@@ -1,6 +1,6 @@
 import SwiftUI
 
-private struct Gathering: Identifiable {
+struct Gathering: Identifiable {
     let id: String
     let title: String
     let host: String
@@ -10,47 +10,41 @@ private struct Gathering: Identifiable {
     var capacity: Int
 }
 
-/// 모임 · 번개 — 점심·워크숍 등 자리를 열고 신청한다(웹 Gatherings 이식).
+/// 모임 · 번개 — 인스타 3열 그리드. 타일 탭 시 상세 시트에서 신청.
 struct GatheringsView: View {
     @State private var filter = "모집중"
     private let filters = ["모집중", "내가 신청", "내가 연 것", "전체"]
     @State private var gatherings: [Gathering] = [
         .init(id: "GAT-1", title: "오늘 점심 김치찌개 번개 🍲", host: "김승현", when: "오늘 12:00", kind: "번개", joined: 3, capacity: 6),
         .init(id: "GAT-2", title: "금요일 보드게임 모임", host: "이두민", when: "8/9 (금) 19:00", kind: "공모", joined: 5, capacity: 8),
+        .init(id: "GAT-3", title: "퇴근 후 클라이밍 번개 🧗", host: "김수정", when: "오늘 19:30", kind: "번개", joined: 2, capacity: 4),
+        .init(id: "GAT-4", title: "주말 등산 모임", host: "이선민", when: "8/10 (토) 08:00", kind: "공모", joined: 6, capacity: 10),
     ]
+    @State private var selected: Gathering?
 
     var body: some View {
         ScreenScaffold(title: "모임 · 번개", showUserChip: false) {
             ChipRow(items: filters, selection: $filter)
-
             Button {} label: {
                 Label("모임 열기", systemImage: "plus").font(.headline)
                     .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
             }
             .buttonStyle(.borderedProminent).tint(Theme.Palette.cta)
 
-            ForEach(gatherings) { g in
-                VStack(alignment: .leading, spacing: Theme.Space.x2) {
-                    HStack {
-                        Text(g.kind).font(.caption.weight(.bold)).foregroundStyle(Theme.Palette.tintPrimaryInk)
-                            .padding(.horizontal, Theme.Space.x2).padding(.vertical, 4)
-                            .background(Theme.Palette.tintPrimary, in: Capsule())
-                        Spacer()
-                        Text("\(g.joined)/\(g.capacity)명").font(.caption).foregroundStyle(Theme.Palette.muted)
-                    }
-                    Text(g.title).font(.headline).foregroundStyle(Theme.Palette.ink)
-                    Text("\(g.host) · \(g.when)").font(.subheadline).foregroundStyle(Theme.Palette.muted)
-                    Button {} label: {
-                        Text("신청하기").font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
-                    }
-                    .buttonStyle(.bordered).tint(Theme.Palette.cta)
+            InstaGrid(items: gatherings) { g in
+                Button { Haptics.selection(); selected = g } label: {
+                    GridTile(icon: g.kind == "번개" ? "bolt.fill" : "calendar", title: g.title,
+                             meta: "\(g.joined)/\(g.capacity)명",
+                             tint: g.kind == "번개" ? Theme.Palette.tintSuccess : Theme.Palette.tintPrimary,
+                             ink: g.kind == "번개" ? Theme.Palette.tintSuccessInk : Theme.Palette.tintPrimaryInk)
                 }
-                .padding(Theme.Space.x4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.lg))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.lg).stroke(Theme.Palette.border))
+                .buttonStyle(.plain)
             }
+        }
+        .sheet(item: $selected) { g in
+            DetailSheet(title: g.kind, heading: g.title,
+                        lines: ["\(g.host) · \(g.when)", "\(g.joined)/\(g.capacity)명 참여"],
+                        action: "신청하기")
         }
     }
 }
@@ -75,5 +69,34 @@ struct ChipRow: View {
                 }
             }
         }
+    }
+}
+
+/// 그리드 타일 탭 시 뜨는 공용 상세 시트(제목·본문·액션 버튼).
+struct DetailSheet: View {
+    let title: String
+    let heading: String
+    let lines: [String]
+    let action: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: Theme.Space.x4) {
+                Text(heading).font(.title2.bold()).foregroundStyle(Theme.Palette.ink)
+                ForEach(lines, id: \.self) { Text($0).font(.subheadline).foregroundStyle(Theme.Palette.muted) }
+                Button { Haptics.success(); dismiss() } label: {
+                    Text(action).font(.headline).frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
+                }
+                .buttonStyle(.borderedProminent).tint(Theme.Palette.cta)
+                Spacer()
+            }
+            .padding(Theme.Space.x4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.Palette.sunken)
+            .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } } }
+        }
+        .presentationDetents([.medium])
     }
 }

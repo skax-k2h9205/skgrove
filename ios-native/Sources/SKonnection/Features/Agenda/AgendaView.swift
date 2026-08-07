@@ -11,7 +11,7 @@ struct AgendaView: View {
     }
 
     var body: some View {
-        ScreenScaffold(title: "안건 / 투표") {
+        ScreenScaffold(title: "안건 / 투표", showUserChip: false) {
             filterTabs
             ForEach(filtered) { agenda in
                 AgendaCard(agenda: agenda) { optionId in

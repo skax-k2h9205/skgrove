@@ -4,19 +4,20 @@ import SwiftUI
 /// (웹의 가로 스크롤 하단바 대신, 5개 탭 + '더보기'의 네이티브 관례를 따른다.)
 struct RootView: View {
     @State private var showChat = false
+    @State private var tab = 0
 
     var body: some View {
-        TabView {
-            HomeView()
-                .tabItem { Label("홈", systemImage: "house.fill") }
-            IntakeView()
-                .tabItem { Label("대나무숲", systemImage: "tray.and.arrow.down.fill") }
-            AgendaView()
-                .tabItem { Label("안건/투표", systemImage: "checkmark.square.fill") }
-            ActionsView()
-                .tabItem { Label("액션", systemImage: "bolt.fill") }
+        TabView(selection: $tab) {
+            HomeView { tab = $0 }   // 피드 타일 탭 → 해당 섹션 탭으로 이동
+                .tabItem { Label("홈", systemImage: "house.fill") }.tag(0)
+            HumorView()
+                .tabItem { Label("유머", systemImage: "face.smiling.fill") }.tag(1)
+            GatheringsView()
+                .tabItem { Label("모임", systemImage: "bolt.fill") }.tag(2)
+            MarketView()
+                .tabItem { Label("이음장터", systemImage: "shippingbox.fill") }.tag(3)
             MoreView()
-                .tabItem { Label("더보기", systemImage: "ellipsis") }
+                .tabItem { Label("더보기", systemImage: "ellipsis") }.tag(4)
         }
         // AI 상담 챗봇 FAB — 웹처럼 어느 화면에서나 뜬다. 탭바 위에 띄운다.
         .overlay(alignment: .bottomTrailing) {
@@ -105,13 +106,15 @@ struct MoreView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section("워크") {
+                    link("대나무숲 접수", "tray.and.arrow.down.fill", Theme.Palette.primary) { IntakeView() }
+                    link("안건 / 투표", "checkmark.square.fill", Theme.Palette.primary) { AgendaView() }
+                    link("액션아이템", "bolt.fill", Theme.Palette.success) { ActionsView() }
+                }
                 Section("리더") {
                     link("리더 관리함", "tray.full.fill", Theme.Palette.primary) { LeaderView() }
                 }
                 Section("팀") {
-                    link("유머 게시판", "face.smiling.fill", Theme.Palette.heart) { HumorView() }
-                    link("모임 · 번개", "bolt.fill", Theme.Palette.success) { GatheringsView() }
-                    link("이음장터", "shippingbox.fill", Theme.Palette.primary) { MarketView() }
                     link("팀 추억", "photo.stack.fill", Theme.Palette.cta) { MemoryView() }
                 }
                 Section("사람") {

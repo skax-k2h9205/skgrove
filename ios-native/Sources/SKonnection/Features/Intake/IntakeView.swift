@@ -20,7 +20,7 @@ struct IntakeView: View {
     @State private var reviewError: String?
 
     var body: some View {
-        ScreenScaffold(title: "대나무숲 접수") {
+        ScreenScaffold(title: "대나무숲 접수", showUserChip: false) {
             anonymityBanner
             formCard
             myList
