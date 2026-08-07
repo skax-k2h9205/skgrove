@@ -46,7 +46,8 @@ struct MarketView: View {
             } else {
                 InstaGrid(items: visible) { item in
                     Button { Haptics.selection(); selected = item } label: {
-                        GridTile(icon: item.kind == .giveaway ? "gift.fill" : "hammer.fill",
+                        GridTile(imageURL: URL(string: item.imageURL),
+                                 icon: item.kind == .giveaway ? "gift.fill" : "hammer.fill",
                                  title: item.title, meta: metaFor(item),
                                  tint: store.status(item).tint, ink: store.status(item).ink)
                     }

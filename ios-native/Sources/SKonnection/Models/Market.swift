@@ -38,6 +38,7 @@ struct MarketItem: Identifiable, Codable {
     var desc: String = ""
     var place: String = ""
     var canceled: Bool = false
+    var imageURL: String = ""     // 업로드된 사진(Supabase Storage URL). 없으면 아이콘 타일.
 }
 
 struct MarketBid: Identifiable, Codable {
@@ -228,10 +229,12 @@ struct SupabaseMarketItemRow: Decodable {
     let place: String?
     let seller: String?
     let canceled: Bool?
+    let image_url: String?
     func toItem() -> MarketItem {
         MarketItem(id: id, title: title ?? "", seller: seller ?? "", kind: MarketKind.fromDB(kind ?? "giveaway"),
                    startPrice: start_price ?? 0, minStep: min_step ?? 1000, closeAt: close_at ?? "",
-                   desc: description ?? "", place: place ?? "", canceled: canceled ?? false)
+                   desc: description ?? "", place: place ?? "", canceled: canceled ?? false,
+                   imageURL: image_url ?? "")
     }
 }
 struct SupabaseBidRow: Decodable {

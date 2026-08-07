@@ -47,6 +47,7 @@ struct Gathering: Identifiable, Codable {
     var coffeeDraw: Bool = false   // 번개에서 커피뽑기 켰는지
     var coffeePick: String = ""    // 뽑힌 사람
     var canceled: Bool = false
+    var imageURL: String = ""      // 업로드된 사진(Supabase Storage URL). 없으면 아이콘 타일.
 }
 
 struct GatheringSignup: Identifiable, Codable {
@@ -240,11 +241,13 @@ struct SupabaseGatheringRow: Decodable {
     let canceled: Bool?
     let coffee_draw: Bool?
     let coffee_pick: String?
+    let image_url: String?
     func toGathering() -> Gathering {
         Gathering(id: id, title: title ?? "", host: host ?? "", kind: GatheringKind.fromDB(kind ?? "gathering"),
                   startAt: start_at ?? "", closeAt: close_at ?? (start_at ?? ""), capacity: capacity,
                   minPeople: min_people, place: place ?? "", desc: description ?? "",
-                  coffeeDraw: coffee_draw ?? false, coffeePick: coffee_pick ?? "", canceled: canceled ?? false)
+                  coffeeDraw: coffee_draw ?? false, coffeePick: coffee_pick ?? "", canceled: canceled ?? false,
+                  imageURL: image_url ?? "")
     }
 }
 struct SupabaseSignupRow: Decodable {

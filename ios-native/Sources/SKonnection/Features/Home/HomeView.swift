@@ -1,11 +1,54 @@
 import SwiftUI
 
 /// 홈 통합 피드(웹 Dashboard 이식). 스토리 줄 + 3열 인스타식 타일 그리드.
+/// 공유 스토어(유머·장터·모임·안건·액션)에서 실데이터를 모아 섞어 보여준다.
 struct HomeView: View {
     /// 피드 타일 탭 시 이동할 탭 인덱스를 상위에 알린다.
     var onOpen: (Int) -> Void = { _ in }
 
-    private let feed = HomeFeedItem.seed
+    @EnvironmentObject private var humor: HumorStore
+    @EnvironmentObject private var gatherings: GatheringStore
+    @EnvironmentObject private var market: MarketStore
+    @EnvironmentObject private var agendas: AgendaStore
+    @EnvironmentObject private var actions: ActionStore
+
+    /// 각 도메인에서 몇 개씩 뽑아 라운드로빈으로 섞은 통합 피드.
+    private var feed: [HomeFeedItem] {
+        let h = humor.posts.prefix(8).map {
+            HomeFeedItem(id: "h:\($0.id)", kind: .humor, title: $0.body,
+                         meta: "빵터짐 \($0.laughs)", imageURL: humor.thumbnail($0))
+        }
+        let m = market.sorted.prefix(6).map {
+            HomeFeedItem(id: "m:\($0.id)", kind: .market, title: $0.title,
+                         meta: market.status($0).rawValue, imageURL: URL(string: $0.imageURL))
+        }
+        let g = gatherings.gatherings.prefix(6).map {
+            HomeFeedItem(id: "g:\($0.id)", kind: .gathering, title: $0.title,
+                         meta: gatherings.status($0).rawValue, imageURL: URL(string: $0.imageURL))
+        }
+        let a = agendas.agendas.prefix(4).map {
+            HomeFeedItem(id: "a:\($0.id)", kind: .agenda, title: $0.title, meta: $0.status.rawValue)
+        }
+        let ac = actions.items.prefix(4).map {
+            HomeFeedItem(id: "ac:\($0.id)", kind: .action, title: $0.title, meta: $0.status.rawValue)
+        }
+        return roundRobin([Array(h), Array(m), Array(g), Array(a), Array(ac)])
+    }
+
+    /// 여러 배열을 번갈아 하나로 — 한 종류가 몰리지 않게 섞는다.
+    private func roundRobin(_ lists: [[HomeFeedItem]]) -> [HomeFeedItem] {
+        var out: [HomeFeedItem] = []
+        var idx = 0
+        var remaining = true
+        while remaining {
+            remaining = false
+            for list in lists where idx < list.count {
+                out.append(list[idx]); remaining = true
+            }
+            idx += 1
+        }
+        return out
+    }
 
     var body: some View {
         ScreenScaffold(title: "홈", showUserChip: false,
