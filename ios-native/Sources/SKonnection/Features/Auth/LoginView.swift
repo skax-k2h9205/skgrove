@@ -5,19 +5,40 @@ import SwiftUI
 struct LoginView: View {
     @EnvironmentObject private var session: SessionStore
 
-    @State private var name = ""
     @State private var email = ""
     @State private var password = ""
     @State private var error: String?
 
+    /// 입력한 메일이 등록 계정이고 비밀번호가 아직 없으면 '첫 로그인'(비밀번호 설정) 모드.
+    private var isFirstLogin: Bool {
+        guard let account = Account.find(email: email) else { return false }
+        return !AuthService.hasPassword(email: account.email)
+    }
+
     var body: some View {
-        ScrollView {
+        // 전체 화면 기준으로 세로 중앙 정렬한다(ZStack 이 자식을 가운데 놓는다).
+        // 콘텐츠가 화면 중앙이라 세이프에어리어와 겹치지 않는다.
+        ZStack {
+            Theme.Palette.page.ignoresSafeArea()
             VStack(alignment: .leading, spacing: Theme.Space.x5) {
                 header
 
-                field(title: "이름", text: $name, placeholder: "이선민")
                 field(title: "사내메일", text: $email, placeholder: "name@sk.com", keyboard: .emailAddress)
-                field(title: "비밀번호", text: $password, placeholder: "비밀번호", secure: true)
+
+                VStack(alignment: .leading, spacing: Theme.Space.x2) {
+                    field(title: isFirstLogin ? "비밀번호 설정" : "비밀번호",
+                          text: $password,
+                          placeholder: isFirstLogin ? "앞으로 쓸 비밀번호 (6자 이상)" : "비밀번호",
+                          secure: true)
+                    if isFirstLogin {
+                        Text("👋 처음이면, 여기 입력한 비밀번호가 그대로 등록돼요.")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.Palette.tintPrimaryInk)
+                            .padding(Theme.Space.x3)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Theme.Palette.tintPrimary, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
+                    }
+                }
 
                 if let error {
                     Text(error)
@@ -29,7 +50,7 @@ struct LoginView: View {
                 }
 
                 Button(action: submit) {
-                    Label("로그인", systemImage: "arrow.right.to.line")
+                    Label(isFirstLogin ? "비밀번호 설정하고 로그인" : "로그인", systemImage: "arrow.right.to.line")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, Theme.Space.x3)
@@ -38,8 +59,11 @@ struct LoginView: View {
                 .tint(Theme.Palette.cta)
             }
             .padding(Theme.Space.x5)
+            .frame(maxWidth: .infinity)
         }
-        .background(Theme.Palette.page)
+        // 상단 세이프에어리어(다이나믹 아일랜드)만큼 위로 확장해 '전체 화면' 기준
+        // 중앙에 오게 한다. 하단 인셋은 남겨 키보드 회피를 보존한다.
+        .ignoresSafeArea(.container, edges: .top)
     }
 
     private var header: some View {
@@ -50,7 +74,6 @@ struct LoginView: View {
                 Text("팀을 잇는 곳").font(.subheadline).foregroundStyle(Theme.Palette.muted)
             }
         }
-        .padding(.top, Theme.Space.x8)
         .padding(.bottom, Theme.Space.x2)
     }
 
@@ -79,12 +102,23 @@ struct LoginView: View {
     }
 
     private func submit() {
-        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        // 이메일이 계정을 식별하므로 이름은 받지 않는다(불필요한 마찰 제거).
+        // 세션에는 계정의 실제 이름이 들어간다.
         let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
-        guard !trimmedName.isEmpty else { error = "이름을 입력해주세요."; return }
         guard trimmedEmail.contains("@") else { error = "사내메일을 입력해주세요."; return }
-        guard password.count >= 6 else { error = "비밀번호는 6자 이상이어야 합니다."; return }
-        error = nil
-        session.login(CurrentUser(name: trimmedName, email: trimmedEmail, part: "ITS혁신파트", role: .partLeader))
+
+        switch AuthService.authenticate(email: trimmedEmail, password: password) {
+        case .success(let account):
+            error = nil
+            session.login(account.currentUser)
+        case .unknownEmail:
+            error = "등록된 사내메일이 아니에요."
+        case .wrongPassword:
+            error = "비밀번호가 일치하지 않아요."
+        case .tooShort:
+            error = "비밀번호는 6자 이상이어야 합니다."
+        case .needsPassword:
+            error = "비밀번호를 설정해주세요."
+        }
     }
 }
