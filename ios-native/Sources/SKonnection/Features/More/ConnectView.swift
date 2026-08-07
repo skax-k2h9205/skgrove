@@ -1,27 +1,31 @@
 import SwiftUI
 
-/// 조 뽑기 — 파트·세대를 골고루 섞어 조를 짠다(웹 Connect 이식).
+/// 조 뽑기 — 파트를 골고루 섞어 조를 짠다(웹 Connect 이식). 공유 ProfileStore 의 팀원으로 배치.
 struct ConnectView: View {
-    private let names = ["김승현", "이선민", "김수정", "이두민", "김영석"]
-    @State private var mix = "파트 + 연령대 골고루"
+    @EnvironmentObject private var profiles: ProfileStore
+    @State private var mix = "파트 골고루"
     @State private var groupCount = 2
-    @State private var result: [[String]] = []
+    @State private var result: [[TeamProfile]] = []
+
+    private var people: [TeamProfile] { profiles.profiles }
 
     var body: some View {
-        ScreenScaffold(title: "조 뽑기", showUserChip: false) {
+        ScreenScaffold(title: "조 뽑기", showUserChip: false,
+                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) }) {
             card {
-                Label("\(names.count)명 참여", systemImage: "person.3.fill").font(.headline).foregroundStyle(Theme.Palette.ink)
-                Text("파트·세대를 골고루 섞어 조를 짜요.").font(.caption).foregroundStyle(Theme.Palette.muted)
+                Label("\(people.count)명 참여", systemImage: "person.3.fill").font(.headline).foregroundStyle(Theme.Palette.ink)
+                Text("파트를 골고루 섞어 같은 파트원이 여러 조로 흩어지게 짜요.")
+                    .font(.caption).foregroundStyle(Theme.Palette.muted)
             }
 
             card {
                 labeled("섞기 조건") {
                     Picker("섞기 조건", selection: $mix) {
-                        ForEach(["파트 + 연령대 골고루", "파트만 골고루", "완전 랜덤"], id: \.self) { Text($0).tag($0) }
-                    }.pickerStyle(.menu).tint(Theme.Palette.primary).frame(maxWidth: .infinity, alignment: .leading)
+                        ForEach(["파트 골고루", "완전 랜덤"], id: \.self) { Text($0).tag($0) }
+                    }.pickerStyle(.segmented)
                 }
                 labeled("조 개수") {
-                    Stepper("\(groupCount)개 조", value: $groupCount, in: 2...names.count)
+                    Stepper("\(groupCount)개 조", value: $groupCount, in: 2...max(2, people.count))
                 }
                 Button(action: draw) {
                     Label("조 뽑기", systemImage: "shuffle").font(.headline)
@@ -32,19 +36,53 @@ struct ConnectView: View {
             if !result.isEmpty {
                 ForEach(Array(result.enumerated()), id: \.offset) { idx, group in
                     card {
-                        Text("\(idx + 1)조").font(.subheadline.bold()).foregroundStyle(Theme.Palette.primary)
-                        Text(group.joined(separator: ", ")).font(.body).foregroundStyle(Theme.Palette.ink)
+                        HStack {
+                            Text("\(idx + 1)조").font(.subheadline.bold()).foregroundStyle(Theme.Palette.primary)
+                            Spacer()
+                            Text("\(group.count)명").font(.caption).foregroundStyle(Theme.Palette.muted)
+                        }
+                        ForEach(group) { p in
+                            HStack(spacing: Theme.Space.x2) {
+                                Avatar(name: p.name, size: 28)
+                                Text(p.name).font(.subheadline).foregroundStyle(Theme.Palette.ink)
+                                Text(p.part).font(.caption).foregroundStyle(Theme.Palette.muted)
+                                Spacer()
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
+    /// 섞기 조건에 따라 순서를 만든 뒤 스네이크(1→n→1)로 배분해 조 인원과 파트를 고르게 한다.
     private func draw() {
-        // 이름을 인덱스 기반으로 라운드로빈 배분(데모용 결정적 셔플).
-        var groups = Array(repeating: [String](), count: groupCount)
-        for (i, name) in names.enumerated() { groups[i % groupCount].append(name) }
+        let ordered: [TeamProfile]
+        if mix == "완전 랜덤" {
+            ordered = people.shuffled()
+        } else {
+            // 파트별 버킷을 라운드로빈으로 뽑아 같은 파트가 이어지지 않게 인터리브.
+            var buckets: [String: [TeamProfile]] = [:]
+            for p in people.shuffled() { buckets[p.part, default: []].append(p) }
+            var lists = Array(buckets.values)
+            var interleaved: [TeamProfile] = []
+            var i = 0
+            while lists.contains(where: { !$0.isEmpty }) {
+                if !lists[i % lists.count].isEmpty { interleaved.append(lists[i % lists.count].removeFirst()) }
+                i += 1
+            }
+            ordered = interleaved
+        }
+
+        var groups = Array(repeating: [TeamProfile](), count: groupCount)
+        var g = 0, forward = true
+        for p in ordered {
+            groups[g].append(p)
+            if forward { if g == groupCount - 1 { forward = false } else { g += 1 } }
+            else { if g == 0 { forward = true } else { g -= 1 } }
+        }
         result = groups
+        Haptics.success()
     }
 
     private func labeled(_ title: String, @ViewBuilder _ control: () -> some View) -> some View {
