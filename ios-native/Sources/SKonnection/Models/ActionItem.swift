@@ -83,6 +83,16 @@ final class ActionStore: ObservableObject {
 
     init() {
         items = Persist.load(Self.key, as: [ActionItem].self) ?? Self.seed
+        Task { await syncFromRemote() }
+    }
+
+    /// 웹과 같은 Supabase 에서 액션아이템을 불러온다(실패 시 로컬 캐시).
+    func syncFromRemote() async {
+        guard Supabase.isConfigured else { return }
+        if let rows = try? await Supabase.select("action_items", query: "select=*&order=created_at.desc",
+                                                 as: SupabaseActionRow.self) {
+            items = rows.map { $0.toAction() }
+        }
     }
 
     private static let seed: [ActionItem] = [
@@ -126,5 +136,24 @@ final class ActionStore: ObservableObject {
         let id = String(format: "ACT-%04d", maxNum + 1)
         items.insert(ActionItem(id: id, title: title, owner: "미정", due: "",
                                 status: .waiting, sourceLabel: sourceLabel), at: 0)
+    }
+}
+
+/// Supabase action_items 행 → iOS ActionItem 매핑.
+struct SupabaseActionRow: Decodable {
+    let id: String
+    let title: String?
+    let owner: String?
+    let due: String?
+    let status: String?
+    let source_label: String?
+    let outcome: String?
+    let review_reason: String?
+    func toAction() -> ActionItem {
+        ActionItem(id: id, title: title ?? "", owner: owner ?? "미정",
+                   due: String((due ?? "").prefix(10)),
+                   status: ActionStatus(rawValue: status ?? "") ?? .waiting,
+                   sourceLabel: source_label ?? "",
+                   outcome: outcome ?? "", reviewReason: review_reason ?? "")
     }
 }

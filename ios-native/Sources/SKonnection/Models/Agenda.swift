@@ -69,6 +69,16 @@ final class AgendaStore: ObservableObject {
 
     init() {
         agendas = Persist.load(Self.key, as: [Agenda].self) ?? Self.seed
+        Task { await syncFromRemote() }
+    }
+
+    /// 웹과 같은 Supabase 에서 안건을 불러온다(읽기 전용 — 투표 집계 오염 방지). 실패 시 로컬 캐시.
+    func syncFromRemote() async {
+        guard Supabase.isConfigured else { return }
+        if let rows = try? await Supabase.select("agendas", query: "select=*&order=created_at.desc",
+                                                 as: SupabaseAgendaRow.self) {
+            agendas = rows.map { $0.toAgenda() }
+        }
     }
 
     private static let seed: [Agenda] = [
@@ -127,5 +137,42 @@ final class AgendaStore: ObservableObject {
                               options: [AgendaOption(id: "y", label: "찬성", count: 0),
                                         AgendaOption(id: "n", label: "반대", count: 0)],
                               voterCount: 0, eligibleCount: eligibleCount, deadline: "7일 남음"), at: 0)
+    }
+}
+
+/// Supabase agendas 행 → iOS Agenda 매핑. 찬반은 approve/reject를 찬성/반대 옵션으로 합성.
+struct SupabaseAgendaRow: Decodable {
+    struct Opt: Decodable { let id: String?; let label: String?; let count: Int? }
+    let id: String
+    let title: String?
+    let description: String?
+    let category: String?
+    let status: String?
+    let vote_type: String?
+    let approve: Int?
+    let reject: Int?
+    let options: [Opt]?
+    let voter_count: Int?
+    let eligible_count: Int?
+    let deadline: String?
+
+    func toAgenda() -> Agenda {
+        let opts: [AgendaOption]
+        let voters: Int
+        if vote_type == "찬반" {
+            opts = [AgendaOption(id: "y", label: "찬성", count: approve ?? 0),
+                    AgendaOption(id: "n", label: "반대", count: reject ?? 0)]
+            voters = (approve ?? 0) + (reject ?? 0)
+        } else {
+            opts = (options ?? []).enumerated().map { i, o in
+                AgendaOption(id: o.id ?? "opt\(i)", label: o.label ?? "선택 \(i + 1)", count: o.count ?? 0)
+            }
+            voters = voter_count ?? 0
+        }
+        return Agenda(id: id, title: title ?? "", description: description ?? "",
+                      category: category ?? "기타",
+                      status: AgendaStatus(rawValue: status ?? "") ?? .voting,
+                      options: opts, voterCount: voters, eligibleCount: eligible_count ?? 30,
+                      deadline: deadline ?? "")
     }
 }
