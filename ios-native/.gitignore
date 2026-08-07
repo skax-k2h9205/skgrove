@@ -1,0 +1,7 @@
+# XcodeGen 이 생성 — project.yml 에서 재생성
+*.xcodeproj/
+DerivedData/
+build/
+.DS_Store
+*.xcuserstate
+xcuserdata/
