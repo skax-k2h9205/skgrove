@@ -41,6 +41,14 @@ struct HumorView: View {
                              meta: "빵터짐 \(post.laughs)", tint: Theme.Palette.tintDanger, ink: Theme.Palette.danger)
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    ShareLink(item: "[\(post.author)] \(post.body)") { Label("공유", systemImage: "square.and.arrow.up") }
+                    if post.author == session.currentUser?.name {
+                        Button(role: .destructive) { posts.removeAll { $0.id == post.id } } label: {
+                            Label("삭제", systemImage: "trash")
+                        }
+                    }
+                }
             }
         }
         .sheet(item: $selected) { post in

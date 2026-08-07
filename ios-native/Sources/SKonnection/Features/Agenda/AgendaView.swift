@@ -13,10 +13,15 @@ struct AgendaView: View {
     var body: some View {
         ScreenScaffold(title: "안건 / 투표", showUserChip: false) {
             filterTabs
-            ForEach(filtered) { agenda in
-                AgendaCard(agenda: agenda) { optionId in
-                    store.vote(agendaId: agenda.id, optionId: optionId)
-                    Haptics.success()
+            if filtered.isEmpty {
+                EmptyState(icon: "checkmark.square.dashed", title: "해당 안건이 없어요",
+                           message: "다른 상태를 골라보거나 새 안건을 등록해 보세요.")
+            } else {
+                ForEach(filtered) { agenda in
+                    AgendaCard(agenda: agenda) { optionId in
+                        store.vote(agendaId: agenda.id, optionId: optionId)
+                        Haptics.success()
+                    }
                 }
             }
         }

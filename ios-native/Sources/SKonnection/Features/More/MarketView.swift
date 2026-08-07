@@ -48,6 +48,13 @@ struct MarketView: View {
                              ink: item.kind == "나눔" ? Theme.Palette.tintSuccessInk : Theme.Palette.ink)
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    if item.owner == session.currentUser?.name {
+                        Button(role: .destructive) { items.removeAll { $0.id == item.id } } label: {
+                            Label("삭제", systemImage: "trash")
+                        }
+                    }
+                }
             }
         }
         .sheet(item: $selected) { item in

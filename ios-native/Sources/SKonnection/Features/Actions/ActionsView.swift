@@ -22,8 +22,13 @@ struct ActionsView: View {
                 .padding(Theme.Space.x3).frame(maxWidth: .infinity, alignment: .leading)
                 .background(Theme.Palette.tintDanger, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
             }
-            ForEach(filtered) { item in
-                ActionCard(item: item) { store.setStatus(item.id, $0) }
+            if filtered.isEmpty {
+                EmptyState(icon: "bolt.slash", title: "해당 액션아이템이 없어요",
+                           message: "다른 상태를 골라보세요.")
+            } else {
+                ForEach(filtered) { item in
+                    ActionCard(item: item) { store.setStatus(item.id, $0) }
+                }
             }
         }
     }

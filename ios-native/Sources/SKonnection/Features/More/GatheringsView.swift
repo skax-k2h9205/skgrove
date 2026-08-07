@@ -41,6 +41,13 @@ struct GatheringsView: View {
                              tint: tint(g.kind), ink: ink(g.kind))
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    if g.host == session.currentUser?.name {
+                        Button(role: .destructive) { gatherings.removeAll { $0.id == g.id } } label: {
+                            Label("삭제", systemImage: "trash")
+                        }
+                    }
+                }
             }
         }
         .sheet(item: $selected) { g in

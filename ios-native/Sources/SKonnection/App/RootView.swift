@@ -104,6 +104,7 @@ struct FeaturePlaceholder: View {
 /// 더보기 허브 — 프로필 헤더 + 나머지 화면 리스트(인스타의 프로필 탭 격).
 struct MoreView: View {
     @EnvironmentObject private var session: SessionStore
+    @State private var confirmLogout = false
 
     var body: some View {
         NavigationStack {
@@ -154,12 +155,16 @@ struct MoreView: View {
                     }
                 }
                 Section {
-                    Button(role: .destructive) { session.logout() } label: {
+                    Button(role: .destructive) { confirmLogout = true } label: {
                         Label("로그아웃", systemImage: "rectangle.portrait.and.arrow.right")
                     }
                 }
             }
             .navigationTitle("더보기")
+            .confirmationDialog("로그아웃할까요?", isPresented: $confirmLogout, titleVisibility: .visible) {
+                Button("로그아웃", role: .destructive) { session.logout() }
+                Button("취소", role: .cancel) {}
+            }
         }
     }
 
