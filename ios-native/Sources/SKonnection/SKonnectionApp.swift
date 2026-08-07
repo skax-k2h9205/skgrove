@@ -12,6 +12,7 @@ struct SKonnectionApp: App {
     @StateObject private var market = MarketStore()
     @StateObject private var gatherings = GatheringStore()
     @StateObject private var humor = HumorStore()
+    @StateObject private var profiles = ProfileStore()
     @State private var showSplash = true
     @State private var splashScheduled = false
 
@@ -33,6 +34,7 @@ struct SKonnectionApp: App {
                 .environmentObject(market)
                 .environmentObject(gatherings)
                 .environmentObject(humor)
+                .environmentObject(profiles)
 
                 if showSplash {
                     SplashView()

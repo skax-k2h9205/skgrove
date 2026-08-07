@@ -4,6 +4,7 @@ import SwiftUI
 /// 본인이 편집하는 값이라 기기에 저장(UserDefaults). 실제 공유는 Supabase 연동 시.
 struct MyPageView: View {
     @EnvironmentObject private var session: SessionStore
+    @EnvironmentObject private var profiles: ProfileStore
 
     @AppStorage("mypage.mbti") private var mbti = ""
     @AppStorage("mypage.disc") private var disc = ""
@@ -47,8 +48,8 @@ struct MyPageView: View {
                     .overlay(RoundedRectangle(cornerRadius: Theme.Radius.md).stroke(Theme.Palette.border))
             }
 
-            Button { saved = true; Haptics.success() } label: {
-                Label(saved ? "저장됨" : "저장", systemImage: saved ? "checkmark" : "square.and.arrow.down")
+            Button { save() } label: {
+                Label(saved ? "저장됨 · 팀 분포에 반영됨" : "저장", systemImage: saved ? "checkmark" : "square.and.arrow.down")
                     .font(.headline).frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
             }
             .buttonStyle(.borderedProminent).tint(saved ? Theme.Palette.success : Theme.Palette.cta)
@@ -56,6 +57,16 @@ struct MyPageView: View {
         .onChange(of: mbti) { _, _ in saved = false }
         .onChange(of: disc) { _, _ in saved = false }
         .onChange(of: collabGuide) { _, _ in saved = false }
+    }
+
+    /// 저장 시 내 프로필을 공유 스토어에 반영해 팀 성향 분포·동료 목록에 바로 나타나게 한다.
+    private func save() {
+        if let user = session.currentUser {
+            profiles.upsertMine(id: user.email, name: user.name, part: user.part,
+                                mbti: mbti, disc: disc, collabGuide: collabGuide)
+        }
+        saved = true
+        Haptics.success()
     }
 
     private func header(_ user: CurrentUser) -> some View {
