@@ -41,6 +41,8 @@ struct RootView: View {
 struct ScreenScaffold<Content: View>: View {
     let title: String
     var showUserChip: Bool = true
+    /// 당겨서 새로고침 동작(있으면 pull-to-refresh 활성).
+    var onRefresh: (() async -> Void)? = nil
     @ViewBuilder var content: () -> Content
     @EnvironmentObject private var session: SessionStore
 
@@ -61,6 +63,7 @@ struct ScreenScaffold<Content: View>: View {
         }
         .background(Theme.Palette.sunken)
         .navigationBarTitleDisplayMode(.inline)
+        .refreshableIf(onRefresh)
     }
 
     private func userChip(_ user: CurrentUser) -> some View {

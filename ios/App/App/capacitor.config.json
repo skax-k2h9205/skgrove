@@ -1,0 +1,11 @@
+{
+	"appId": "com.hyubs.skonnection",
+	"appName": "SKonnection",
+	"webDir": "dist",
+	"plugins": {
+		"CapacitorHttp": {
+			"enabled": true
+		}
+	},
+	"packageClassList": []
+}

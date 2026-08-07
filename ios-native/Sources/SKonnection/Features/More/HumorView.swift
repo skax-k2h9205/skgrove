@@ -28,7 +28,8 @@ struct HumorView: View {
     @State private var selected: HumorPost?
 
     var body: some View {
-        ScreenScaffold(title: "유머 게시판", showUserChip: false) {
+        ScreenScaffold(title: "유머 게시판", showUserChip: false,
+                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) }) {
             Button { composing = true } label: {
                 Label("글쓰기", systemImage: "square.and.pencil").font(.headline)
                     .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
@@ -44,9 +45,9 @@ struct HumorView: View {
                 .contextMenu {
                     ShareLink(item: "[\(post.author)] \(post.body)") { Label("공유", systemImage: "square.and.arrow.up") }
                     if post.author == session.currentUser?.name {
-                        Button(role: .destructive) { posts.removeAll { $0.id == post.id } } label: {
-                            Label("삭제", systemImage: "trash")
-                        }
+                        Button(role: .destructive) {
+                            withAnimation(.snappy) { posts.removeAll { $0.id == post.id } }
+                        } label: { Label("삭제", systemImage: "trash") }
                     }
                 }
             }
@@ -63,8 +64,10 @@ struct HumorView: View {
         let text = body.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
         let author = session.currentUser?.name ?? "익명"
-        posts.insert(.init(id: UUID().uuidString, author: author, date: "방금", body: text,
-                           laughs: 0, comments: 0, imageURL: thumbnail(from: media)), at: 0)
+        withAnimation(.snappy) {
+            posts.insert(.init(id: UUID().uuidString, author: author, date: "방금", body: text,
+                               laughs: 0, comments: 0, imageURL: thumbnail(from: media)), at: 0)
+        }
         Haptics.success()
     }
 

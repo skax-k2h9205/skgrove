@@ -27,7 +27,8 @@ struct GatheringsView: View {
     @State private var selected: Gathering?
 
     var body: some View {
-        ScreenScaffold(title: "모임 · 번개", showUserChip: false) {
+        ScreenScaffold(title: "모임 · 번개", showUserChip: false,
+                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) }) {
             ChipRow(items: filters, selection: $filter)
             Button { composing = true } label: {
                 Label("모임 열기", systemImage: "plus").font(.headline)
@@ -43,9 +44,9 @@ struct GatheringsView: View {
                 .buttonStyle(.plain)
                 .contextMenu {
                     if g.host == session.currentUser?.name {
-                        Button(role: .destructive) { gatherings.removeAll { $0.id == g.id } } label: {
-                            Label("삭제", systemImage: "trash")
-                        }
+                        Button(role: .destructive) {
+                            withAnimation(.snappy) { gatherings.removeAll { $0.id == g.id } }
+                        } label: { Label("삭제", systemImage: "trash") }
                     }
                 }
             }
@@ -63,9 +64,11 @@ struct GatheringsView: View {
 
     private func open(kind: String, title: String, startAt: Date, place: String, capacity: Int, desc: String) {
         let host = session.currentUser?.name ?? "나"
-        gatherings.insert(.init(id: UUID().uuidString, title: title, host: host,
-                                when: Self.when.string(from: startAt), kind: kind,
-                                joined: 1, capacity: capacity, place: place, desc: desc), at: 0)
+        withAnimation(.snappy) {
+            gatherings.insert(.init(id: UUID().uuidString, title: title, host: host,
+                                    when: Self.when.string(from: startAt), kind: kind,
+                                    joined: 1, capacity: capacity, place: place, desc: desc), at: 0)
+        }
         Haptics.success()
     }
 

@@ -8,7 +8,8 @@ struct HomeView: View {
     private let feed = HomeFeedItem.seed
 
     var body: some View {
-        ScreenScaffold(title: "홈", showUserChip: false) {
+        ScreenScaffold(title: "홈", showUserChip: false,
+                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) }) {
             storyRow
             InstaGrid(items: feed) { item in
                 Button { Haptics.selection(); onOpen(tabFor(item.kind)) } label: {

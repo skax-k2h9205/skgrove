@@ -25,7 +25,8 @@ struct MarketView: View {
     @State private var selected: MarketItem?
 
     var body: some View {
-        ScreenScaffold(title: "이음장터", showUserChip: false) {
+        ScreenScaffold(title: "이음장터", showUserChip: false,
+                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) }) {
             HStack(spacing: Theme.Space.x2) {
                 Image(systemName: "trophy.fill").foregroundStyle(Theme.Palette.primary)
                 Text("이음장터 명예의 전당 — 첫 거래의 주인공이 되어보세요.")
@@ -50,9 +51,9 @@ struct MarketView: View {
                 .buttonStyle(.plain)
                 .contextMenu {
                     if item.owner == session.currentUser?.name {
-                        Button(role: .destructive) { items.removeAll { $0.id == item.id } } label: {
-                            Label("삭제", systemImage: "trash")
-                        }
+                        Button(role: .destructive) {
+                            withAnimation(.snappy) { items.removeAll { $0.id == item.id } }
+                        } label: { Label("삭제", systemImage: "trash") }
                     }
                 }
             }
@@ -71,8 +72,10 @@ struct MarketView: View {
     private func list(kind: String, title: String, desc: String, place: String, startPrice: Int) {
         let owner = session.currentUser?.name ?? "나"
         let price = kind == "경매" ? "시작가 \(startPrice.formatted())원" : "무료"
-        items.insert(.init(id: UUID().uuidString, title: title, owner: owner, kind: kind,
-                           price: price, desc: desc, place: place), at: 0)
+        withAnimation(.snappy) {
+            items.insert(.init(id: UUID().uuidString, title: title, owner: owner, kind: kind,
+                               price: price, desc: desc, place: place), at: 0)
+        }
         Haptics.success()
     }
 
