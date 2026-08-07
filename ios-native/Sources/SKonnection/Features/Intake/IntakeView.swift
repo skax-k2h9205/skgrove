@@ -15,6 +15,10 @@ struct IntakeView: View {
     @State private var visibility: IssueVisibility = .leaderOnly
     @State private var justSubmitted: String?
 
+    @State private var reviewing = false
+    @State private var findings: [ReviewFinding] = []
+    @State private var reviewError: String?
+
     var body: some View {
         ScreenScaffold(title: "대나무숲 접수") {
             anonymityBanner
@@ -79,12 +83,44 @@ struct IntakeView: View {
                     .background(Theme.Palette.tintSuccess, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
             }
 
-            Button(action: submit) {
-                Label("접수하기", systemImage: "paperplane.fill")
-                    .font(.headline).frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
+            // AI 검토 결과 — 욕설·인신공격을 건설적 문장으로 바꿔 제안한다.
+            ForEach(findings) { finding in
+                VStack(alignment: .leading, spacing: Theme.Space.x2) {
+                    Label(finding.kind == .profanity ? "표현 다듬기 제안" : "톤 다듬기 제안",
+                          systemImage: "sparkles")
+                        .font(.caption.weight(.bold)).foregroundStyle(Theme.Palette.danger)
+                    Text(finding.reason).font(.footnote).foregroundStyle(Theme.Palette.muted)
+                    Text(finding.rewritten).font(.subheadline).foregroundStyle(Theme.Palette.ink)
+                        .padding(Theme.Space.x3).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Theme.Palette.sunken, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
+                    Button("바로 적용") { apply(finding) }
+                        .font(.caption.weight(.semibold)).buttonStyle(.bordered).tint(Theme.Palette.cta)
+                }
+                .padding(Theme.Space.x3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.Palette.tintDanger, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
+            }
+
+            if let reviewError {
+                Text(reviewError).font(.footnote).foregroundStyle(Theme.Palette.danger)
+            }
+
+            Button(action: reviewAndSubmit) {
+                HStack {
+                    if reviewing { ProgressView().tint(.white) }
+                    Label(findings.isEmpty ? "AI 검토 후 접수하기" : "다시 검토하고 접수",
+                          systemImage: "sparkles")
+                }
+                .font(.headline).frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
             }
             .buttonStyle(.borderedProminent).tint(Theme.Palette.cta)
-            .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+            .disabled(reviewing || title.trimmingCharacters(in: .whitespaces).isEmpty)
+
+            if !findings.isEmpty {
+                Button("그대로 접수하기") { doSubmit() }
+                    .font(.subheadline).tint(Theme.Palette.muted)
+                    .frame(maxWidth: .infinity)
+            }
         }
         .padding(Theme.Space.x4)
         .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.lg))
@@ -134,7 +170,37 @@ struct IntakeView: View {
             .overlay(RoundedRectangle(cornerRadius: Theme.Radius.md).stroke(Theme.Palette.border))
     }
 
-    private func submit() {
+    /// 접수 전 AI 검토. 지적이 있으면 카드로 보여주고 멈추고, 없으면 바로 접수.
+    private func reviewAndSubmit() {
+        guard !title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        reviewError = nil
+        reviewing = true
+        Task {
+            do {
+                let result = try await ReviewService.review(title: title, body: detail, expectedChange: expectedChange)
+                findings = result
+                if result.isEmpty { doSubmit() }
+            } catch {
+                // 검토 실패 시 접수를 막지 않는다(웹과 동일하게 통과시킨다).
+                findings = []
+                doSubmit()
+            }
+            reviewing = false
+        }
+    }
+
+    /// 제안 문장을 해당 항목에 반영하고 그 카드를 지운다.
+    private func apply(_ finding: ReviewFinding) {
+        switch finding.field {
+        case .title: title = finding.rewritten
+        case .body: detail = finding.rewritten
+        case .expectedChange: expectedChange = finding.rewritten
+        }
+        findings.removeAll { $0.id == finding.id }
+        Haptics.selection()
+    }
+
+    private func doSubmit() {
         let trimmed = title.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
         let named = identity == .named
@@ -146,7 +212,9 @@ struct IntakeView: View {
         )
         store.submit(issue)
         justSubmitted = issue.id
+        findings = []
         title = ""; detail = ""; expectedChange = ""
+        Haptics.success()
     }
 }
 

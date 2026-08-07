@@ -16,6 +16,7 @@ struct AgendaView: View {
             ForEach(filtered) { agenda in
                 AgendaCard(agenda: agenda) { optionId in
                     store.vote(agendaId: agenda.id, optionId: optionId)
+                    Haptics.success()
                 }
             }
         }

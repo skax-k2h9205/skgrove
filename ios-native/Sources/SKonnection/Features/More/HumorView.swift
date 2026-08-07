@@ -37,6 +37,7 @@ struct HumorView: View {
                         Button {
                             post.liked.toggle()
                             post.laughs += post.liked ? 1 : -1
+                            Haptics.light()
                         } label: {
                             Label("빵터짐 \(post.laughs)", systemImage: post.liked ? "face.smiling.fill" : "face.smiling")
                                 .font(.subheadline.weight(.semibold))
