@@ -29,6 +29,13 @@ struct ScreenScaffold<Content: View>: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Space.x4) {
+                    // 제목을 콘텐츠 안 진한 헤딩으로(웹 홈처럼). 네비 라지타이틀은
+                    // 옅은 대비 문제가 있어 쓰지 않는다.
+                    Text(title)
+                        .font(.largeTitle.bold())
+                        .foregroundStyle(Theme.Palette.ink)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
                     if let user = session.currentUser {
                         HStack(spacing: Theme.Space.x3) {
                             BrandMark(size: 36)
@@ -52,8 +59,7 @@ struct ScreenScaffold<Content: View>: View {
                 .padding(Theme.Space.x4)
             }
             .background(Theme.Palette.sunken)
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.large)
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 }
@@ -76,11 +82,6 @@ struct FeaturePlaceholder: View {
     }
 }
 
-struct HomeView: View {
-    var body: some View { ScreenScaffold(title: "홈") {
-        FeaturePlaceholder(icon: "house.fill", text: "홈 피드 — 네이티브 구현 예정")
-    } }
-}
 struct IntakeView: View {
     var body: some View { ScreenScaffold(title: "대나무숲 접수") {
         FeaturePlaceholder(icon: "tray.and.arrow.down.fill", text: "익명/실명 의견 접수 — 네이티브 구현 예정")
