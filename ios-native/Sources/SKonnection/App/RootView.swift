@@ -82,11 +82,6 @@ struct FeaturePlaceholder: View {
     }
 }
 
-struct ActionsView: View {
-    var body: some View { ScreenScaffold(title: "액션아이템") {
-        FeaturePlaceholder(icon: "bolt.fill", text: "액션아이템 — 네이티브 구현 예정")
-    } }
-}
 struct MoreView: View {
     var body: some View { ScreenScaffold(title: "더보기") {
         FeaturePlaceholder(icon: "ellipsis", text: "리더관리함·유머·성향·모임·파트지수 — 네이티브 구현 예정")
