@@ -73,6 +73,11 @@ final class IssueStore: ObservableObject {
         issues.insert(issue, at: 0)
     }
 
+    func mark(_ id: String, _ status: IssueStatus) {
+        guard let i = issues.firstIndex(where: { $0.id == id }) else { return }
+        issues[i].status = status
+    }
+
     func nextId() -> String {
         String(format: "SUP-%04d", issues.count + 8)
     }

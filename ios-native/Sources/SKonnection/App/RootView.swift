@@ -19,48 +19,50 @@ struct RootView: View {
     }
 }
 
-/// 화면 공통 뼈대 — 헤더(제목 + 사용자 칩)를 얹고 콘텐츠를 담는다.
+/// 화면 공통 뼈대 — 제목 헤딩(+선택적 사용자 칩)을 얹고 콘텐츠를 담는다.
+/// NavigationStack 은 포함하지 않는다(탭 루트는 불필요, 더보기 하위는 상위 스택을 씀).
 struct ScreenScaffold<Content: View>: View {
     let title: String
+    var showUserChip: Bool = true
     @ViewBuilder var content: () -> Content
     @EnvironmentObject private var session: SessionStore
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Space.x4) {
-                    // 제목을 콘텐츠 안 진한 헤딩으로(웹 홈처럼). 네비 라지타이틀은
-                    // 옅은 대비 문제가 있어 쓰지 않는다.
-                    Text(title)
-                        .font(.largeTitle.bold())
-                        .foregroundStyle(Theme.Palette.ink)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Space.x4) {
+                Text(title)
+                    .font(.largeTitle.bold())
+                    .foregroundStyle(Theme.Palette.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    if let user = session.currentUser {
-                        HStack(spacing: Theme.Space.x3) {
-                            BrandMark(size: 36)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(user.name).font(.subheadline.bold()).foregroundStyle(Theme.Palette.ink)
-                                Text("\(user.role.rawValue) · \(user.part)")
-                                    .font(.caption).foregroundStyle(Theme.Palette.muted)
-                            }
-                            Spacer()
-                            Button { session.logout() } label: {
-                                Image(systemName: "rectangle.portrait.and.arrow.right")
-                            }
-                            .tint(Theme.Palette.muted)
-                        }
-                        .padding(Theme.Space.x3)
-                        .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.lg))
-                        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.lg).stroke(Theme.Palette.border))
-                    }
-                    content()
+                if showUserChip, let user = session.currentUser {
+                    userChip(user)
                 }
-                .padding(Theme.Space.x4)
+                content()
             }
-            .background(Theme.Palette.sunken)
-            .toolbar(.hidden, for: .navigationBar)
+            .padding(Theme.Space.x4)
         }
+        .background(Theme.Palette.sunken)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func userChip(_ user: CurrentUser) -> some View {
+        HStack(spacing: Theme.Space.x3) {
+            BrandMark(size: 36)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(user.name).font(.subheadline.bold()).foregroundStyle(Theme.Palette.ink)
+                Text("\(user.role.rawValue) · \(user.part)")
+                    .font(.caption).foregroundStyle(Theme.Palette.muted)
+            }
+            Spacer()
+            Button { session.logout() } label: {
+                Image(systemName: "rectangle.portrait.and.arrow.right")
+            }
+            .tint(Theme.Palette.muted)
+        }
+        .padding(Theme.Space.x3)
+        .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.lg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.lg).stroke(Theme.Palette.border))
     }
 }
 
@@ -82,8 +84,41 @@ struct FeaturePlaceholder: View {
     }
 }
 
+/// 더보기 허브 — 나머지 화면으로 가는 네이티브 리스트. 각 항목을 push 한다.
 struct MoreView: View {
-    var body: some View { ScreenScaffold(title: "더보기") {
-        FeaturePlaceholder(icon: "ellipsis", text: "리더관리함·유머·성향·모임·파트지수 — 네이티브 구현 예정")
-    } }
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("리더") {
+                    link("리더 관리함", "tray.full.fill", Theme.Palette.primary) { LeaderView() }
+                }
+                Section("팀") {
+                    link("유머 게시판", "face.smiling.fill", Theme.Palette.heart) { HumorView() }
+                    link("모임 · 번개", "bolt.fill", Theme.Palette.success) { GatheringsView() }
+                    link("이음장터", "shippingbox.fill", Theme.Palette.primary) { MarketView() }
+                    link("팀 추억", "photo.stack.fill", Theme.Palette.cta) { MemoryView() }
+                }
+                Section("사람") {
+                    link("동료 성향", "person.2.fill", Theme.Palette.primary) { ProfilesView() }
+                    link("조 뽑기", "shuffle", Theme.Palette.success) { ConnectView() }
+                }
+                Section("지표 · 알림") {
+                    link("파트지수 / 리포트", "chart.bar.fill", Theme.Palette.primaryStrong) { MetricsView() }
+                    link("알림 / 메시지", "bell.fill", Theme.Palette.cta) { NotificationsView() }
+                }
+            }
+            .navigationTitle("더보기")
+        }
+    }
+
+    private func link(_ title: String, _ icon: String, _ color: Color,
+                      @ViewBuilder _ dest: @escaping () -> some View) -> some View {
+        NavigationLink { dest() } label: {
+            Label {
+                Text(title).foregroundStyle(Theme.Palette.ink)
+            } icon: {
+                Image(systemName: icon).foregroundStyle(color)
+            }
+        }
+    }
 }

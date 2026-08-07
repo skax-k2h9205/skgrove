@@ -15,6 +15,9 @@ struct SKonnectionApp: App {
             }
             .environmentObject(session)
             .tint(Theme.Palette.primary)
+            // 디자인 토큰이 라이트 전용(웹앱과 동일)이라 라이트 모드로 고정한다.
+            // 안 그러면 시스템 다크에서 네이티브 List 등이 검게 떠 화면이 어긋난다.
+            .preferredColorScheme(.light)
         }
     }
 }
