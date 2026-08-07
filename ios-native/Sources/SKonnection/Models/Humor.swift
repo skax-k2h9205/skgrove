@@ -38,6 +38,16 @@ final class HumorStore: ObservableObject {
     init() {
         posts = Persist.load(Self.postsKey, as: [HumorPost].self) ?? Self.seedPosts
         comments = Persist.load(Self.commentsKey, as: [HumorComment].self) ?? Self.seedComments
+        Task { await syncFromRemote() }
+    }
+
+    /// 웹과 같은 Supabase 에서 글·댓글을 불러온다(실패 시 로컬 캐시 유지).
+    func syncFromRemote() async {
+        guard Supabase.isConfigured else { return }
+        async let p = try? Supabase.select("humor_posts", query: "select=*&order=created_at.desc", as: SupabaseHumorPostRow.self)
+        async let c = try? Supabase.select("humor_comments", query: "select=*", as: SupabaseHumorCommentRow.self)
+        if let rows = await p { posts = rows.map { $0.toPost() } }
+        if let rows = await c { comments = rows.map { $0.toComment() } }
     }
 
     // MARK: 조회
@@ -53,21 +63,28 @@ final class HumorStore: ObservableObject {
     func addPost(author: String, body: String, mediaURL: String) {
         let text = body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        let id = "H-\(posts.count + 1)-\(author)"
-        posts.insert(HumorPost(id: id, author: author, createdAt: Self.today(), body: text, mediaURL: mediaURL), at: 0)
+        let id = "H-\(Int(Date().timeIntervalSince1970))-\(author)"
+        let post = HumorPost(id: id, author: author, createdAt: Self.today(), body: text, mediaURL: mediaURL)
+        posts.insert(post, at: 0)
+        Task { try? await Supabase.insert("humor_posts",
+            ["id": id, "author": author, "body": text, "media_url": mediaURL, "created_at": Self.today()]) }
     }
 
     func toggleLike(_ postId: String, by name: String) {
         guard let i = posts.firstIndex(where: { $0.id == postId }) else { return }
         if let j = posts[i].likedBy.firstIndex(of: name) { posts[i].likedBy.remove(at: j) }
         else { posts[i].likedBy.append(name) }
+        let liked = posts[i].likedBy
+        Task { try? await Supabase.patch("humor_posts", id: postId, ["liked_by": liked]) }
     }
 
     func addComment(postId: String, author: String, content: String) {
         let text = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        let id = "HC-\(comments.count + 1)"
+        let id = "HC-\(Int(Date().timeIntervalSince1970))-\(comments.count)"
         comments.append(HumorComment(id: id, postId: postId, author: author, content: text, createdAt: Self.today()))
+        Task { try? await Supabase.insert("humor_comments",
+            ["id": id, "post_id": postId, "author": author, "body": text, "created_at": Self.today()]) }
     }
 
     func deletePost(_ postId: String) {
@@ -162,4 +179,29 @@ final class HumorStore: ObservableObject {
         .init(id: "HC-4", postId: "H-4", author: "이두민", content: "축하해요 🎉", createdAt: "2026-08-03"),
         .init(id: "HC-5", postId: "H-2", author: "김수정", content: "슬프다 진짜", createdAt: "2026-08-05"),
     ]
+}
+
+/// Supabase humor_posts / humor_comments 행 → iOS 매핑.
+struct SupabaseHumorPostRow: Decodable {
+    let id: String
+    let author: String?
+    let body: String?
+    let media_url: String?
+    let created_at: String?
+    let liked_by: [String]?
+    func toPost() -> HumorPost {
+        HumorPost(id: id, author: author ?? "익명", createdAt: String((created_at ?? "").prefix(10)),
+                  body: body ?? "", likedBy: liked_by ?? [], mediaURL: media_url ?? "")
+    }
+}
+struct SupabaseHumorCommentRow: Decodable {
+    let id: String
+    let post_id: String
+    let author: String?
+    let body: String?
+    let created_at: String?
+    func toComment() -> HumorComment {
+        HumorComment(id: id, postId: post_id, author: author ?? "익명", content: body ?? "",
+                     createdAt: String((created_at ?? "").prefix(10)))
+    }
 }

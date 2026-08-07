@@ -111,11 +111,14 @@ final class IssueStore: ObservableObject {
 
     func submit(_ issue: Issue) {
         issues.insert(issue, at: 0)
+        // 웹과 공유하는 Supabase 에도 저장(낙관적: 로컬 먼저, 원격은 비동기).
+        Task { try? await Supabase.insert("issues", SupabaseIssueInsert(issue)) }
     }
 
     func mark(_ id: String, _ status: IssueStatus) {
         guard let i = issues.firstIndex(where: { $0.id == id }) else { return }
         issues[i].status = status
+        pushStatus(id, status)
     }
 
     /// 리더 답변 — 접수자에게 응답을 남기고 답변완료로.
@@ -123,6 +126,8 @@ final class IssueStore: ObservableObject {
         guard let i = issues.firstIndex(where: { $0.id == id }) else { return }
         issues[i].leaderReply = text
         issues[i].status = .answered
+        Task { try? await Supabase.patch("issues", id: id,
+            ["leader_reply": text, "status": IssueStatus.answered.rawValue]) }
     }
 
     /// 1:1 제안 메모.
@@ -130,6 +135,8 @@ final class IssueStore: ObservableObject {
         guard let i = issues.firstIndex(where: { $0.id == id }) else { return }
         issues[i].oneOnOneNote = note
         issues[i].status = .oneOnOne
+        Task { try? await Supabase.patch("issues", id: id,
+            ["one_on_one_note": note, "status": IssueStatus.oneOnOne.rawValue]) }
     }
 
     /// 보류/종료 — 사유를 반드시 함께 남긴다(방치·통보 방지).
@@ -138,6 +145,12 @@ final class IssueStore: ObservableObject {
         guard let i = issues.firstIndex(where: { $0.id == id }) else { return }
         issues[i].reason = reason
         issues[i].status = status
+        Task { try? await Supabase.patch("issues", id: id,
+            ["status_reason": reason, "status": status.rawValue]) }
+    }
+
+    private func pushStatus(_ id: String, _ status: IssueStatus) {
+        Task { try? await Supabase.patch("issues", id: id, ["status": status.rawValue]) }
     }
 
     /// 응답 없이 가장 오래 기다린 건의 경과일. 없으면 nil.
@@ -162,6 +175,39 @@ final class IssueStore: ObservableObject {
         } catch {
             // 원격 실패 시 로컬 캐시 유지.
         }
+    }
+}
+
+/// iOS `Issue` → Supabase `issues` insert 페이로드(snake_case 컬럼).
+struct SupabaseIssueInsert: Encodable {
+    let id: String
+    let title: String
+    let category: String
+    let author: String
+    let submitter_name: String?
+    let submitter_email: String?
+    let submitter_part: String?
+    let target: String
+    let status: String
+    let urgency: String
+    let body: String
+    let expected_change: String
+    let visibility: String
+
+    init(_ issue: Issue) {
+        id = issue.id
+        title = issue.title
+        category = issue.category
+        author = issue.identity.rawValue
+        submitter_email = issue.submitterEmail
+        submitter_name = nil
+        submitter_part = nil
+        target = issue.target.rawValue
+        status = issue.status.rawValue
+        urgency = issue.urgency.rawValue
+        body = issue.body
+        expected_change = issue.expectedChange
+        visibility = issue.visibility.rawValue
     }
 }
 

@@ -3,7 +3,16 @@ import SwiftUI
 // 모임 · 번개 모델(웹 gatheringRules.ts 이식). 확정/대기를 저장하지 않고 신청 순서로 파생한다.
 // 앞사람이 취소하면 다음 렌더에서 대기자가 저절로 승계된다(선착순 신뢰).
 
-enum GatheringKind: String, Codable, CaseIterable { case flash = "번개", gathering = "모임", coffee = "커피" }
+enum GatheringKind: String, Codable, CaseIterable {
+    case flash = "번개", gathering = "모임", coffee = "커피"
+    // DB(웹)는 영어로 저장 — 경계에서 매핑.
+    static func fromDB(_ s: String) -> GatheringKind {
+        switch s { case "flash": return .flash; case "coffee": return .coffee; default: return .gathering }
+    }
+    var dbValue: String {
+        switch self { case .flash: return "flash"; case .coffee: return "coffee"; case .gathering: return "gathering" }
+    }
+}
 
 enum GatheringStatus: String {
     case open = "모집중", closed = "마감", held = "진행함", ended = "종료", canceled = "취소"
@@ -58,6 +67,16 @@ final class GatheringStore: ObservableObject {
     init() {
         gatherings = Persist.load(Self.gKey, as: [Gathering].self) ?? Self.seedGatherings
         signups = Persist.load(Self.sKey, as: [GatheringSignup].self) ?? Self.seedSignups
+        Task { await syncFromRemote() }
+    }
+
+    /// 웹과 같은 Supabase 에서 모임·신청을 불러온다(실패 시 로컬 캐시 유지).
+    func syncFromRemote() async {
+        guard Supabase.isConfigured else { return }
+        async let g = try? Supabase.select("gatherings", query: "select=*&order=start_at.asc", as: SupabaseGatheringRow.self)
+        async let s = try? Supabase.select("gathering_signups", query: "select=*", as: SupabaseSignupRow.self)
+        if let rows = await g { gatherings = rows.map { $0.toGathering() } }
+        if let rows = await s { signups = rows.map { $0.toSignup() } }
     }
 
     // MARK: 파생(웹 gatheringRules 이식)
@@ -127,8 +146,11 @@ final class GatheringStore: ObservableObject {
         guard !g.canceled else { return }
         guard status(g) == .open || canJoinWaitlist(g) else { return }
         guard !signupsFor(g.id).contains(where: { $0.name == name }) else { return }
-        let id = "SGN-\(signups.count + 1)"
-        signups.append(GatheringSignup(id: id, gatheringId: g.id, name: name, createdAt: MarketClock.nowString()))
+        let id = "SGN-\(Int(Date().timeIntervalSince1970))-\(name)"
+        let at = MarketClock.nowString()
+        signups.append(GatheringSignup(id: id, gatheringId: g.id, name: name, createdAt: at))
+        Task { try? await Supabase.insert("gathering_signups",
+            ["id": id, "gathering_id": g.id, "name": name, "created_at": at]) }
     }
 
     func leave(_ g: Gathering, name: String) {
@@ -201,4 +223,36 @@ final class GatheringStore: ObservableObject {
         .init(id: "SGN-6", gatheringId: "GAT-3", name: "이선민", createdAt: MarketClock.iso.string(from: Date().addingTimeInterval(-5000))),
         .init(id: "SGN-7", gatheringId: "GAT-3", name: "김영석", createdAt: MarketClock.iso.string(from: Date().addingTimeInterval(-4500))),
     ]
+}
+
+/// Supabase gatherings / gathering_signups 행 → iOS 매핑.
+struct SupabaseGatheringRow: Decodable {
+    let id: String
+    let kind: String?
+    let title: String?
+    let start_at: String?
+    let close_at: String?
+    let capacity: Int?
+    let min_people: Int?
+    let description: String?
+    let place: String?
+    let host: String?
+    let canceled: Bool?
+    let coffee_draw: Bool?
+    let coffee_pick: String?
+    func toGathering() -> Gathering {
+        Gathering(id: id, title: title ?? "", host: host ?? "", kind: GatheringKind.fromDB(kind ?? "gathering"),
+                  startAt: start_at ?? "", closeAt: close_at ?? (start_at ?? ""), capacity: capacity,
+                  minPeople: min_people, place: place ?? "", desc: description ?? "",
+                  coffeeDraw: coffee_draw ?? false, coffeePick: coffee_pick ?? "", canceled: canceled ?? false)
+    }
+}
+struct SupabaseSignupRow: Decodable {
+    let id: String
+    let gathering_id: String
+    let name: String?
+    let created_at: String?
+    func toSignup() -> GatheringSignup {
+        GatheringSignup(id: id, gatheringId: gathering_id, name: name ?? "", createdAt: created_at ?? "")
+    }
 }

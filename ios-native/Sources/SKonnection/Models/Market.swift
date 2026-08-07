@@ -3,7 +3,11 @@ import SwiftUI
 // 이음장터 모델(웹 marketRules.ts 이식). 상태는 저장하지 않고 입찰 목록에서 파생한다.
 // 나눔=선착순(0원 입찰 1건), 경매=최고가. 정렬 기준만 다르고 마감·취소 규칙은 한 벌.
 
-enum MarketKind: String, Codable, CaseIterable { case giveaway = "나눔", auction = "경매" }
+enum MarketKind: String, Codable, CaseIterable {
+    case giveaway = "나눔", auction = "경매"
+    static func fromDB(_ s: String) -> MarketKind { s == "auction" ? .auction : .giveaway }
+    var dbValue: String { self == .auction ? "auction" : "giveaway" }
+}
 
 enum MarketStatus: String {
     case open = "거래중", done = "거래완료", failed = "유찰", canceled = "취소"
@@ -65,6 +69,16 @@ final class MarketStore: ObservableObject {
     init() {
         items = Persist.load(Self.itemsKey, as: [MarketItem].self) ?? Self.seedItems
         bids = Persist.load(Self.bidsKey, as: [MarketBid].self) ?? Self.seedBids
+        Task { await syncFromRemote() }
+    }
+
+    /// 웹과 같은 Supabase 에서 물건·입찰을 불러온다(실패 시 로컬 캐시 유지).
+    func syncFromRemote() async {
+        guard Supabase.isConfigured else { return }
+        async let i = try? Supabase.select("market_items", query: "select=*&order=created_at.desc", as: SupabaseMarketItemRow.self)
+        async let b = try? Supabase.select("market_bids", query: "select=*", as: SupabaseBidRow.self)
+        if let rows = await i { items = rows.map { $0.toItem() } }
+        if let rows = await b { bids = rows.map { $0.toBid() } }
     }
 
     // MARK: 파생(웹 marketRules 이식)
@@ -148,8 +162,11 @@ final class MarketStore: ObservableObject {
     func placeBid(_ item: MarketItem, name: String, amount: Int) {
         guard blockedReason(item, name: name) == nil else { return }
         guard amount >= minNextBid(item) else { return }
-        let id = "BID-\(bids.count + 1)"
-        bids.append(MarketBid(id: id, itemId: item.id, name: name, amount: amount, createdAt: MarketClock.nowString()))
+        let id = "BID-\(Int(Date().timeIntervalSince1970))-\(name)"
+        let at = MarketClock.nowString()
+        bids.append(MarketBid(id: id, itemId: item.id, name: name, amount: amount, createdAt: at))
+        Task { try? await Supabase.insert("market_bids",
+            SupabaseBidInsert(id: id, item_id: item.id, name: name, amount: amount, created_at: at)) }
     }
 
     /// 나눔 받기 = 0원 입찰 한 건.
@@ -164,10 +181,14 @@ final class MarketStore: ObservableObject {
 
     func list(kind: MarketKind, title: String, seller: String, startPrice: Int, closeAt: String,
               desc: String, place: String) {
-        let maxNum = items.compactMap { Int($0.id.dropFirst(2)) }.max() ?? 0
-        items.insert(MarketItem(id: "M\(maxNum + 1)", title: title, seller: seller, kind: kind,
-                                startPrice: kind == .auction ? startPrice : 0, closeAt: closeAt,
-                                desc: desc, place: place), at: 0)
+        let id = "MKT-\(Int(Date().timeIntervalSince1970))"
+        let price = kind == .auction ? startPrice : 0
+        items.insert(MarketItem(id: id, title: title, seller: seller, kind: kind,
+                                startPrice: price, closeAt: closeAt, desc: desc, place: place), at: 0)
+        Task { try? await Supabase.insert("market_items",
+            SupabaseMarketInsert(id: id, kind: kind.dbValue, title: title, description: desc,
+                                 start_price: price, min_step: 1000, close_at: closeAt,
+                                 place: place, seller: seller)) }
     }
 
     // MARK: 시드 — 미래/과거 마감으로 거래중·거래완료·유찰을 보여준다.
@@ -193,4 +214,40 @@ final class MarketStore: ObservableObject {
         // 커피머신은 마감됐고 낙찰자 있음 → 거래완료.
         .init(id: "BID-3", itemId: "M2", name: "김승현", amount: 22000, createdAt: MarketClock.iso.string(from: Date().addingTimeInterval(-90000))),
     ]
+}
+
+/// Supabase market_items / market_bids 행 → iOS 매핑 + insert 페이로드.
+struct SupabaseMarketItemRow: Decodable {
+    let id: String
+    let kind: String?
+    let title: String?
+    let description: String?
+    let start_price: Int?
+    let min_step: Int?
+    let close_at: String?
+    let place: String?
+    let seller: String?
+    let canceled: Bool?
+    func toItem() -> MarketItem {
+        MarketItem(id: id, title: title ?? "", seller: seller ?? "", kind: MarketKind.fromDB(kind ?? "giveaway"),
+                   startPrice: start_price ?? 0, minStep: min_step ?? 1000, closeAt: close_at ?? "",
+                   desc: description ?? "", place: place ?? "", canceled: canceled ?? false)
+    }
+}
+struct SupabaseBidRow: Decodable {
+    let id: String
+    let item_id: String
+    let name: String?
+    let amount: Int?
+    let created_at: String?
+    func toBid() -> MarketBid {
+        MarketBid(id: id, itemId: item_id, name: name ?? "", amount: amount ?? 0, createdAt: created_at ?? "")
+    }
+}
+struct SupabaseBidInsert: Encodable {
+    let id: String; let item_id: String; let name: String; let amount: Int; let created_at: String
+}
+struct SupabaseMarketInsert: Encodable {
+    let id: String; let kind: String; let title: String; let description: String
+    let start_price: Int; let min_step: Int; let close_at: String; let place: String; let seller: String
 }

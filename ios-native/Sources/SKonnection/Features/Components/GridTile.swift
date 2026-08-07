@@ -11,16 +11,16 @@ struct GridTile: View {
     var ink: Color = Theme.Palette.ink
 
     var body: some View {
-        Group {
-            if let imageURL {
-                imageTile(imageURL)
-            } else {
-                plainTile
-            }
-        }
-        // 인스타 릴스 그리드 규격 — 정사각형이 아니라 세로 직사각형(9:16).
-        .aspectRatio(9.0 / 16.0, contentMode: .fill)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm))
+        // 셀 크기를 '열 너비 × (16/9 높이)'로 먼저 확정(Color.clear + fit)한 뒤 콘텐츠를 채운다.
+        // 이렇게 해야 이미지가 열 너비를 넘어 옆 칸으로 흘러넘치지 않는다.
+        Color.clear
+            .aspectRatio(9.0 / 16.0, contentMode: .fit)
+            .overlay { content }
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm))
+    }
+
+    @ViewBuilder private var content: some View {
+        if let imageURL { imageTile(imageURL) } else { plainTile }
     }
 
     private func imageTile(_ url: URL) -> some View {
@@ -36,6 +36,7 @@ struct GridTile: View {
                 .shadow(color: Theme.Palette.surfaceDark.opacity(0.6), radius: 2, y: 1)
                 .padding(6)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
     }
 
