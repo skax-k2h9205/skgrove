@@ -51,7 +51,7 @@ struct GatheringsView: View {
                 let k: GatheringKind = kind == "번개" ? .flash : (kind == "커피" ? .coffee : .gathering)
                 store.create(kind: k, title: title, host: myName,
                              startAt: MarketClock.isoString(startAt), closeAt: MarketClock.isoString(startAt),
-                             capacity: capacity, place: place, desc: desc, coffeeDraw: k != .gathering)
+                             capacity: capacity, place: place, desc: desc, coffeeDraw: k == .coffee)
                 Haptics.success()
             }
         }

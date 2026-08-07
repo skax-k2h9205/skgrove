@@ -49,8 +49,8 @@ struct GatheringSignup: Identifiable, Codable {
 
 @MainActor
 final class GatheringStore: ObservableObject {
-    private static let gKey = "skonnection.gatherings"
-    private static let sKey = "skonnection.gatheringSignups"
+    private static let gKey = "skonnection.gatherings.v2"
+    private static let sKey = "skonnection.gatheringSignups.v2"
 
     @Published var gatherings: [Gathering] { didSet { Persist.save(gatherings, Self.gKey) } }
     @Published var signups: [GatheringSignup] { didSet { Persist.save(signups, Self.sKey) } }
@@ -115,10 +115,10 @@ final class GatheringStore: ObservableObject {
     /// 커피뽑기 후보 = 확정 로스터(대기자 제외).
     func coffeeCandidates(_ g: Gathering) -> [GatheringSignup] { roster(g).confirmed }
 
-    /// 커피 담당을 뽑을 수 있는가 — 번개·커피뽑기 켜짐·취소 아님·미추첨·확정 2명 이상.
+    /// 커피 담당을 뽑을 수 있는가 — '커피' 종류 모임 전용·취소 아님·미추첨·확정 2명 이상.
+    /// (점심 번개 같은 일반 모임에는 커피뽑기가 뜨지 않는다 — 커피 담당을 정하는 자리에서만.)
     func canDrawCoffee(_ g: Gathering) -> Bool {
-        (g.kind == .flash || g.kind == .coffee) && g.coffeeDraw && !g.canceled
-            && g.coffeePick.isEmpty && coffeeCandidates(g).count >= 2
+        g.kind == .coffee && !g.canceled && g.coffeePick.isEmpty && coffeeCandidates(g).count >= 2
     }
 
     // MARK: 액션
@@ -176,9 +176,11 @@ final class GatheringStore: ObservableObject {
     private static var laterClose: String { MarketClock.iso.string(from: Date().addingTimeInterval(1 * 24 * 3600)) }
 
     private static let seedGatherings: [Gathering] = [
-        .init(id: "GAT-4", title: "오늘 점심 김치찌개 번개 🍲", host: "김승현", kind: .flash,
-              startAt: soon, closeAt: soonClose, capacity: 6, minPeople: 2, place: "1층 로비",
+        .init(id: "GAT-5", title: "오후 커피 내기 ☕", host: "김승현", kind: .coffee,
+              startAt: soon, closeAt: soonClose, capacity: 8, minPeople: 2, place: "탕비실",
               coffeeDraw: true),
+        .init(id: "GAT-4", title: "오늘 점심 김치찌개 번개 🍲", host: "김승현", kind: .flash,
+              startAt: soon, closeAt: soonClose, capacity: 6, minPeople: 2, place: "1층 로비"),
         .init(id: "GAT-3", title: "퇴근 후 클라이밍 번개 🧗", host: "김수정", kind: .flash,
               startAt: soon, closeAt: soonClose, capacity: 4, minPeople: 2, place: "강남 클라이밍짐"),
         .init(id: "GAT-2", title: "금요일 보드게임 모임", host: "이두민", kind: .gathering,
@@ -187,7 +189,10 @@ final class GatheringStore: ObservableObject {
               startAt: later, closeAt: laterClose, capacity: nil, minPeople: nil, place: "북한산"),
     ]
     private static let seedSignups: [GatheringSignup] = [
-        // 클라이밍 번개는 정원 4에 4명 → 마감. 김치찌개는 3명 확정(정원 6).
+        // 커피 내기는 3명 확정(뽑기 가능). 클라이밍은 정원 4에 4명 → 마감. 김치찌개는 3명 확정(정원 6).
+        .init(id: "SGN-8", gatheringId: "GAT-5", name: "김승현", createdAt: MarketClock.iso.string(from: Date().addingTimeInterval(-6000))),
+        .init(id: "SGN-9", gatheringId: "GAT-5", name: "이두민", createdAt: MarketClock.iso.string(from: Date().addingTimeInterval(-5000))),
+        .init(id: "SGN-10", gatheringId: "GAT-5", name: "김수정", createdAt: MarketClock.iso.string(from: Date().addingTimeInterval(-4000))),
         .init(id: "SGN-1", gatheringId: "GAT-4", name: "김승현", createdAt: MarketClock.iso.string(from: Date().addingTimeInterval(-6000))),
         .init(id: "SGN-2", gatheringId: "GAT-4", name: "이두민", createdAt: MarketClock.iso.string(from: Date().addingTimeInterval(-5000))),
         .init(id: "SGN-3", gatheringId: "GAT-4", name: "이선민", createdAt: MarketClock.iso.string(from: Date().addingTimeInterval(-4000))),
