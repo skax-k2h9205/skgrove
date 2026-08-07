@@ -11,11 +11,8 @@ struct HumorView: View {
 
     var body: some View {
         ScreenScaffold(title: "유머 게시판", showUserChip: false,
-                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) }) {
-            HStack {
-                ComposeStoryButton(label: "글쓰기") { composing = true }
-                Spacer()
-            }
+                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) },
+                       onCompose: { composing = true }) {
             hallOfFame
 
             InstaGrid(items: store.posts) { post in

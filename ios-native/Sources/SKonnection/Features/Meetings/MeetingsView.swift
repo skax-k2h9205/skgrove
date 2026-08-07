@@ -10,17 +10,14 @@ struct MeetingsView: View {
 
     var body: some View {
         ScreenScaffold(title: "캔미팅 / 티미팅", showUserChip: false,
-                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) }) {
+                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) },
+                       onCompose: { if tab == "캔미팅" { composingCan = true } else { composingTea = true } }) {
             Picker("보기", selection: $tab) {
                 Text("캔미팅").tag("캔미팅"); Text("티미팅").tag("티미팅")
             }
             .pickerStyle(.segmented)
 
             if tab == "캔미팅" {
-                HStack {
-                    ComposeStoryButton(label: "캔미팅 열기") { composingCan = true }
-                    Spacer()
-                }
                 ForEach(store.cans) { can in
                     NavigationLink { CanDetailView(sessionId: can.id) } label: {
                         CanCard(session: can, counts: store.counts(for: can.id))
@@ -28,10 +25,6 @@ struct MeetingsView: View {
                     .buttonStyle(.plain)
                 }
             } else {
-                HStack {
-                    ComposeStoryButton(label: "티미팅 제안") { composingTea = true }
-                    Spacer()
-                }
                 ForEach(store.teas) { tea in
                     TeaCard(session: tea) { store.advanceTea(tea.id); Haptics.success() }
                 }

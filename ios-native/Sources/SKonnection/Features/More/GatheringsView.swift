@@ -24,11 +24,8 @@ struct GatheringsView: View {
 
     var body: some View {
         ScreenScaffold(title: "모임 · 번개", showUserChip: false,
-                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) }) {
-            HStack {
-                ComposeStoryButton(label: "모임 열기") { composing = true }
-                Spacer()
-            }
+                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) },
+                       onCompose: { composing = true }) {
             ChipRow(items: filters, selection: $filter)
 
             if visible.isEmpty {

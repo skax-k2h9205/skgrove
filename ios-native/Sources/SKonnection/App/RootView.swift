@@ -43,16 +43,32 @@ struct ScreenScaffold<Content: View>: View {
     var showUserChip: Bool = true
     /// 당겨서 새로고침 동작(있으면 pull-to-refresh 활성).
     var onRefresh: (() async -> Void)? = nil
+    /// 있으면 타이틀 좌측에 작성용 '+' 버튼을 얹는다(유머·모임·장터·미팅 공용).
+    var onCompose: (() -> Void)? = nil
     @ViewBuilder var content: () -> Content
     @EnvironmentObject private var session: SessionStore
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.x4) {
-                Text(title)
-                    .font(.largeTitle.bold())
-                    .foregroundStyle(Theme.Palette.ink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: Theme.Space.x3) {
+                    if let onCompose {
+                        Button(action: onCompose) {
+                            Image(systemName: "plus")
+                                .font(.title2.weight(.semibold))
+                                .foregroundStyle(Theme.Palette.cta)
+                                .frame(width: 40, height: 40)
+                                .background(Theme.Palette.tintPrimary, in: Circle())
+                                .overlay(Circle().stroke(Theme.Palette.cta.opacity(0.35), lineWidth: 1.5))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Text(title)
+                        .font(.largeTitle.bold())
+                        .foregroundStyle(Theme.Palette.ink)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 if showUserChip, let user = session.currentUser {
                     userChip(user)

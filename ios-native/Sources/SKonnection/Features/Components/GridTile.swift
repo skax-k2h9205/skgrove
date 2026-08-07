@@ -60,32 +60,6 @@ struct GridTile: View {
     }
 }
 
-/// 홈 스토리 서클과 같은 상단 "+" 작성 버튼(유머·모임·장터·미팅 공용).
-/// 큰 풀폭 버튼 대신 인스타처럼 원형 + 아이콘 + 라벨로 통일한다.
-struct ComposeStoryButton: View {
-    var icon: String = "plus"
-    let label: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: Theme.Space.x1) {
-                Circle()
-                    .fill(Theme.Palette.tintPrimary)
-                    .frame(width: 58, height: 58)
-                    .overlay(Circle().stroke(Theme.Palette.cta.opacity(0.35), lineWidth: 1.5))
-                    .overlay(
-                        Image(systemName: icon)
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(Theme.Palette.cta)
-                    )
-                Text(label).font(.caption).foregroundStyle(Theme.Palette.ink)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 /// 3열 인스타 그리드 레이아웃(간격 3pt) — 여러 화면에서 재사용.
 struct InstaGrid<Item: Identifiable, Tile: View>: View {
     let items: [Item]

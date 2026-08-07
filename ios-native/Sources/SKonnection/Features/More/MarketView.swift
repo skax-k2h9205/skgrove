@@ -24,7 +24,8 @@ struct MarketView: View {
 
     var body: some View {
         ScreenScaffold(title: "이음장터", showUserChip: false,
-                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) }) {
+                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) },
+                       onCompose: { composing = true }) {
             HStack(spacing: Theme.Space.x2) {
                 Image(systemName: "trophy.fill").foregroundStyle(Theme.Palette.primary)
                 Text("이음장터 명예의 전당 — 첫 거래의 주인공이 되어보세요.")
@@ -33,10 +34,6 @@ struct MarketView: View {
             .padding(Theme.Space.x3).frame(maxWidth: .infinity, alignment: .leading)
             .background(Theme.Palette.tintPrimary, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
 
-            HStack {
-                ComposeStoryButton(label: "물건 내놓기") { composing = true }
-                Spacer()
-            }
             ChipRow(items: filters, selection: $filter)
 
             if visible.isEmpty {
