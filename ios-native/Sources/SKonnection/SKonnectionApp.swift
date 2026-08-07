@@ -8,6 +8,7 @@ struct SKonnectionApp: App {
     @StateObject private var issues = IssueStore()
     @StateObject private var agendas = AgendaStore()
     @StateObject private var actions = ActionStore()
+    @StateObject private var meetings = MeetingStore()
     @State private var showSplash = true
     @State private var splashScheduled = false
 
@@ -25,6 +26,7 @@ struct SKonnectionApp: App {
                 .environmentObject(issues)
                 .environmentObject(agendas)
                 .environmentObject(actions)
+                .environmentObject(meetings)
 
                 if showSplash {
                     SplashView()
