@@ -1,145 +1,186 @@
 import SwiftUI
 
-struct HumorPost: Identifiable {
-    let id: String
-    let author: String
-    let date: String
-    let body: String
-    var laughs: Int
-    var comments: Int
-    var imageURL: URL?
-    var liked: Bool = false
-}
-
-/// 유머 게시판 — 홈처럼 인스타 3열 그리드. 타일 탭 시 상세 시트. 글쓰기로 등록.
+/// 유머 게시판 — 명예의 전당 + 인스타 3열 그리드. 타일 탭 시 상세(좋아요·댓글). 웹 humor 이식.
 struct HumorView: View {
     @EnvironmentObject private var session: SessionStore
+    @EnvironmentObject private var store: HumorStore
     @State private var composing = false
-    @State private var posts: [HumorPost] = [
-        .init(id: "1", author: "김영석", date: "2026-07-29",
-              body: "연차 쓴 날 아침에 눈 번쩍 떠지는 사람 손 🙋 (나만 그런 거 아니지?)", laughs: 8, comments: 0,
-              imageURL: URL(string: "https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg")),
-        .init(id: "2", author: "이두민", date: "2026-07-28", body: "월급날 통장: 스쳐 지나가는 인연 👋 (짧고 굵었다)", laughs: 4, comments: 2),
-        .init(id: "3", author: "김수정", date: "2026-07-27", body: "재택근무 복장 레벨: 상의 셔츠 / 하의 잠옷 🩳", laughs: 2, comments: 1),
-        .init(id: "4", author: "김승현", date: "2026-07-26", body: "오늘 배포 성공해서 기분 좋아 커피 쏩니다 ☕", laughs: 6, comments: 3),
-        .init(id: "5", author: "이선민", date: "2026-07-25", body: "\"이번엔 진짜 일찍 잔다\" 하고 새벽 3시에 유튜브 보는 중", laughs: 1, comments: 0),
-        .init(id: "6", author: "이두민", date: "2026-07-24", body: "월요일 아침의 나 vs 금요일 저녁의 나 😵", laughs: 4, comments: 1),
-    ]
     @State private var selected: HumorPost?
+
+    private var myName: String { session.currentUser?.name ?? "익명" }
 
     var body: some View {
         ScreenScaffold(title: "유머 게시판", showUserChip: false,
                        onRefresh: { try? await Task.sleep(for: .seconds(0.6)) }) {
+            hallOfFame
             Button { composing = true } label: {
                 Label("글쓰기", systemImage: "square.and.pencil").font(.headline)
                     .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
             }
             .buttonStyle(.borderedProminent).tint(Theme.Palette.cta)
 
-            InstaGrid(items: posts) { post in
+            InstaGrid(items: store.posts) { post in
                 Button { Haptics.selection(); selected = post } label: {
-                    GridTile(imageURL: post.imageURL, icon: "face.smiling", title: post.body,
-                             meta: "빵터짐 \(post.laughs)", tint: Theme.Palette.tintDanger, ink: Theme.Palette.danger)
+                    GridTile(imageURL: store.thumbnail(post), icon: "face.smiling", title: post.body,
+                             meta: "빵터짐 \(post.laughs) · 댓글 \(store.commentCount(post.id))",
+                             tint: Theme.Palette.tintDanger, ink: Theme.Palette.danger)
                 }
                 .buttonStyle(.plain)
                 .contextMenu {
                     ShareLink(item: "[\(post.author)] \(post.body)") { Label("공유", systemImage: "square.and.arrow.up") }
-                    if post.author == session.currentUser?.name {
+                    if post.author == myName {
                         Button(role: .destructive) {
-                            withAnimation(.snappy) { posts.removeAll { $0.id == post.id } }
+                            withAnimation(.snappy) { store.deletePost(post.id) }
                         } label: { Label("삭제", systemImage: "trash") }
                     }
                 }
             }
         }
         .sheet(item: $selected) { post in
-            HumorDetail(post: post) { toggleLike(post) }
+            HumorDetail(postId: post.id)
         }
         .sheet(isPresented: $composing) {
-            HumorComposeSheet { body, media in post(body: body, media: media) }
+            HumorComposeSheet { body, media in store.addPost(author: myName, body: body, mediaURL: media); Haptics.success() }
         }
     }
 
-    private func post(body: String, media: String) {
-        let text = body.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty else { return }
-        let author = session.currentUser?.name ?? "익명"
-        withAnimation(.snappy) {
-            posts.insert(.init(id: UUID().uuidString, author: author, date: "방금", body: text,
-                               laughs: 0, comments: 0, imageURL: thumbnail(from: media)), at: 0)
-        }
-        Haptics.success()
-    }
-
-    /// 붙인 링크가 유튜브면 썸네일, 이미지 주소면 그대로. 아니면 없음(색 타일).
-    private func thumbnail(from link: String) -> URL? {
-        let s = link.trimmingCharacters(in: .whitespaces)
-        guard !s.isEmpty else { return nil }
-        if let id = youtubeID(s) { return URL(string: "https://img.youtube.com/vi/\(id)/hqdefault.jpg") }
-        if s.lowercased().hasSuffix(".jpg") || s.lowercased().hasSuffix(".png") || s.lowercased().hasSuffix(".jpeg") {
-            return URL(string: s)
-        }
-        return nil
-    }
-
-    private func youtubeID(_ url: String) -> String? {
-        for marker in ["v=", "youtu.be/", "/shorts/", "/embed/"] {
-            if let r = url.range(of: marker) {
-                let rest = url[r.upperBound...]
-                let id = rest.prefix { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }
-                if id.count >= 6 { return String(id) }
+    /// 명예의 전당 — 글쓰기왕·댓글왕·빵터짐왕(월간). 가로 스크롤.
+    private var hallOfFame: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.x2) {
+            Label("명예의 전당 · \(store.rankingMonth)", systemImage: "trophy.fill")
+                .font(.subheadline.bold()).foregroundStyle(Theme.Palette.tintPrimaryInk)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Theme.Space.x3) {
+                    fameCard("글쓰기왕", "square.and.pencil", store.topPosters, unit: "글")
+                    fameCard("댓글왕", "text.bubble.fill", store.topCommenters, unit: "댓글")
+                    fameCard("빵터짐왕", "face.smiling.fill", store.topLiked, unit: "빵터짐")
+                }
             }
         }
-        return nil
+        .padding(Theme.Space.x3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Palette.tintPrimary, in: RoundedRectangle(cornerRadius: Theme.Radius.lg))
     }
 
-    private func toggleLike(_ post: HumorPost) {
-        guard let i = posts.firstIndex(where: { $0.id == post.id }) else { return }
-        posts[i].liked.toggle()
-        posts[i].laughs += posts[i].liked ? 1 : -1
-        selected = posts[i]
-        Haptics.light()
+    private func fameCard(_ title: String, _ icon: String, _ rankers: [HumorRanker], unit: String) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Space.x1) {
+            Label(title, systemImage: icon).font(.caption.bold()).foregroundStyle(Theme.Palette.primary)
+            if rankers.isEmpty {
+                Text("아직 없어요").font(.caption2).foregroundStyle(Theme.Palette.muted)
+            } else {
+                ForEach(Array(rankers.enumerated()), id: \.element.id) { idx, r in
+                    HStack(spacing: 4) {
+                        Text(medal(idx)).font(.caption2)
+                        Text(r.name).font(.caption.weight(.semibold)).foregroundStyle(Theme.Palette.ink)
+                        Text("\(r.count)\(unit)").font(.caption2).foregroundStyle(Theme.Palette.muted)
+                    }
+                }
+            }
+        }
+        .padding(Theme.Space.x3)
+        .frame(width: 150, alignment: .leading)
+        .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.md).stroke(Theme.Palette.border))
+    }
+
+    private func medal(_ idx: Int) -> String {
+        switch idx { case 0: return "🥇"; case 1: return "🥈"; default: return "🥉" }
     }
 }
 
+/// 유머 상세 — 본문·좋아요·댓글 목록·댓글 작성.
 private struct HumorDetail: View {
-    let post: HumorPost
-    let onLike: () -> Void
+    let postId: String
+    @EnvironmentObject private var store: HumorStore
+    @EnvironmentObject private var session: SessionStore
     @Environment(\.dismiss) private var dismiss
+    @State private var draft = ""
+
+    private var myName: String { session.currentUser?.name ?? "익명" }
+    private var post: HumorPost? { store.posts.first { $0.id == postId } }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Space.x4) {
-                    HStack(spacing: Theme.Space.x2) {
-                        Avatar(name: post.author)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(post.author).font(.subheadline.bold()).foregroundStyle(Theme.Palette.ink)
-                            Text(post.date).font(.caption).foregroundStyle(Theme.Palette.muted)
+                if let post {
+                    VStack(alignment: .leading, spacing: Theme.Space.x4) {
+                        HStack(spacing: Theme.Space.x2) {
+                            Avatar(name: post.author)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(post.author).font(.subheadline.bold()).foregroundStyle(Theme.Palette.ink)
+                                Text(post.createdAt).font(.caption).foregroundStyle(Theme.Palette.muted)
+                            }
                         }
-                    }
-                    if let url = post.imageURL {
-                        AsyncImage(url: url) { $0.resizable().scaledToFit() } placeholder: { Theme.Palette.sunken }
-                            .frame(maxWidth: .infinity).clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md))
-                    }
-                    Text(post.body).font(.title3).foregroundStyle(Theme.Palette.ink)
-                    HStack(spacing: Theme.Space.x4) {
-                        Button(action: onLike) {
-                            Label("빵터짐 \(post.laughs)", systemImage: post.liked ? "face.smiling.fill" : "face.smiling")
-                                .foregroundStyle(post.liked ? Theme.Palette.heart : Theme.Palette.muted)
+                        if let url = store.thumbnail(post) {
+                            AsyncImage(url: url) { $0.resizable().scaledToFit() } placeholder: { Theme.Palette.sunken }
+                                .frame(maxWidth: .infinity).clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md))
                         }
-                        ShareLink(item: "[\(post.author)] \(post.body)") {
-                            Label("공유", systemImage: "square.and.arrow.up").foregroundStyle(Theme.Palette.muted)
+                        Text(post.body).font(.title3).foregroundStyle(Theme.Palette.ink)
+                        HStack(spacing: Theme.Space.x4) {
+                            Button { store.toggleLike(post.id, by: myName); Haptics.light() } label: {
+                                let liked = store.liked(post, by: myName)
+                                Label("빵터짐 \(post.laughs)", systemImage: liked ? "face.smiling.fill" : "face.smiling")
+                                    .foregroundStyle(liked ? Theme.Palette.heart : Theme.Palette.muted)
+                            }
+                            ShareLink(item: "[\(post.author)] \(post.body)") {
+                                Label("공유", systemImage: "square.and.arrow.up").foregroundStyle(Theme.Palette.muted)
+                            }
                         }
+                        .font(.subheadline.weight(.semibold))
+
+                        Divider().overlay(Theme.Palette.border)
+                        commentsSection(post)
                     }
-                    .font(.subheadline.weight(.semibold))
+                    .padding(Theme.Space.x4)
+                } else {
+                    Text("글을 찾을 수 없어요.").foregroundStyle(Theme.Palette.muted).padding()
                 }
-                .padding(Theme.Space.x4)
             }
             .background(Theme.Palette.sunken)
             .navigationTitle("유머").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } } }
+            .safeAreaInset(edge: .bottom) { commentBar }
         }
+    }
+
+    private func commentsSection(_ post: HumorPost) -> some View {
+        let list = store.comments(for: post.id)
+        return VStack(alignment: .leading, spacing: Theme.Space.x3) {
+            Text("댓글 \(list.count)").font(.subheadline.bold()).foregroundStyle(Theme.Palette.ink)
+            if list.isEmpty {
+                Text("첫 댓글을 남겨보세요.").font(.caption).foregroundStyle(Theme.Palette.muted)
+            } else {
+                ForEach(list) { c in
+                    HStack(alignment: .top, spacing: Theme.Space.x2) {
+                        Avatar(name: c.author, size: 28)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(c.author).font(.caption.bold()).foregroundStyle(Theme.Palette.ink)
+                            Text(c.content).font(.subheadline).foregroundStyle(Theme.Palette.ink)
+                        }
+                        Spacer()
+                    }
+                }
+            }
+        }
+    }
+
+    private var commentBar: some View {
+        HStack(spacing: Theme.Space.x2) {
+            TextField("댓글 달기…", text: $draft)
+                .padding(.horizontal, Theme.Space.x3).padding(.vertical, Theme.Space.x2)
+                .background(Theme.Palette.surface, in: Capsule())
+                .overlay(Capsule().stroke(Theme.Palette.border))
+            Button {
+                store.addComment(postId: postId, author: myName, content: draft)
+                draft = ""; Haptics.success()
+            } label: {
+                Image(systemName: "paperplane.fill").foregroundStyle(.white)
+                    .frame(width: 40, height: 40).background(Theme.Palette.cta, in: Circle())
+            }
+            .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        .padding(Theme.Space.x3)
+        .background(.ultraThinMaterial)
     }
 }
 
