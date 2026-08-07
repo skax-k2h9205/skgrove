@@ -93,6 +93,8 @@ final class IssueStore: ObservableObject {
 
     init() {
         issues = Persist.load(Self.key, as: [Issue].self) ?? Self.seed
+        // 앱 시작 시 웹과 같은 Supabase 프로젝트에서 최신 접수를 불러온다(로컬은 즉시 표시용 캐시).
+        Task { await syncFromRemote() }
     }
 
     private static let seed: [Issue] = [
@@ -147,5 +149,57 @@ final class IssueStore: ObservableObject {
     func nextId() -> String {
         let maxNum = issues.compactMap { Int($0.id.split(separator: "-").last ?? "") }.max() ?? 7
         return String(format: "SUP-%04d", maxNum + 1)
+    }
+
+    /// 웹과 같은 Supabase 프로젝트에서 접수를 불러와 로컬을 대체한다(원격이 진실 공급원).
+    /// 실패하면 로컬 캐시를 그대로 둔다(오프라인 폴백).
+    func syncFromRemote() async {
+        guard Supabase.isConfigured else { return }
+        do {
+            let rows = try await Supabase.select("issues", query: "select=*&order=created_at.desc",
+                                                 as: SupabaseIssueRow.self)
+            issues = rows.map { $0.toIssue() }
+        } catch {
+            // 원격 실패 시 로컬 캐시 유지.
+        }
+    }
+}
+
+/// Supabase `issues` 테이블 행(snake_case) → iOS `Issue` 매핑 DTO.
+struct SupabaseIssueRow: Decodable {
+    let id: String
+    let title: String?
+    let category: String?
+    let author: String?
+    let target: String?
+    let body: String?
+    let expected_change: String?
+    let urgency: String?
+    let visibility: String?
+    let status: String?
+    let created_at: String?
+    let submitter_email: String?
+    let leader_reply: String?
+    let one_on_one_note: String?
+    let status_reason: String?
+
+    func toIssue() -> Issue {
+        Issue(
+            id: id,
+            title: title ?? "",
+            category: category ?? issueCategories[0],
+            identity: Identity(rawValue: author ?? "") ?? .anonymous,
+            target: IssueTarget(rawValue: target ?? "") ?? .teamLeader,
+            body: body ?? "",
+            expectedChange: expected_change ?? "",
+            urgency: Urgency(rawValue: urgency ?? "") ?? .normal,
+            visibility: IssueVisibility(rawValue: visibility ?? "") ?? .leaderOnly,
+            status: IssueStatus(rawValue: status ?? "") ?? .received,
+            createdAt: String((created_at ?? "").prefix(10)),
+            submitterEmail: submitter_email,
+            leaderReply: leader_reply ?? "",
+            oneOnOneNote: one_on_one_note ?? "",
+            reason: status_reason ?? ""
+        )
     }
 }
