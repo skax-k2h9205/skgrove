@@ -1,6 +1,6 @@
 import SwiftUI
 
-private struct ManagedAccount: Identifiable {
+private struct ManagedAccount: Identifiable, Codable {
     let id: String
     let name: String
     let email: String
@@ -12,9 +12,14 @@ private struct ManagedAccount: Identifiable {
 
 @MainActor
 private final class AccountStore: ObservableObject {
-    @Published var accounts: [ManagedAccount] = Account.seed.map {
-        ManagedAccount(id: $0.id, name: $0.name, email: $0.email, role: $0.role,
-                       part: $0.part, active: true, connectioner: $0.connectioner)
+    private static let key = "skonnection.accounts"
+    @Published var accounts: [ManagedAccount] { didSet { Persist.save(accounts, Self.key) } }
+
+    init() {
+        accounts = Persist.load(Self.key, as: [ManagedAccount].self) ?? Account.seed.map {
+            ManagedAccount(id: $0.id, name: $0.name, email: $0.email, role: $0.role,
+                           part: $0.part, active: true, connectioner: $0.connectioner)
+        }
     }
 }
 
