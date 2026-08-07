@@ -17,11 +17,10 @@ struct MeetingsView: View {
             .pickerStyle(.segmented)
 
             if tab == "캔미팅" {
-                Button { composingCan = true } label: {
-                    Label("캔미팅 열기", systemImage: "plus").font(.headline)
-                        .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
+                HStack {
+                    ComposeStoryButton(label: "캔미팅 열기") { composingCan = true }
+                    Spacer()
                 }
-                .buttonStyle(.borderedProminent).tint(Theme.Palette.cta)
                 ForEach(store.cans) { can in
                     NavigationLink { CanDetailView(sessionId: can.id) } label: {
                         CanCard(session: can, counts: store.counts(for: can.id))
@@ -29,11 +28,10 @@ struct MeetingsView: View {
                     .buttonStyle(.plain)
                 }
             } else {
-                Button { composingTea = true } label: {
-                    Label("티미팅 제안", systemImage: "plus").font(.headline)
-                        .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
+                HStack {
+                    ComposeStoryButton(label: "티미팅 제안") { composingTea = true }
+                    Spacer()
                 }
-                .buttonStyle(.borderedProminent).tint(Theme.Palette.cta)
                 ForEach(store.teas) { tea in
                     TeaCard(session: tea) { store.advanceTea(tea.id); Haptics.success() }
                 }

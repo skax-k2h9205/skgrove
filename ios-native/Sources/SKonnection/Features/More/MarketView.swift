@@ -33,12 +33,11 @@ struct MarketView: View {
             .padding(Theme.Space.x3).frame(maxWidth: .infinity, alignment: .leading)
             .background(Theme.Palette.tintPrimary, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
 
-            ChipRow(items: filters, selection: $filter)
-            Button { composing = true } label: {
-                Label("물건 내놓기", systemImage: "plus").font(.headline)
-                    .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
+            HStack {
+                ComposeStoryButton(label: "물건 내놓기") { composing = true }
+                Spacer()
             }
-            .buttonStyle(.borderedProminent).tint(Theme.Palette.cta)
+            ChipRow(items: filters, selection: $filter)
 
             if visible.isEmpty {
                 EmptyState(icon: "shippingbox", title: "해당 물건이 없어요",

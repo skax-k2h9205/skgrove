@@ -25,12 +25,11 @@ struct GatheringsView: View {
     var body: some View {
         ScreenScaffold(title: "모임 · 번개", showUserChip: false,
                        onRefresh: { try? await Task.sleep(for: .seconds(0.6)) }) {
-            ChipRow(items: filters, selection: $filter)
-            Button { composing = true } label: {
-                Label("모임 열기", systemImage: "plus").font(.headline)
-                    .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
+            HStack {
+                ComposeStoryButton(label: "모임 열기") { composing = true }
+                Spacer()
             }
-            .buttonStyle(.borderedProminent).tint(Theme.Palette.cta)
+            ChipRow(items: filters, selection: $filter)
 
             if visible.isEmpty {
                 EmptyState(icon: "calendar.badge.exclamationmark", title: "해당 모임이 없어요",
