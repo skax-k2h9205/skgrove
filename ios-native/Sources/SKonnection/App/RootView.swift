@@ -108,18 +108,20 @@ struct MoreView: View {
     var body: some View {
         NavigationStack {
             List {
-                // 홈에 있던 로그인 정보를 여기로. 더보기가 프로필 허브가 된다.
+                // 홈에 있던 로그인 정보를 여기로. 프로필 탭 → 마이페이지(인스타 프로필 탭 격).
                 if let user = session.currentUser {
                     Section {
-                        HStack(spacing: Theme.Space.x3) {
-                            BrandMark(size: 44)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(user.name).font(.headline).foregroundStyle(Theme.Palette.ink)
-                                Text("\(user.role.rawValue) · \(user.part)")
-                                    .font(.subheadline).foregroundStyle(Theme.Palette.muted)
+                        NavigationLink { MyPageView() } label: {
+                            HStack(spacing: Theme.Space.x3) {
+                                BrandMark(size: 44)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(user.name).font(.headline).foregroundStyle(Theme.Palette.ink)
+                                    Text("\(user.role.rawValue) · \(user.part)")
+                                        .font(.subheadline).foregroundStyle(Theme.Palette.muted)
+                                }
                             }
+                            .padding(.vertical, Theme.Space.x1)
                         }
-                        .padding(.vertical, Theme.Space.x1)
                     }
                 }
 
@@ -127,6 +129,7 @@ struct MoreView: View {
                     link("대나무숲 접수", "tray.and.arrow.down.fill", Theme.Palette.primary) { IntakeView() }
                     link("안건 / 투표", "checkmark.square.fill", Theme.Palette.primary) { AgendaView() }
                     link("액션아이템", "bolt.fill", Theme.Palette.success) { ActionsView() }
+                    link("캔미팅 / 티미팅", "dot.radiowaves.left.and.right", Theme.Palette.primary) { MeetingsView() }
                 }
                 Section("리더") {
                     link("리더 관리함", "tray.full.fill", Theme.Palette.primary) { LeaderView() }
