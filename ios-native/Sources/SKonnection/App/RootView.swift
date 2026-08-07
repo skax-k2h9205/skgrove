@@ -145,6 +145,14 @@ struct MoreView: View {
                     link("파트지수 / 리포트", "chart.bar.fill", Theme.Palette.primaryStrong) { MetricsView() }
                     link("알림 / 메시지", "bell.fill", Theme.Palette.cta) { NotificationsView() }
                 }
+
+                // 관리 화면은 리더/커넥셔너에게만 노출한다.
+                if session.currentUser?.role.isLeader == true {
+                    Section("관리") {
+                        link("계정 관리", "person.2.badge.gearshape.fill", Theme.Palette.primaryStrong) { AccountsView() }
+                        link("시스템 관리", "gearshape.2.fill", Theme.Palette.muted) { SystemView() }
+                    }
+                }
                 Section {
                     Button(role: .destructive) { session.logout() } label: {
                         Label("로그아웃", systemImage: "rectangle.portrait.and.arrow.right")
