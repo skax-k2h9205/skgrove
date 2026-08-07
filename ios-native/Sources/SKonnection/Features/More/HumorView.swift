@@ -44,41 +44,45 @@ struct HumorView: View {
         }
     }
 
-    /// 명예의 전당 — 글쓰기왕·댓글왕·빵터짐왕(월간). 가로 스크롤.
+    /// 명예의 전당 — 글쓰기왕·댓글왕·빵터짐왕(월간). 세로 3줄로 한눈에(가로 스크롤 없음).
     private var hallOfFame: some View {
         VStack(alignment: .leading, spacing: Theme.Space.x2) {
             Label("명예의 전당 · \(store.rankingMonth)", systemImage: "trophy.fill")
                 .font(.subheadline.bold()).foregroundStyle(Theme.Palette.tintPrimaryInk)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Theme.Space.x3) {
-                    fameCard("글쓰기왕", "square.and.pencil", store.topPosters, unit: "글")
-                    fameCard("댓글왕", "text.bubble.fill", store.topCommenters, unit: "댓글")
-                    fameCard("빵터짐왕", "face.smiling.fill", store.topLiked, unit: "빵터짐")
-                }
-            }
+            fameRow("글쓰기왕", "square.and.pencil", store.topPosters, unit: "글")
+            fameRow("댓글왕", "text.bubble.fill", store.topCommenters, unit: "댓글")
+            fameRow("빵터짐왕", "face.smiling.fill", store.topLiked, unit: "")
         }
         .padding(Theme.Space.x3)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.Palette.tintPrimary, in: RoundedRectangle(cornerRadius: Theme.Radius.lg))
     }
 
-    private func fameCard(_ title: String, _ icon: String, _ rankers: [HumorRanker], unit: String) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Space.x1) {
-            Label(title, systemImage: icon).font(.caption.bold()).foregroundStyle(Theme.Palette.primary)
+    /// 한 줄 = 카테고리 라벨 + 상위 3명(메달·이름·수치)을 인라인으로.
+    private func fameRow(_ title: String, _ icon: String, _ rankers: [HumorRanker], unit: String) -> some View {
+        HStack(alignment: .center, spacing: Theme.Space.x2) {
+            Label(title, systemImage: icon)
+                .font(.caption.bold()).foregroundStyle(Theme.Palette.primary)
+                .frame(width: 92, alignment: .leading)
             if rankers.isEmpty {
                 Text("아직 없어요").font(.caption2).foregroundStyle(Theme.Palette.muted)
             } else {
-                ForEach(Array(rankers.enumerated()), id: \.element.id) { idx, r in
-                    HStack(spacing: 4) {
-                        Text(medal(idx)).font(.caption2)
-                        Text(r.name).font(.caption.weight(.semibold)).foregroundStyle(Theme.Palette.ink)
-                        Text("\(r.count)\(unit)").font(.caption2).foregroundStyle(Theme.Palette.muted)
+                HStack(spacing: Theme.Space.x2) {
+                    ForEach(Array(rankers.enumerated()), id: \.element.id) { idx, r in
+                        HStack(spacing: 2) {
+                            Text(medal(idx)).font(.caption2)
+                            Text(r.name).font(.caption.weight(.semibold)).foregroundStyle(Theme.Palette.ink)
+                                .lineLimit(1)
+                            Text("\(r.count)\(unit)").font(.caption2).foregroundStyle(Theme.Palette.muted)
+                        }
                     }
                 }
             }
+            Spacer(minLength: 0)
         }
-        .padding(Theme.Space.x3)
-        .frame(width: 150, alignment: .leading)
+        .padding(.vertical, 2)
+        .padding(.horizontal, Theme.Space.x2)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.md).stroke(Theme.Palette.border))
     }

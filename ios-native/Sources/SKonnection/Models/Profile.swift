@@ -44,6 +44,16 @@ final class ProfileStore: ObservableObject {
 
     init() {
         profiles = Persist.load(Self.key, as: [TeamProfile].self) ?? Self.seed
+        Task { await syncFromRemote() }
+    }
+
+    /// 웹과 같은 Supabase 에서 동료 프로필을 불러온다(실패 시 로컬 캐시).
+    func syncFromRemote() async {
+        guard Supabase.isConfigured else { return }
+        if let rows = try? await Supabase.select("profiles", query: "select=*", as: SupabaseProfileRow.self) {
+            let mapped = rows.map { $0.toProfile() }.filter { !$0.name.isEmpty }
+            if !mapped.isEmpty { profiles = mapped }
+        }
     }
 
     /// 기질별 인원 분포(작성한 사람만).
@@ -78,4 +88,20 @@ final class ProfileStore: ObservableObject {
         .init(id: "김영석", name: "김영석", part: "ITS혁신파트", mbti: "INTP", disc: "C",
               collabGuide: "왜 그런지 원리를 함께 보면 몰입해요."),
     ]
+}
+
+/// Supabase profiles 행 → iOS TeamProfile 매핑.
+struct SupabaseProfileRow: Decodable {
+    let owner_email: String?
+    let name: String?
+    let part: String?
+    let mbti_type: String?
+    let disc_type: String?
+    let collab_guide: String?
+    let guide: String?
+    func toProfile() -> TeamProfile {
+        TeamProfile(id: owner_email ?? (name ?? UUID().uuidString), name: name ?? "", part: part ?? "",
+                    mbti: mbti_type ?? "", disc: disc_type ?? "",
+                    collabGuide: (collab_guide?.isEmpty == false ? collab_guide : guide) ?? "")
+    }
 }

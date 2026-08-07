@@ -118,6 +118,18 @@ final class MeetingStore: ObservableObject {
         cans = Persist.load(Self.cansKey, as: [CanSession].self) ?? Self.seedCans
         opinions = Persist.load(Self.opinionsKey, as: [CanOpinion].self) ?? Self.seedOpinions
         teas = Persist.load(Self.teasKey, as: [TeaSession].self) ?? Self.seedTeas
+        Task { await syncFromRemote() }
+    }
+
+    /// 웹과 같은 Supabase 에서 캔미팅·의견·티미팅을 불러온다(실패 시 로컬 캐시).
+    func syncFromRemote() async {
+        guard Supabase.isConfigured else { return }
+        async let c = try? Supabase.select("can_sessions", query: "select=*&order=held_at.desc", as: SupabaseCanRow.self)
+        async let o = try? Supabase.select("can_opinions", query: "select=*", as: SupabaseCanOpinionRow.self)
+        async let t = try? Supabase.select("tea_sessions", query: "select=*&order=held_at.desc", as: SupabaseTeaRow.self)
+        if let rows = await c { cans = rows.map { $0.toSession() } }
+        if let rows = await o { opinions = rows.map { $0.toOpinion() } }
+        if let rows = await t { teas = rows.map { $0.toTea() } }
     }
 
     // MARK: 캔미팅
@@ -200,4 +212,46 @@ final class MeetingStore: ObservableObject {
         .init(id: "TEA-1", title: "3분기 팀워크샵 회고", type: "팀워크샵", presenter: "이선민",
               part: "전체", heldAt: "", status: .proposed),
     ]
+}
+
+// MARK: - Supabase 행 매핑 (DB 케이스명이 enum 케이스명과 일치 → String(describing:)로 매핑)
+
+struct SupabaseCanRow: Decodable {
+    let id: String
+    let topic: String?
+    let team_name: String?
+    let held_at: String?
+    let stage: String?
+    func toSession() -> CanSession {
+        let st = CanStage.allCases.first { String(describing: $0) == (stage ?? "") } ?? .collect
+        return CanSession(id: id, title: topic ?? "", part: team_name ?? "",
+                          date: String((held_at ?? "").prefix(10)), stage: st)
+    }
+}
+struct SupabaseCanOpinionRow: Decodable {
+    let id: String
+    let session_id: String
+    let step: String?
+    let content: String?
+    let author_name: String?
+    let selected: Bool?
+    func toOpinion() -> CanOpinion {
+        let sp = CanStep.allCases.first { String(describing: $0) == (step ?? "") } ?? .speakout
+        return CanOpinion(id: id, sessionId: session_id, step: sp, content: content ?? "",
+                          author: author_name ?? "익명", selected: selected ?? false)
+    }
+}
+struct SupabaseTeaRow: Decodable {
+    let id: String
+    let title: String?
+    let type: String?
+    let presenter: String?
+    let part: String?
+    let held_at: String?
+    let status: String?
+    func toTea() -> TeaSession {
+        let st: TeaStatus = status == "완료" ? .done : (status == "제안" ? .proposed : .scheduled)
+        return TeaSession(id: id, title: title ?? "", type: type ?? "팀내공유",
+                          presenter: presenter ?? "", part: part ?? "", heldAt: held_at ?? "", status: st)
+    }
 }
