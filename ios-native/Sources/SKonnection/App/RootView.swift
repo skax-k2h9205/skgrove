@@ -82,11 +82,6 @@ struct FeaturePlaceholder: View {
     }
 }
 
-struct AgendaView: View {
-    var body: some View { ScreenScaffold(title: "안건 / 투표") {
-        FeaturePlaceholder(icon: "checkmark.square.fill", text: "안건·투표 — 네이티브 구현 예정")
-    } }
-}
 struct ActionsView: View {
     var body: some View { ScreenScaffold(title: "액션아이템") {
         FeaturePlaceholder(icon: "bolt.fill", text: "액션아이템 — 네이티브 구현 예정")
