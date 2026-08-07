@@ -15,7 +15,6 @@ struct HumorPost: Identifiable {
 struct HumorView: View {
     @EnvironmentObject private var session: SessionStore
     @State private var composing = false
-    @State private var draft = ""
     @State private var posts: [HumorPost] = [
         .init(id: "1", author: "김영석", date: "2026-07-29",
               body: "연차 쓴 날 아침에 눈 번쩍 떠지는 사람 손 🙋 (나만 그런 거 아니지?)", laughs: 8, comments: 0,
@@ -48,19 +47,39 @@ struct HumorView: View {
             HumorDetail(post: post) { toggleLike(post) }
         }
         .sheet(isPresented: $composing) {
-            ComposeSheet(title: "유머 글쓰기", placeholder: "웃긴 이야기를 남겨보세요", text: $draft, action: "등록") {
-                post()
-            }
+            HumorComposeSheet { body, media in post(body: body, media: media) }
         }
     }
 
-    private func post() {
-        let body = draft.trimmingCharacters(in: .whitespaces)
-        guard !body.isEmpty else { return }
+    private func post(body: String, media: String) {
+        let text = body.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return }
         let author = session.currentUser?.name ?? "익명"
-        posts.insert(.init(id: UUID().uuidString, author: author, date: "방금", body: body, laughs: 0, comments: 0), at: 0)
-        draft = ""
+        posts.insert(.init(id: UUID().uuidString, author: author, date: "방금", body: text,
+                           laughs: 0, comments: 0, imageURL: thumbnail(from: media)), at: 0)
         Haptics.success()
+    }
+
+    /// 붙인 링크가 유튜브면 썸네일, 이미지 주소면 그대로. 아니면 없음(색 타일).
+    private func thumbnail(from link: String) -> URL? {
+        let s = link.trimmingCharacters(in: .whitespaces)
+        guard !s.isEmpty else { return nil }
+        if let id = youtubeID(s) { return URL(string: "https://img.youtube.com/vi/\(id)/hqdefault.jpg") }
+        if s.lowercased().hasSuffix(".jpg") || s.lowercased().hasSuffix(".png") || s.lowercased().hasSuffix(".jpeg") {
+            return URL(string: s)
+        }
+        return nil
+    }
+
+    private func youtubeID(_ url: String) -> String? {
+        for marker in ["v=", "youtu.be/", "/shorts/", "/embed/"] {
+            if let r = url.range(of: marker) {
+                let rest = url[r.upperBound...]
+                let id = rest.prefix { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }
+                if id.count >= 6 { return String(id) }
+            }
+        }
+        return nil
     }
 
     private func toggleLike(_ post: HumorPost) {

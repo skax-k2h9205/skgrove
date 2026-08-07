@@ -4,8 +4,10 @@ struct MarketItem: Identifiable {
     let id: String
     let title: String
     let owner: String
-    let kind: String   // 나눔 / 판매 / 교환
+    let kind: String   // 나눔 / 경매
     let price: String
+    var desc: String = ""
+    var place: String = ""
 }
 
 /// 이음장터 — 인스타 3열 그리드. 타일 탭 시 상세 시트. 물건 내놓기로 등록.
@@ -13,7 +15,6 @@ struct MarketView: View {
     @EnvironmentObject private var session: SessionStore
     @State private var filter = "거래중"
     @State private var composing = false
-    @State private var draft = ""
     private let filters = ["거래중", "나눔", "내가 올린 것", "전체"]
     @State private var items: [MarketItem] = [
         .init(id: "M1", title: "안 쓰는 기계식 키보드 나눔", owner: "김승현", kind: "나눔", price: "무료"),
@@ -50,22 +51,30 @@ struct MarketView: View {
             }
         }
         .sheet(item: $selected) { item in
-            DetailSheet(title: item.kind, heading: item.title,
-                        lines: ["\(item.owner) · \(item.kind)", "가격 \(item.price)"],
+            DetailSheet(title: item.kind, heading: item.title, lines: detailLines(item),
                         action: "대화 걸기")
         }
         .sheet(isPresented: $composing) {
-            ComposeSheet(title: "물건 내놓기", placeholder: "무엇을 나누거나 파나요?",
-                         text: $draft, action: "올리기") { list() }
+            MarketComposeSheet { kind, title, desc, place, startPrice, _ in
+                list(kind: kind, title: title, desc: desc, place: place, startPrice: startPrice)
+            }
         }
     }
 
-    private func list() {
-        let title = draft.trimmingCharacters(in: .whitespaces)
-        guard !title.isEmpty else { return }
+    private func list(kind: String, title: String, desc: String, place: String, startPrice: Int) {
         let owner = session.currentUser?.name ?? "나"
-        items.insert(.init(id: UUID().uuidString, title: title, owner: owner, kind: "나눔", price: "무료"), at: 0)
-        draft = ""
+        let price = kind == "경매" ? "시작가 \(startPrice.formatted())원" : "무료"
+        items.insert(.init(id: UUID().uuidString, title: title, owner: owner, kind: kind,
+                           price: price, desc: desc, place: place), at: 0)
         Haptics.success()
+    }
+
+    private func detailLines(_ item: MarketItem) -> [String] {
+        var lines: [String] = []
+        if !item.desc.isEmpty { lines.append(item.desc) }
+        lines.append("\(item.owner) · \(item.kind)")
+        lines.append("가격 \(item.price)")
+        if !item.place.isEmpty { lines.append("거래 장소 \(item.place)") }
+        return lines
     }
 }

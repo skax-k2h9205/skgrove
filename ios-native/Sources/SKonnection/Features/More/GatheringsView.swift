@@ -8,6 +8,8 @@ struct Gathering: Identifiable {
     let kind: String     // 번개 / 공모
     var joined: Int
     var capacity: Int
+    var place: String = ""
+    var desc: String = ""
 }
 
 /// 모임 · 번개 — 인스타 3열 그리드. 타일 탭 시 상세 시트에서 신청. 모임 열기로 등록.
@@ -15,7 +17,6 @@ struct GatheringsView: View {
     @EnvironmentObject private var session: SessionStore
     @State private var filter = "모집중"
     @State private var composing = false
-    @State private var draft = ""
     private let filters = ["모집중", "내가 신청", "내가 연 것", "전체"]
     @State private var gatherings: [Gathering] = [
         .init(id: "GAT-1", title: "오늘 점심 김치찌개 번개 🍲", host: "김승현", when: "오늘 12:00", kind: "번개", joined: 3, capacity: 6),
@@ -36,33 +37,65 @@ struct GatheringsView: View {
 
             InstaGrid(items: gatherings) { g in
                 Button { Haptics.selection(); selected = g } label: {
-                    GridTile(icon: g.kind == "번개" ? "bolt.fill" : "calendar", title: g.title,
-                             meta: "\(g.joined)/\(g.capacity)명",
-                             tint: g.kind == "번개" ? Theme.Palette.tintSuccess : Theme.Palette.tintPrimary,
-                             ink: g.kind == "번개" ? Theme.Palette.tintSuccessInk : Theme.Palette.tintPrimaryInk)
+                    GridTile(icon: icon(g.kind), title: g.title, meta: "\(g.joined)/\(g.capacity)명",
+                             tint: tint(g.kind), ink: ink(g.kind))
                 }
                 .buttonStyle(.plain)
             }
         }
         .sheet(item: $selected) { g in
-            DetailSheet(title: g.kind, heading: g.title,
-                        lines: ["\(g.host) · \(g.when)", "\(g.joined)/\(g.capacity)명 참여"],
-                        action: "신청하기")
+            DetailSheet(title: g.kind, heading: g.title, lines: detailLines(g),
+                        action: g.kind == "커피" ? "커피 뽑기" : "신청하기")
         }
         .sheet(isPresented: $composing) {
-            ComposeSheet(title: "모임 열기", placeholder: "어떤 모임인가요? (예: 오늘 점심 번개 🍜)",
-                         text: $draft, action: "열기") { open() }
+            GatheringComposeSheet { kind, title, startAt, place, capacity, desc in
+                open(kind: kind, title: title, startAt: startAt, place: place, capacity: capacity, desc: desc)
+            }
         }
     }
 
-    private func open() {
-        let title = draft.trimmingCharacters(in: .whitespaces)
-        guard !title.isEmpty else { return }
+    private func open(kind: String, title: String, startAt: Date, place: String, capacity: Int, desc: String) {
         let host = session.currentUser?.name ?? "나"
-        gatherings.insert(.init(id: UUID().uuidString, title: title, host: host, when: "곧",
-                                kind: "번개", joined: 1, capacity: 6), at: 0)
-        draft = ""
+        gatherings.insert(.init(id: UUID().uuidString, title: title, host: host,
+                                when: Self.when.string(from: startAt), kind: kind,
+                                joined: 1, capacity: capacity, place: place, desc: desc), at: 0)
         Haptics.success()
+    }
+
+    private static let when: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "ko_KR")
+        f.dateFormat = "M/d(E) HH:mm"; return f
+    }()
+
+    private func detailLines(_ g: Gathering) -> [String] {
+        var lines: [String] = []
+        if !g.desc.isEmpty { lines.append(g.desc) }
+        lines.append("\(g.host) · \(g.when)")
+        if !g.place.isEmpty { lines.append("장소 \(g.place)") }
+        lines.append("\(g.joined)/\(g.capacity)명 참여")
+        return lines
+    }
+
+    private func icon(_ kind: String) -> String {
+        switch kind {
+        case "번개": return "bolt.fill"
+        case "커피": return "cup.and.saucer.fill"
+        default: return "calendar"
+        }
+    }
+    private func tint(_ kind: String) -> Color {
+        switch kind {
+        case "번개": return Theme.Palette.tintSuccess
+        case "커피": return Theme.Palette.tintDanger
+        default: return Theme.Palette.tintPrimary
+        }
+    }
+    private func ink(_ kind: String) -> Color {
+        switch kind {
+        case "번개": return Theme.Palette.tintSuccessInk
+        case "커피": return Theme.Palette.danger
+        default: return Theme.Palette.tintPrimaryInk
+        }
     }
 }
 
