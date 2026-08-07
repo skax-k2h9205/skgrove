@@ -3,7 +3,7 @@ import SwiftUI
 /// 대나무숲 접수 — 익명/실명으로 의견을 접수하고, 내 접수 상태를 본다(웹 Intake 이식).
 struct IntakeView: View {
     @EnvironmentObject private var session: SessionStore
-    @StateObject private var store = IssueStore()
+    @EnvironmentObject private var store: IssueStore
 
     @State private var identity: Identity = .anonymous
     @State private var category = issueCategories[0]

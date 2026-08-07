@@ -3,6 +3,11 @@ import SwiftUI
 @main
 struct SKonnectionApp: App {
     @StateObject private var session = SessionStore()
+    // 앱 전역 공유 스토어 — 화면마다 새로 만들지 않고 여기서 한 번만 생성해 주입한다.
+    // (접수↔리더, 안건 투표, 액션 상태가 화면을 넘나들며 일관되게 유지되고 영속화된다.)
+    @StateObject private var issues = IssueStore()
+    @StateObject private var agendas = AgendaStore()
+    @StateObject private var actions = ActionStore()
     @State private var showSplash = true
     @State private var splashScheduled = false
 
@@ -17,6 +22,9 @@ struct SKonnectionApp: App {
                     }
                 }
                 .environmentObject(session)
+                .environmentObject(issues)
+                .environmentObject(agendas)
+                .environmentObject(actions)
 
                 if showSplash {
                     SplashView()

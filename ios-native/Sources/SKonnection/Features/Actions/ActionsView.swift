@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 액션아이템 — 필터 + 지연 경고 + 카드(담당·목표일·상태 전환). 웹 Actions 이식.
 struct ActionsView: View {
-    @StateObject private var store = ActionStore()
+    @EnvironmentObject private var store: ActionStore
     @State private var filter: ActionStatus? = nil
 
     private var filtered: [ActionItem] {
