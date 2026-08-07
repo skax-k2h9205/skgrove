@@ -6,18 +6,16 @@ struct HomeView: View {
     var onOpen: (Int) -> Void = { _ in }
 
     private let feed = HomeFeedItem.seed
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 3), count: 3)
 
     var body: some View {
         ScreenScaffold(title: "홈") {
             storyRow
-            LazyVGrid(columns: columns, spacing: 3) {
-                ForEach(feed) { item in
-                    Button { Haptics.selection(); onOpen(tabFor(item.kind)) } label: {
-                        FeedTile(item: item)
-                    }
-                    .buttonStyle(.plain)
+            InstaGrid(items: feed) { item in
+                Button { Haptics.selection(); onOpen(tabFor(item.kind)) } label: {
+                    GridTile(imageURL: item.imageURL, icon: item.kind.icon, title: item.title,
+                             meta: item.meta, tint: item.kind.tint, ink: item.kind.ink)
                 }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -68,54 +66,3 @@ private struct StoryCircle: View {
     }
 }
 
-/// 피드 한 칸. 이미지가 있으면 사진 타일(+코너 글리프), 없으면 색 타일(아이콘·제목·메타).
-private struct FeedTile: View {
-    let item: HomeFeedItem
-
-    var body: some View {
-        Group {
-            if let url = item.imageURL {
-                imageTile(url)
-            } else {
-                plainTile
-            }
-        }
-        .aspectRatio(1, contentMode: .fill)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm))
-    }
-
-    private func imageTile(_ url: URL) -> some View {
-        ZStack(alignment: .topTrailing) {
-            AsyncImage(url: url) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                Theme.Palette.surfaceDark
-            }
-            Image(systemName: item.kind.icon)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
-                .shadow(color: Theme.Palette.surfaceDark.opacity(0.6), radius: 2, y: 1)
-                .padding(6)
-        }
-        .clipped()
-    }
-
-    private var plainTile: some View {
-        VStack(spacing: 6) {
-            Image(systemName: item.kind.icon)
-                .font(.system(size: 24, weight: .regular))
-                .foregroundStyle(item.kind.ink)
-            Text(item.title)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(item.kind.ink)
-                .multilineTextAlignment(.center)
-                .lineLimit(3)
-            if let meta = item.meta {
-                Text(meta).font(.system(size: 10)).foregroundStyle(Theme.Palette.muted)
-            }
-        }
-        .padding(8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(item.kind.tint)
-    }
-}

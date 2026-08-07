@@ -18,7 +18,8 @@ struct GridTile: View {
                 plainTile
             }
         }
-        .aspectRatio(1, contentMode: .fill)
+        // 인스타 릴스 그리드 규격 — 정사각형이 아니라 세로 직사각형(9:16).
+        .aspectRatio(9.0 / 16.0, contentMode: .fill)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm))
     }
 
