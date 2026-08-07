@@ -10,9 +10,12 @@ struct Gathering: Identifiable {
     var capacity: Int
 }
 
-/// 모임 · 번개 — 인스타 3열 그리드. 타일 탭 시 상세 시트에서 신청.
+/// 모임 · 번개 — 인스타 3열 그리드. 타일 탭 시 상세 시트에서 신청. 모임 열기로 등록.
 struct GatheringsView: View {
+    @EnvironmentObject private var session: SessionStore
     @State private var filter = "모집중"
+    @State private var composing = false
+    @State private var draft = ""
     private let filters = ["모집중", "내가 신청", "내가 연 것", "전체"]
     @State private var gatherings: [Gathering] = [
         .init(id: "GAT-1", title: "오늘 점심 김치찌개 번개 🍲", host: "김승현", when: "오늘 12:00", kind: "번개", joined: 3, capacity: 6),
@@ -25,7 +28,7 @@ struct GatheringsView: View {
     var body: some View {
         ScreenScaffold(title: "모임 · 번개", showUserChip: false) {
             ChipRow(items: filters, selection: $filter)
-            Button {} label: {
+            Button { composing = true } label: {
                 Label("모임 열기", systemImage: "plus").font(.headline)
                     .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
             }
@@ -46,6 +49,20 @@ struct GatheringsView: View {
                         lines: ["\(g.host) · \(g.when)", "\(g.joined)/\(g.capacity)명 참여"],
                         action: "신청하기")
         }
+        .sheet(isPresented: $composing) {
+            ComposeSheet(title: "모임 열기", placeholder: "어떤 모임인가요? (예: 오늘 점심 번개 🍜)",
+                         text: $draft, action: "열기") { open() }
+        }
+    }
+
+    private func open() {
+        let title = draft.trimmingCharacters(in: .whitespaces)
+        guard !title.isEmpty else { return }
+        let host = session.currentUser?.name ?? "나"
+        gatherings.insert(.init(id: UUID().uuidString, title: title, host: host, when: "곧",
+                                kind: "번개", joined: 1, capacity: 6), at: 0)
+        draft = ""
+        Haptics.success()
     }
 }
 

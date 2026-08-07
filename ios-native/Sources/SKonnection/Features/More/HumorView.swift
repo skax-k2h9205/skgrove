@@ -11,8 +11,11 @@ struct HumorPost: Identifiable {
     var liked: Bool = false
 }
 
-/// 유머 게시판 — 홈처럼 인스타 3열 그리드. 타일 탭 시 상세 시트.
+/// 유머 게시판 — 홈처럼 인스타 3열 그리드. 타일 탭 시 상세 시트. 글쓰기로 등록.
 struct HumorView: View {
+    @EnvironmentObject private var session: SessionStore
+    @State private var composing = false
+    @State private var draft = ""
     @State private var posts: [HumorPost] = [
         .init(id: "1", author: "김영석", date: "2026-07-29",
               body: "연차 쓴 날 아침에 눈 번쩍 떠지는 사람 손 🙋 (나만 그런 거 아니지?)", laughs: 8, comments: 0,
@@ -27,6 +30,12 @@ struct HumorView: View {
 
     var body: some View {
         ScreenScaffold(title: "유머 게시판", showUserChip: false) {
+            Button { composing = true } label: {
+                Label("글쓰기", systemImage: "square.and.pencil").font(.headline)
+                    .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
+            }
+            .buttonStyle(.borderedProminent).tint(Theme.Palette.cta)
+
             InstaGrid(items: posts) { post in
                 Button { Haptics.selection(); selected = post } label: {
                     GridTile(imageURL: post.imageURL, icon: "face.smiling", title: post.body,
@@ -38,6 +47,20 @@ struct HumorView: View {
         .sheet(item: $selected) { post in
             HumorDetail(post: post) { toggleLike(post) }
         }
+        .sheet(isPresented: $composing) {
+            ComposeSheet(title: "유머 글쓰기", placeholder: "웃긴 이야기를 남겨보세요", text: $draft, action: "등록") {
+                post()
+            }
+        }
+    }
+
+    private func post() {
+        let body = draft.trimmingCharacters(in: .whitespaces)
+        guard !body.isEmpty else { return }
+        let author = session.currentUser?.name ?? "익명"
+        posts.insert(.init(id: UUID().uuidString, author: author, date: "방금", body: body, laughs: 0, comments: 0), at: 0)
+        draft = ""
+        Haptics.success()
     }
 
     private func toggleLike(_ post: HumorPost) {

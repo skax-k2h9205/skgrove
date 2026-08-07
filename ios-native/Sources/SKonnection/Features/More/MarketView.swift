@@ -8,9 +8,12 @@ struct MarketItem: Identifiable {
     let price: String
 }
 
-/// 이음장터 — 인스타 3열 그리드. 타일 탭 시 상세 시트.
+/// 이음장터 — 인스타 3열 그리드. 타일 탭 시 상세 시트. 물건 내놓기로 등록.
 struct MarketView: View {
+    @EnvironmentObject private var session: SessionStore
     @State private var filter = "거래중"
+    @State private var composing = false
+    @State private var draft = ""
     private let filters = ["거래중", "나눔", "내가 올린 것", "전체"]
     @State private var items: [MarketItem] = [
         .init(id: "M1", title: "안 쓰는 기계식 키보드 나눔", owner: "김승현", kind: "나눔", price: "무료"),
@@ -31,7 +34,7 @@ struct MarketView: View {
             .background(Theme.Palette.tintPrimary, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
 
             ChipRow(items: filters, selection: $filter)
-            Button {} label: {
+            Button { composing = true } label: {
                 Label("물건 내놓기", systemImage: "plus").font(.headline)
                     .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
             }
@@ -51,5 +54,18 @@ struct MarketView: View {
                         lines: ["\(item.owner) · \(item.kind)", "가격 \(item.price)"],
                         action: "대화 걸기")
         }
+        .sheet(isPresented: $composing) {
+            ComposeSheet(title: "물건 내놓기", placeholder: "무엇을 나누거나 파나요?",
+                         text: $draft, action: "올리기") { list() }
+        }
+    }
+
+    private func list() {
+        let title = draft.trimmingCharacters(in: .whitespaces)
+        guard !title.isEmpty else { return }
+        let owner = session.currentUser?.name ?? "나"
+        items.insert(.init(id: UUID().uuidString, title: title, owner: owner, kind: "나눔", price: "무료"), at: 0)
+        draft = ""
+        Haptics.success()
     }
 }
