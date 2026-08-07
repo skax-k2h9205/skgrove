@@ -101,11 +101,28 @@ struct FeaturePlaceholder: View {
     }
 }
 
-/// 더보기 허브 — 나머지 화면으로 가는 네이티브 리스트. 각 항목을 push 한다.
+/// 더보기 허브 — 프로필 헤더 + 나머지 화면 리스트(인스타의 프로필 탭 격).
 struct MoreView: View {
+    @EnvironmentObject private var session: SessionStore
+
     var body: some View {
         NavigationStack {
             List {
+                // 홈에 있던 로그인 정보를 여기로. 더보기가 프로필 허브가 된다.
+                if let user = session.currentUser {
+                    Section {
+                        HStack(spacing: Theme.Space.x3) {
+                            BrandMark(size: 44)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(user.name).font(.headline).foregroundStyle(Theme.Palette.ink)
+                                Text("\(user.role.rawValue) · \(user.part)")
+                                    .font(.subheadline).foregroundStyle(Theme.Palette.muted)
+                            }
+                        }
+                        .padding(.vertical, Theme.Space.x1)
+                    }
+                }
+
                 Section("워크") {
                     link("대나무숲 접수", "tray.and.arrow.down.fill", Theme.Palette.primary) { IntakeView() }
                     link("안건 / 투표", "checkmark.square.fill", Theme.Palette.primary) { AgendaView() }
@@ -124,6 +141,11 @@ struct MoreView: View {
                 Section("지표 · 알림") {
                     link("파트지수 / 리포트", "chart.bar.fill", Theme.Palette.primaryStrong) { MetricsView() }
                     link("알림 / 메시지", "bell.fill", Theme.Palette.cta) { NotificationsView() }
+                }
+                Section {
+                    Button(role: .destructive) { session.logout() } label: {
+                        Label("로그아웃", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
                 }
             }
             .navigationTitle("더보기")
