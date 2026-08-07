@@ -48,6 +48,40 @@ struct Issue: Identifiable, Codable {
     var status: IssueStatus
     var createdAt: String
     var submitterEmail: String?
+    // 리더 처리 이력. 답변·1on1 메모·보류/종료 사유. 접수자에게 근거를 남기고 방치를 막는다.
+    var leaderReply: String = ""
+    var oneOnOneNote: String = ""
+    var reason: String = ""       // 보류/종료 사유(웹 statusNeedsReason)
+
+    // 웹 issueRules.ts 이식 — 응답 지연 감지.
+    static let responseDueDays = 7
+
+    /// 리더의 응답이 하나도 없는 상태(회수·종료·처리완료 제외).
+    var isAwaitingResponse: Bool {
+        guard status == .received || status == .reviewing else { return false }
+        return leaderReply.isEmpty && oneOnOneNote.isEmpty
+    }
+
+    /// 접수일로부터 지난 일수. "방금" 등 파싱 불가한 값은 0으로 본다.
+    func daysSinceCreated(today: Date) -> Int {
+        guard let created = Self.ymd.date(from: createdAt) else { return 0 }
+        return max(0, Calendar.current.dateComponents([.day], from: created, to: today).day ?? 0)
+    }
+
+    /// 응답 없이 기준 일수를 넘긴 건.
+    func isResponseOverdue(today: Date) -> Bool {
+        isAwaitingResponse && daysSinceCreated(today: today) >= Self.responseDueDays
+    }
+
+    /// 사유를 반드시 받아야 하는 전환(보류·종료).
+    static func statusNeedsReason(_ status: IssueStatus) -> Bool {
+        status == .held || status == .closed
+    }
+
+    private static let ymd: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX"); return f
+    }()
 }
 
 /// 접수 목록 보관·추가. 앱 전역에서 하나의 인스턴스를 공유(접수 화면 ↔ 리더 관리함).
@@ -80,6 +114,33 @@ final class IssueStore: ObservableObject {
     func mark(_ id: String, _ status: IssueStatus) {
         guard let i = issues.firstIndex(where: { $0.id == id }) else { return }
         issues[i].status = status
+    }
+
+    /// 리더 답변 — 접수자에게 응답을 남기고 답변완료로.
+    func reply(_ id: String, _ text: String) {
+        guard let i = issues.firstIndex(where: { $0.id == id }) else { return }
+        issues[i].leaderReply = text
+        issues[i].status = .answered
+    }
+
+    /// 1:1 제안 메모.
+    func proposeOneOnOne(_ id: String, _ note: String) {
+        guard let i = issues.firstIndex(where: { $0.id == id }) else { return }
+        issues[i].oneOnOneNote = note
+        issues[i].status = .oneOnOne
+    }
+
+    /// 보류/종료 — 사유를 반드시 함께 남긴다(방치·통보 방지).
+    func decide(_ id: String, _ status: IssueStatus, reason: String) {
+        guard Issue.statusNeedsReason(status) else { return }
+        guard let i = issues.firstIndex(where: { $0.id == id }) else { return }
+        issues[i].reason = reason
+        issues[i].status = status
+    }
+
+    /// 응답 없이 가장 오래 기다린 건의 경과일. 없으면 nil.
+    func oldestWaitingDays(today: Date) -> Int? {
+        issues.filter { $0.isAwaitingResponse }.map { $0.daysSinceCreated(today: today) }.max()
     }
 
     /// 기존 접수번호와 겹치지 않는 다음 번호. 삭제/영속 이후에도 안전하게 최대값+1.
