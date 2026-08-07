@@ -59,9 +59,9 @@ struct MarketView: View {
             MarketDetailSheet(itemId: item.id)
         }
         .sheet(isPresented: $composing) {
-            MarketComposeSheet { kind, title, desc, place, startPrice, closeAt in
+            MarketComposeSheet { kind, title, desc, place, startPrice, minStep, closeAt in
                 store.list(kind: kind == "경매" ? .auction : .giveaway, title: title, seller: myName,
-                           startPrice: startPrice, closeAt: MarketClock.isoString(closeAt),
+                           startPrice: startPrice, minStep: minStep, closeAt: MarketClock.isoString(closeAt),
                            desc: desc, place: place)
                 Haptics.success()
             }
@@ -133,6 +133,7 @@ private struct MarketDetailSheet: View {
         VStack(alignment: .leading, spacing: Theme.Space.x2) {
             if item.kind == .auction {
                 row("현재가", "\(store.currentPrice(item).formatted())원")
+                row("입찰 단위", "\(item.minStep.formatted())원")
                 row("입찰", "\(store.bidCount(item))건")
                 if let lead = store.leadingBid(item) {
                     row("최고 입찰자", lead.name)

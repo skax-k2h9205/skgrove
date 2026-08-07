@@ -49,39 +49,38 @@ struct HumorView: View {
         VStack(alignment: .leading, spacing: Theme.Space.x2) {
             Label("명예의 전당 · \(store.rankingMonth)", systemImage: "trophy.fill")
                 .font(.subheadline.bold()).foregroundStyle(Theme.Palette.tintPrimaryInk)
-            fameRow("글쓰기왕", "square.and.pencil", store.topPosters, unit: "글")
-            fameRow("댓글왕", "text.bubble.fill", store.topCommenters, unit: "댓글")
-            fameRow("빵터짐왕", "face.smiling.fill", store.topLiked, unit: "")
+            fameRow("글쓰기왕", "square.and.pencil", store.topPosters)
+            fameRow("댓글왕", "text.bubble.fill", store.topCommenters)
+            fameRow("빵터짐왕", "face.smiling.fill", store.topLiked)
         }
         .padding(Theme.Space.x3)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.Palette.tintPrimary, in: RoundedRectangle(cornerRadius: Theme.Radius.lg))
     }
 
-    /// 한 줄 = 카테고리 라벨 + 상위 3명(메달·이름·수치)을 인라인으로.
-    private func fameRow(_ title: String, _ icon: String, _ rankers: [HumorRanker], unit: String) -> some View {
+    /// 한 줄 = 카테고리 라벨 + 상위 3명(메달·이름). 수치는 생략해 한눈에 읽히게.
+    private func fameRow(_ title: String, _ icon: String, _ rankers: [HumorRanker]) -> some View {
         HStack(alignment: .center, spacing: Theme.Space.x2) {
             Label(title, systemImage: icon)
                 .font(.caption.bold()).foregroundStyle(Theme.Palette.primary)
-                .frame(width: 92, alignment: .leading)
+                .frame(width: 88, alignment: .leading)
             if rankers.isEmpty {
                 Text("아직 없어요").font(.caption2).foregroundStyle(Theme.Palette.muted)
             } else {
-                HStack(spacing: Theme.Space.x2) {
+                HStack(spacing: Theme.Space.x3) {
                     ForEach(Array(rankers.enumerated()), id: \.element.id) { idx, r in
-                        HStack(spacing: 2) {
+                        HStack(spacing: 3) {
                             Text(medal(idx)).font(.caption2)
                             Text(r.name).font(.caption.weight(.semibold)).foregroundStyle(Theme.Palette.ink)
                                 .lineLimit(1)
-                            Text("\(r.count)\(unit)").font(.caption2).foregroundStyle(Theme.Palette.muted)
                         }
                     }
                 }
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 2)
-        .padding(.horizontal, Theme.Space.x2)
+        .padding(.vertical, Theme.Space.x1)
+        .padding(.horizontal, Theme.Space.x3)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.md).stroke(Theme.Palette.border))

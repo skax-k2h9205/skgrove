@@ -180,15 +180,16 @@ final class MarketStore: ObservableObject {
         items[i].canceled = true
     }
 
-    func list(kind: MarketKind, title: String, seller: String, startPrice: Int, closeAt: String,
-              desc: String, place: String) {
+    func list(kind: MarketKind, title: String, seller: String, startPrice: Int, minStep: Int,
+              closeAt: String, desc: String, place: String) {
         let id = "MKT-\(Int(Date().timeIntervalSince1970))"
         let price = kind == .auction ? startPrice : 0
+        let step = kind == .auction ? max(1, minStep) : 0
         items.insert(MarketItem(id: id, title: title, seller: seller, kind: kind,
-                                startPrice: price, closeAt: closeAt, desc: desc, place: place), at: 0)
+                                startPrice: price, minStep: step, closeAt: closeAt, desc: desc, place: place), at: 0)
         Task { try? await Supabase.insert("market_items",
             SupabaseMarketInsert(id: id, kind: kind.dbValue, title: title, description: desc,
-                                 start_price: price, min_step: 1000, close_at: closeAt,
+                                 start_price: price, min_step: step, close_at: closeAt,
                                  place: place, seller: seller)) }
     }
 

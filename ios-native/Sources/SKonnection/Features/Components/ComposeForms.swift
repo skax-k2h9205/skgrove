@@ -140,22 +140,25 @@ struct GatheringComposeSheet: View {
 // MARK: - 물건 내놓기 (종류·제목·설명·장소·시작가·마감)
 
 struct MarketComposeSheet: View {
-    let onCreate: (_ kind: String, _ title: String, _ desc: String, _ place: String, _ startPrice: Int, _ closeAt: Date) -> Void
+    let onCreate: (_ kind: String, _ title: String, _ desc: String, _ place: String,
+                   _ startPrice: Int, _ minStep: Int, _ closeAt: Date) -> Void
     @State private var kind = "나눔"
     @State private var title = ""
     @State private var desc = ""
     @State private var place = ""
     @State private var priceText = ""
+    @State private var minStep = 1000       // 입찰 단위(웹처럼 등록 시 선택)
     @State private var closeAt = Date().addingTimeInterval(3 * 24 * 3600)
 
     private var isAuction: Bool { kind == "경매" }
+    private let steps = [1000, 5000, 10000, 50000]
 
     var body: some View {
         FormSheet(title: "물건 내놓기", action: "올리기",
                   canSubmit: !title.trimmingCharacters(in: .whitespaces).isEmpty,
                   onSubmit: {
                       let price = Int(priceText.filter(\.isNumber)) ?? 0
-                      onCreate(kind, title, desc, place, isAuction ? price : 0, closeAt)
+                      onCreate(kind, title, desc, place, isAuction ? price : 0, minStep, closeAt)
                   }) {
             FormRow(label: "종류") {
                 Picker("종류", selection: $kind) { Text("나눔").tag("나눔"); Text("경매").tag("경매") }
@@ -166,6 +169,11 @@ struct MarketComposeSheet: View {
             FormRow(label: "거래 장소") { FormField(text: $place, placeholder: "예: 3층 탕비실") }
             if isAuction {
                 FormRow(label: "시작가") { FormField(text: $priceText, placeholder: "숫자만 (원)", keyboard: .numberPad) }
+                FormRow(label: "입찰 단위") {
+                    Picker("입찰 단위", selection: $minStep) {
+                        ForEach(steps, id: \.self) { Text("\($0.formatted())원").tag($0) }
+                    }.pickerStyle(.segmented)
+                }
             }
             FormRow(label: "마감") {
                 DatePicker("", selection: $closeAt, displayedComponents: [.date, .hourAndMinute])
