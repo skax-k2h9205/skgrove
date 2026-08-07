@@ -3,6 +3,8 @@ import SwiftUI
 /// 앱의 최상위 탭 셸. iOS 네이티브 TabView 로 핵심 화면을 오간다.
 /// (웹의 가로 스크롤 하단바 대신, 5개 탭 + '더보기'의 네이티브 관례를 따른다.)
 struct RootView: View {
+    @State private var showChat = false
+
     var body: some View {
         TabView {
             HomeView()
@@ -16,6 +18,20 @@ struct RootView: View {
             MoreView()
                 .tabItem { Label("더보기", systemImage: "ellipsis") }
         }
+        // AI 상담 챗봇 FAB — 웹처럼 어느 화면에서나 뜬다. 탭바 위에 띄운다.
+        .overlay(alignment: .bottomTrailing) {
+            Button { showChat = true } label: {
+                Image(systemName: "message.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 56, height: 56)
+                    .background(Theme.Palette.cta, in: Circle())
+                    .shadow(color: Theme.Palette.surfaceDark.opacity(0.2), radius: 6, y: 3)
+            }
+            .padding(.trailing, Theme.Space.x5)
+            .padding(.bottom, 68)
+        }
+        .sheet(isPresented: $showChat) { ChatView() }
     }
 }
 
