@@ -3,21 +3,41 @@ import SwiftUI
 @main
 struct SKonnectionApp: App {
     @StateObject private var session = SessionStore()
+    @State private var showSplash = true
+    @State private var splashScheduled = false
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if session.isLoggedIn {
-                    RootView()
-                } else {
-                    LoginView()
+            ZStack {
+                Group {
+                    if session.isLoggedIn {
+                        RootView()
+                    } else {
+                        LoginView()
+                    }
+                }
+                .environmentObject(session)
+
+                if showSplash {
+                    SplashView()
+                        .transition(.opacity)
+                        .zIndex(1)
                 }
             }
-            .environmentObject(session)
             .tint(Theme.Palette.primary)
             // 디자인 토큰이 라이트 전용(웹앱과 동일)이라 라이트 모드로 고정한다.
             // 안 그러면 시스템 다크에서 네이티브 List 등이 검게 떠 화면이 어긋난다.
             .preferredColorScheme(.light)
+            // 시작 splash 를 잠깐 보여준 뒤 앱으로 전환한다.
+            // 시작 splash 를 1.4초 보여준 뒤 전환한다. asyncAfter 는 뷰 재렌더에
+            // 취소되지 않아 splash 가 조기 종료되지 않는다(가드로 1회만 예약).
+            .onAppear {
+                guard !splashScheduled else { return }
+                splashScheduled = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                    withAnimation(.easeInOut(duration: 0.45)) { showSplash = false }
+                }
+            }
         }
     }
 }
