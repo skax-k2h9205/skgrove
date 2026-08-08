@@ -9,7 +9,10 @@ import com.hyubs.skonnection.data.GatheringRepository
 import com.hyubs.skonnection.data.HumorRepository
 import com.hyubs.skonnection.data.IssueRepository
 import com.hyubs.skonnection.data.MarketRepository
+import com.hyubs.skonnection.data.MeetingRepository
+import com.hyubs.skonnection.data.MemoryRepository
 import com.hyubs.skonnection.data.NotificationRepository
+import com.hyubs.skonnection.data.ProfileRepository
 import com.hyubs.skonnection.net.SupabaseClient
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -29,5 +32,8 @@ class AppContainer(context: Context) {
     val agendaRepository = AgendaRepository(supabase)
     val actionRepository = ActionRepository(supabase)
     val notificationRepository = NotificationRepository(supabase)
+    val profileRepository = ProfileRepository(supabase)
+    val memoryRepository = MemoryRepository(supabase)
+    val meetingRepository = MeetingRepository(supabase)
     val sessionStore = SessionStore(context.applicationContext)
 }
