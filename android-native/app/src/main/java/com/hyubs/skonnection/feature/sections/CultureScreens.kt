@@ -20,6 +20,54 @@ import com.hyubs.skonnection.feature.FeedCard
 import com.hyubs.skonnection.feature.LoadingBox
 
 @Composable
+fun MetricsSection(c: AppContainer, modifier: Modifier = Modifier) {
+    val vm = remember { MetricsViewModel(c) }
+    val m by vm.metrics.collectAsStateWithLifecycle()
+    val loading by vm.loading.collectAsStateWithLifecycle()
+    if (loading) { LoadingBox(modifier); return }
+    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
+        item {
+            androidx.compose.material3.Surface(
+                color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                androidx.compose.foundation.layout.Column(Modifier.padding(20.dp)) {
+                    androidx.compose.material3.Text("CULTURE HEALTH REPORT",
+                        style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
+                    androidx.compose.material3.Text("팀 문화 건강도 ${m.cultureHealth}",
+                        style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary)
+                    androidx.compose.material3.Text("접수·안건·액션 흐름을 실데이터로 집계합니다.",
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                        modifier = Modifier.padding(top = 4.dp))
+                }
+            }
+        }
+        item { StatCard("접수 반영률", "${m.reflectionRate}%", "총 ${m.issueCount}건의 접수 중 리더가 처리(답변·1on1·안건·액션·종료)한 비율") }
+        item { StatCard("안건 성사율", "${m.agendaPassRate}%", "총 ${m.agendaCount}건의 안건 중 통과·결정된 비율") }
+        item { StatCard("액션 완료율", "${m.actionDoneRate}%", "총 ${m.actionCount}건의 액션 중 완료된 비율" + if (m.overdueCount > 0) " · 지연 ${m.overdueCount}건" else "") }
+    }
+}
+
+@Composable
+private fun StatCard(title: String, value: String, desc: String) {
+    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+        androidx.compose.foundation.layout.Column(Modifier.padding(16.dp)) {
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                androidx.compose.material3.Text(title, style = androidx.compose.material3.MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                androidx.compose.material3.Text(value, style = androidx.compose.material3.MaterialTheme.typography.headlineSmall,
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
+            }
+            androidx.compose.material3.Text(desc, style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                color = androidx.compose.material3.MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 4.dp))
+        }
+    }
+}
+
+@Composable
 fun ProfilesSection(c: AppContainer, modifier: Modifier = Modifier) {
     val vm = remember { ProfilesViewModel(c) }
     val items by vm.items.collectAsStateWithLifecycle()

@@ -91,6 +91,47 @@ class ActionsViewModel(private val c: AppContainer) : ViewModel() {
     init { viewModelScope.launch { _items.value = runCatching { c.actionRepository.loadAll() }.getOrDefault(emptyList()); _loading.value = false } }
 }
 
+data class Metrics(
+    val reflectionRate: Int = 0,
+    val agendaPassRate: Int = 0,
+    val actionDoneRate: Int = 0,
+    val cultureHealth: Int = 0,
+    val issueCount: Int = 0,
+    val agendaCount: Int = 0,
+    val actionCount: Int = 0,
+    val overdueCount: Int = 0,
+)
+
+class MetricsViewModel(private val c: AppContainer) : ViewModel() {
+    private val _metrics = MutableStateFlow(Metrics()); val metrics = _metrics.asStateFlow()
+    private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val issues = runCatching { c.issueRepository.loadAll() }.getOrDefault(emptyList())
+            val agendas = runCatching { c.agendaRepository.loadAll() }.getOrDefault(emptyList())
+            val actions = runCatching { c.actionRepository.loadAll() }.getOrDefault(emptyList())
+
+            val reflected = setOf("답변완료", "1on1 제안", "액션아이템", "안건화", "종료")
+            val reflectionRate = pct(issues.count { it.status in reflected }, issues.size)
+            val agendaPassRate = pct(agendas.count { it.status == "통과" || it.status == "결정됨" }, agendas.size)
+            val actionDoneRate = pct(actions.count { it.status == "완료" }, actions.size)
+            val today = java.time.LocalDate.now().toString()
+            val overdue = actions.count { it.status != "완료" && it.due.isNotBlank() && it.due.take(10) < today }
+            val base = (reflectionRate + agendaPassRate + actionDoneRate) / 3
+            val health = (base - overdue * 5).coerceIn(0, 100)
+
+            _metrics.value = Metrics(
+                reflectionRate, agendaPassRate, actionDoneRate, health,
+                issues.size, agendas.size, actions.size, overdue,
+            )
+            _loading.value = false
+        }
+    }
+
+    private fun pct(part: Int, total: Int) = if (total == 0) 0 else (part * 100.0 / total).toInt()
+}
+
 class AccountsViewModel(private val c: AppContainer) : ViewModel() {
     private val _items = MutableStateFlow<List<Account>>(emptyList()); val items = _items.asStateFlow()
     private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()

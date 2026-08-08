@@ -34,6 +34,7 @@ fun SectionHost(container: AppContainer, section: String, currentEmail: String?,
         "동료 성향" -> ProfilesSection(container, modifier)
         "팀 추억" -> MemoriesSection(container, modifier)
         "캔미팅 · 티미팅" -> MeetingsSection(container, modifier)
+        "파트지수 · 리포트" -> MetricsSection(container, modifier)
         else -> EmptyBox("‘$section’ 화면은 곧 제공됩니다.", modifier)
     }
 }
