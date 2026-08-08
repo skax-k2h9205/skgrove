@@ -89,13 +89,38 @@ class GatheringsViewModel(private val container: AppContainer) : ViewModel() {
 class MarketViewModel(private val container: AppContainer) : ViewModel() {
     private val _items = MutableStateFlow<List<MarketItem>>(emptyList())
     val items: StateFlow<List<MarketItem>> = _items.asStateFlow()
+    private val _topBids = MutableStateFlow<Map<String, com.hyubs.skonnection.data.TopBid>>(emptyMap())
+    val topBids: StateFlow<Map<String, com.hyubs.skonnection.data.TopBid>> = _topBids.asStateFlow()
     private val _loading = MutableStateFlow(true)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
+
+    val currentName: String? get() = container.currentUser?.name
 
     init { refresh() }
     fun refresh() = viewModelScope.launch {
         _loading.value = true
         _items.value = runCatching { container.marketRepository.loadAll() }.getOrDefault(emptyList())
+        _topBids.value = runCatching { container.marketRepository.loadTopBids() }.getOrDefault(emptyMap())
         _loading.value = false
+    }
+
+    /** 현재가(최고 입찰 없으면 시작가). */
+    fun currentPrice(item: MarketItem): Int = _topBids.value[item.id]?.amount ?: item.startPrice
+
+    /** 다음 최소 입찰가 = 현재가 + 단위(입찰 없으면 시작가). */
+    fun nextMinBid(item: MarketItem): Int {
+        val top = _topBids.value[item.id]
+        return if (top == null) item.startPrice else top.amount + item.minStep
+    }
+
+    fun bid(item: MarketItem, amount: Int, onResult: (String?) -> Unit) {
+        val me = container.currentUser?.name ?: return onResult("로그인이 필요해요.")
+        if (amount < nextMinBid(item)) return onResult("최소 ${"%,d".format(nextMinBid(item))}원 이상 입찰해야 해요.")
+        _topBids.value = _topBids.value + (item.id to com.hyubs.skonnection.data.TopBid(me, amount)) // 낙관적
+        viewModelScope.launch {
+            runCatching { container.marketRepository.bid(item.id, me, amount) }
+                .onSuccess { onResult(null) }
+                .onFailure { refresh(); onResult("입찰에 실패했어요. 다시 시도해주세요.") }
+        }
     }
 }

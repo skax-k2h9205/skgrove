@@ -48,6 +48,24 @@ class GatheringRepository(private val supabase: SupabaseClient) {
     }
 }
 
+@Serializable
+private data class BidRow(
+    @SerialName("item_id") val itemId: String,
+    val name: String,
+    val amount: Int? = null,
+)
+
+@Serializable
+private data class NewBid(
+    val id: String,
+    @SerialName("item_id") val itemId: String,
+    val name: String,
+    val amount: Int,
+    @SerialName("created_at") val createdAt: String,
+)
+
+data class TopBid(val name: String, val amount: Int)
+
 class MarketRepository(private val supabase: SupabaseClient) {
     suspend fun loadAll(): List<MarketItem> =
         supabase.select(
@@ -55,4 +73,22 @@ class MarketRepository(private val supabase: SupabaseClient) {
             query = "select=*&order=created_at.desc",
             deserializer = ListSerializer(MarketItemRow.serializer()),
         ).map { it.toItem() }
+
+    /** 물건별 최고 입찰(item_id → TopBid). 없으면 미포함. */
+    suspend fun loadTopBids(): Map<String, TopBid> =
+        supabase.select("market_bids", "select=item_id,name,amount", ListSerializer(BidRow.serializer()))
+            .groupBy { it.itemId }
+            .mapValues { (_, bids) ->
+                val top = bids.maxByOrNull { it.amount ?: 0 }!!
+                TopBid(top.name, top.amount ?: 0)
+            }
+
+    suspend fun bid(itemId: String, name: String, amount: Int) {
+        val id = "BID-" + System.currentTimeMillis().toString(36).uppercase()
+        supabase.insert(
+            "market_bids",
+            NewBid(id, itemId, name, amount, java.time.Instant.now().toString()),
+            NewBid.serializer(),
+        )
+    }
 }
