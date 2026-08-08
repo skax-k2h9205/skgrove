@@ -93,10 +93,32 @@ class AgendaRepository(private val supabase: SupabaseClient) {
     }
 }
 
+@Serializable
+private data class NewAction(
+    val id: String,
+    val title: String,
+    val owner: String,
+    val due: String?,
+    val status: String,
+    @SerialName("source_kind") val sourceKind: String,
+    @SerialName("created_at") val createdAt: String,
+)
+
 class ActionRepository(private val supabase: SupabaseClient) {
     suspend fun loadAll(): List<ActionItem> =
         supabase.select("action_items", "select=*&order=created_at.desc", ListSerializer(ActionRow.serializer()))
             .map { it.toActionItem() }
+
+    suspend fun create(title: String, owner: String, due: String) {
+        val id = "ACT-" + System.currentTimeMillis().toString(36).uppercase()
+        supabase.insert(
+            "action_items",
+            NewAction(id, title, owner, due.ifBlank { null }, "대기", "직접", java.time.Instant.now().toString()),
+            NewAction.serializer(),
+        )
+    }
+
+    suspend fun delete(id: String) = supabase.delete("action_items", "id=eq.$id")
 }
 
 class NotificationRepository(private val supabase: SupabaseClient) {

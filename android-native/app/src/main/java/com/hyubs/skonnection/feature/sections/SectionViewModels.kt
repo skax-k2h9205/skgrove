@@ -88,7 +88,20 @@ class AgendaViewModel(private val c: AppContainer) : ViewModel() {
 class ActionsViewModel(private val c: AppContainer) : ViewModel() {
     private val _items = MutableStateFlow<List<ActionItem>>(emptyList()); val items = _items.asStateFlow()
     private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()
-    init { viewModelScope.launch { _items.value = runCatching { c.actionRepository.loadAll() }.getOrDefault(emptyList()); _loading.value = false } }
+    val isAdmin: Boolean get() = c.isAdmin
+    init { refresh() }
+    private fun refresh() = viewModelScope.launch {
+        _items.value = runCatching { c.actionRepository.loadAll() }.getOrDefault(emptyList()); _loading.value = false
+    }
+    fun create(title: String, owner: String, due: String, onDone: () -> Unit) = viewModelScope.launch {
+        runCatching { c.actionRepository.create(title.trim(), owner.trim().ifBlank { "미정" }, due) }
+        refresh(); onDone()
+    }
+    fun delete(item: ActionItem) {
+        if (!c.isAdmin) return
+        _items.value = _items.value.filterNot { it.id == item.id }
+        viewModelScope.launch { runCatching { c.actionRepository.delete(item.id) }.onFailure { refresh() } }
+    }
 }
 
 data class Metrics(

@@ -1,5 +1,6 @@
 package com.hyubs.skonnection.feature.sections
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
@@ -242,22 +243,80 @@ private fun ActionsSection(c: AppContainer, modifier: Modifier) {
     val vm = remember { ActionsViewModel(c) }
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
-    when {
-        loading && items.isEmpty() -> LoadingBox(modifier)
-        items.isEmpty() -> EmptyBox("액션아이템이 없어요.", modifier)
-        else -> LazyColumn(modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
-            items(items, key = { it.id }) { a ->
-                FeedCard(
-                    title = a.title.ifBlank { "(제목 없음)" },
-                    pill = a.status.ifBlank { null },
-                    subtitle = "담당 ${a.owner}",
-                    meta = buildString {
-                        if (a.due.isNotBlank()) append("목표일 ${a.due.take(10)}")
-                        if (a.sourceLabel.isNotBlank()) { if (isNotEmpty()) append(" · "); append(a.sourceLabel) }
-                    }.ifBlank { null },
-                )
+    var composing by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<com.hyubs.skonnection.data.ActionItem?>(null) }
+
+    androidx.compose.foundation.layout.Box(modifier.fillMaxSize()) {
+        when {
+            loading && items.isEmpty() -> LoadingBox()
+            items.isEmpty() -> EmptyBox("액션아이템이 없어요. 새 액션을 추가해보세요.")
+            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = 88.dp)) {
+                items(items, key = { it.id }) { a ->
+                    androidx.compose.material3.Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+                        androidx.compose.foundation.layout.Column(Modifier.padding(16.dp)) {
+                            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                androidx.compose.material3.Text(a.title.ifBlank { "(제목 없음)" },
+                                    style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.padding(end = 8.dp))
+                                androidx.compose.material3.Text(a.status,
+                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+                                    color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
+                                if (vm.isAdmin) {
+                                    androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                                    androidx.compose.material3.Text("삭제", color = androidx.compose.material3.MaterialTheme.colorScheme.error,
+                                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
+                                        modifier = Modifier.clickable { deleteTarget = a }.padding(4.dp))
+                                }
+                            }
+                            androidx.compose.material3.Text("담당 ${a.owner}",
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 2.dp))
+                            val meta = buildString {
+                                if (a.due.isNotBlank()) append("목표일 ${a.due.take(10)}")
+                                if (a.sourceLabel.isNotBlank()) { if (isNotEmpty()) append(" · "); append(a.sourceLabel) }
+                            }
+                            if (meta.isNotBlank()) androidx.compose.material3.Text(meta,
+                                style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 6.dp))
+                        }
+                    }
+                }
             }
         }
+        androidx.compose.material3.ExtendedFloatingActionButton(
+            onClick = { composing = true },
+            icon = { androidx.compose.material3.Icon(Icons.Filled.Add, contentDescription = null) },
+            text = { androidx.compose.material3.Text("액션 추가") },
+            modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(16.dp),
+        )
+    }
+
+    if (composing) {
+        var title by remember { mutableStateOf("") }
+        var owner by remember { mutableStateOf("") }
+        var due by remember { mutableStateOf("") }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { composing = false },
+            title = { androidx.compose.material3.Text("액션아이템 추가") },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    androidx.compose.material3.OutlinedTextField(title, { title = it }, label = { androidx.compose.material3.Text("할 일") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    androidx.compose.material3.OutlinedTextField(owner, { owner = it }, label = { androidx.compose.material3.Text("담당자") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                    androidx.compose.material3.OutlinedTextField(due, { due = it }, label = { androidx.compose.material3.Text("목표일 (YYYY-MM-DD, 선택)") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                }
+            },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { if (title.isNotBlank()) vm.create(title, owner, due) { composing = false } }, enabled = title.isNotBlank()) { androidx.compose.material3.Text("추가") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { composing = false }) { androidx.compose.material3.Text("취소") } },
+        )
+    }
+    deleteTarget?.let { t ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { androidx.compose.material3.Text("액션 삭제") },
+            text = { androidx.compose.material3.Text("이 액션아이템을 삭제할까요?") },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { vm.delete(t); deleteTarget = null }) { androidx.compose.material3.Text("삭제", color = androidx.compose.material3.MaterialTheme.colorScheme.error) } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { deleteTarget = null }) { androidx.compose.material3.Text("취소") } },
+        )
     }
 }
 
