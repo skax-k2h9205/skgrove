@@ -74,6 +74,11 @@ final class ProfileStore: ObservableObject {
             profiles.insert(TeamProfile(id: id, name: name, part: part, mbti: mbti, disc: disc,
                                         collabGuide: collabGuide), at: 0)
         }
+        // 웹과 같은 profiles 테이블에 업서트(profile_key=이메일 기준) → 팀 분포에 실제 반영.
+        Task { try? await Supabase.upsert("profiles",
+            SupabaseProfileUpsert(profile_key: id, owner_email: id, name: name, part: part,
+                                  mbti_type: mbti, disc_type: disc, collab_guide: collabGuide),
+            onConflict: "profile_key") }
     }
 
     func mine(id: String) -> TeamProfile? { profiles.first { $0.id == id } }
@@ -88,6 +93,17 @@ final class ProfileStore: ObservableObject {
         .init(id: "김영석", name: "김영석", part: "ITS혁신파트", mbti: "INTP", disc: "C",
               collabGuide: "왜 그런지 원리를 함께 보면 몰입해요."),
     ]
+}
+
+/// 마이페이지 저장 시 profiles 테이블 업서트 페이로드.
+struct SupabaseProfileUpsert: Encodable {
+    let profile_key: String
+    let owner_email: String
+    let name: String
+    let part: String
+    let mbti_type: String
+    let disc_type: String
+    let collab_guide: String
 }
 
 /// Supabase profiles 행 → iOS TeamProfile 매핑.

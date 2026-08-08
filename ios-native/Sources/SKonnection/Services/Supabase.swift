@@ -39,6 +39,16 @@ enum Supabase {
         try check(resp, data)
     }
 
+    /// 업서트 — PK 충돌 시 병합(있으면 수정, 없으면 삽입).
+    static func upsert<Row: Encodable>(_ table: String, _ row: Row, onConflict: String) async throws {
+        let body = try encoder.encode(row)
+        var req = request(table, method: "POST", query: "on_conflict=\(onConflict)", body: body,
+                          prefer: "resolution=merge-duplicates,return=minimal")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        try check(resp, data)
+    }
+
     /// id 기준 부분 수정.
     static func patch<Fields: Encodable>(_ table: String, id: String, _ fields: Fields) async throws {
         let body = try encoder.encode(fields)

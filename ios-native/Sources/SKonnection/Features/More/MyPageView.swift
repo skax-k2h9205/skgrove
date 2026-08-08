@@ -10,6 +10,7 @@ struct MyPageView: View {
     @AppStorage("mypage.disc") private var disc = ""
     @AppStorage("mypage.collabGuide") private var collabGuide = ""
     @State private var saved = false
+    @State private var assessing = false
 
     private let mbtis = ["", "INTJ", "INTP", "ENTJ", "ENTP", "INFJ", "INFP", "ENFJ", "ENFP",
                          "ISTJ", "ISFJ", "ESTJ", "ESFJ", "ISTP", "ISFP", "ESTP", "ESFP"]
@@ -25,6 +26,12 @@ struct MyPageView: View {
                 Text("성향").font(.headline).foregroundStyle(Theme.Palette.ink)
                 Text("평소 성향(MBTI)과 업무 성향(DISC)을 골라두면 동료가 협업할 때 참고해요.")
                     .font(.caption).foregroundStyle(Theme.Palette.muted)
+                Button { assessing = true } label: {
+                    Label("성향 진단하기 (28문항)", systemImage: "sparkles")
+                        .font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity)
+                        .padding(.vertical, Theme.Space.x2)
+                }
+                .buttonStyle(.bordered).tint(Theme.Palette.cta)
                 labeled("MBTI (평소)") {
                     Picker("MBTI", selection: $mbti) {
                         ForEach(mbtis, id: \.self) { Text($0.isEmpty ? "선택 안 함" : $0).tag($0) }
@@ -57,6 +64,14 @@ struct MyPageView: View {
         .onChange(of: mbti) { _, _ in saved = false }
         .onChange(of: disc) { _, _ in saved = false }
         .onChange(of: collabGuide) { _, _ in saved = false }
+        .sheet(isPresented: $assessing) {
+            AssessmentView { resultMbti, resultDisc, guide in
+                mbti = resultMbti
+                disc = resultDisc
+                if collabGuide.trimmingCharacters(in: .whitespaces).isEmpty { collabGuide = guide }
+                save()   // 진단 결과를 바로 프로필에 저장(원격 반영)
+            }
+        }
     }
 
     /// 저장 시 내 프로필을 공유 스토어에 반영해 팀 성향 분포·동료 목록에 바로 나타나게 한다.
