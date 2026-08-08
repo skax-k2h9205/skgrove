@@ -9,35 +9,65 @@ struct GridTile: View {
     var meta: String? = nil
     var tint: Color = Theme.Palette.tintNeutral
     var ink: Color = Theme.Palette.ink
+    /// 사진 타일 하단에 글쓴이+제목 캡션을 그라데이션으로 얹을지(유머 게시판용).
+    var caption: (author: String, text: String)? = nil
 
     var body: some View {
-        // 셀 크기를 '열 너비 × (16/9 높이)'로 먼저 확정(Color.clear + fit)한 뒤 콘텐츠를 채운다.
-        // 이렇게 해야 이미지가 열 너비를 넘어 옆 칸으로 흘러넘치지 않는다.
-        Color.clear
-            .aspectRatio(9.0 / 16.0, contentMode: .fit)
-            .overlay { content }
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm))
-    }
-
-    @ViewBuilder private var content: some View {
-        if let imageURL { imageTile(imageURL) } else { plainTile }
-    }
-
-    private func imageTile(_ url: URL) -> some View {
-        ZStack(alignment: .topTrailing) {
-            AsyncImage(url: url) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                Theme.Palette.surfaceDark
+        // GeometryReader 로 타일의 실제 크기를 잡아 이미지·캡션을 정확히 그 안에 가둔다.
+        // (scaledToFill 이미지가 타일보다 커져 캡션이 밖으로 새는 문제 방지.)
+        GeometryReader { geo in
+            ZStack(alignment: .bottomLeading) {
+                if let imageURL {
+                    AsyncImage(url: imageURL) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Theme.Palette.surfaceDark
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+                    .overlay(alignment: .topTrailing) { cornerIcon }
+                } else {
+                    plainTile.frame(width: geo.size.width, height: geo.size.height)
+                }
+                if let caption, imageURL != nil {
+                    captionOverlay(caption).frame(width: geo.size.width)
+                }
             }
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
-                .shadow(color: Theme.Palette.surfaceDark.opacity(0.6), radius: 2, y: 1)
-                .padding(6)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
+        .aspectRatio(9.0 / 16.0, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm))
+    }
+
+    private var cornerIcon: some View {
+        Image(systemName: icon)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.white)
+            .shadow(color: Theme.Palette.surfaceDark.opacity(0.6), radius: 2, y: 1)
+            .padding(6)
+    }
+
+    /// 시안 A — 하단 그라데이션 위에 글쓴이(이니셜 원)·제목.
+    private func captionOverlay(_ c: (author: String, text: String)) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Circle().fill(Theme.Palette.primary)
+                    .frame(width: 16, height: 16)
+                    .overlay(Text(String(c.author.prefix(1)))
+                        .font(.system(size: 9, weight: .bold)).foregroundStyle(.white))
+                Text(c.author).font(.system(size: 11)).foregroundStyle(.white.opacity(0.9)).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            Text(c.text)
+                .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                .lineLimit(2).multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 8).padding(.bottom, 8).padding(.top, 28)
+        .background(
+            LinearGradient(colors: [.black.opacity(0), .black.opacity(0.55), .black.opacity(0.9)],
+                           startPoint: .top, endPoint: .bottom)
+        )
     }
 
     private var plainTile: some View {

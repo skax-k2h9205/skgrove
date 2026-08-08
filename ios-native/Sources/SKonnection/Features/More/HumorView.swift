@@ -19,7 +19,8 @@ struct HumorView: View {
                 Button { Haptics.selection(); selected = post } label: {
                     GridTile(imageURL: store.thumbnail(post), icon: "face.smiling", title: post.body,
                              meta: "빵터짐 \(post.laughs) · 댓글 \(store.commentCount(post.id))",
-                             tint: Theme.Palette.tintDanger, ink: Theme.Palette.danger)
+                             tint: Theme.Palette.tintDanger, ink: Theme.Palette.danger,
+                             caption: (author: post.author, text: post.body))
                 }
                 .buttonStyle(.plain)
                 .contextMenu {
