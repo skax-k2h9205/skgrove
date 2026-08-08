@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -68,6 +69,20 @@ fun HumorContent(container: AppContainer, modifier: Modifier = Modifier) {
     val loading by vm.loading.collectAsStateWithLifecycle()
     var composing by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<com.hyubs.skonnection.data.HumorPost?>(null) }
+    var detailPost by remember { mutableStateOf<com.hyubs.skonnection.data.HumorPost?>(null) }
+
+    detailPost?.let { post ->
+        androidx.activity.compose.BackHandler { detailPost = null }
+        HumorDetailView(
+            container = container,
+            post = post,
+            liked = post.likedBy(vm.currentName),
+            onToggleLike = { vm.toggleLike(post) },
+            onBack = { detailPost = null },
+            modifier = modifier,
+        )
+        return
+    }
 
     Box(modifier.fillMaxSize()) {
         when {
@@ -88,6 +103,7 @@ fun HumorContent(container: AppContainer, modifier: Modifier = Modifier) {
                         likes = p.laughs,
                         liked = p.likedBy(vm.currentName),
                         onToggleLike = { vm.toggleLike(p) },
+                        onComment = { detailPost = p },
                         onOverflow = if (vm.isAdmin) ({ deleteTarget = p }) else null,
                     )
                 }
@@ -445,4 +461,72 @@ private fun BidDialog(title: String, minBid: Int, onDismiss: () -> Unit, onSubmi
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
     )
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun HumorDetailView(
+    container: AppContainer,
+    post: com.hyubs.skonnection.data.HumorPost,
+    liked: Boolean,
+    onToggleLike: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val vm = remember(post.id) { com.hyubs.skonnection.feature.HumorDetailViewModel(container, post.id) }
+    val comments by vm.comments.collectAsStateWithLifecycle()
+    val loading by vm.loading.collectAsStateWithLifecycle()
+    var input by remember { mutableStateOf("") }
+
+    Column(modifier.fillMaxSize()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
+            androidx.compose.material3.IconButton(onClick = onBack) {
+                Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
+            }
+            Text("게시물", style = MaterialTheme.typography.titleMedium)
+        }
+        androidx.compose.foundation.lazy.LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
+            item {
+                InstaPostCard(
+                    author = post.author,
+                    subtitle = post.createdAt.ifBlank { null },
+                    body = post.body,
+                    mediaUrl = post.mediaUrl,
+                    likes = post.laughs,
+                    liked = liked,
+                    onToggleLike = onToggleLike,
+                )
+            }
+            item {
+                Text("댓글 ${comments.size}개", style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            }
+            if (loading && comments.isEmpty()) {
+                item { LoadingBox(Modifier.padding(24.dp)) }
+            } else if (comments.isEmpty()) {
+                item { Text("첫 댓글을 남겨보세요.", color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+            } else {
+                items(comments, key = { it.id }) { c ->
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+                        Text(c.author, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Text(c.body, style = MaterialTheme.typography.bodyMedium)
+                        if (c.createdAt.isNotBlank()) Text(c.createdAt.take(10),
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    }
+                }
+            }
+        }
+        // 우하단 챗 FAB(약 72dp)와 겹치지 않도록 오른쪽 여백을 둔다.
+        Row(
+            Modifier.fillMaxWidth().padding(start = 8.dp, end = 76.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = input, onValueChange = { input = it },
+                placeholder = { Text("댓글 달기") }, modifier = Modifier.weight(1f), maxLines = 3,
+            )
+            TextButton(onClick = { vm.addComment(input) { input = "" } }, enabled = input.isNotBlank()) { Text("등록") }
+        }
+    }
 }

@@ -63,6 +63,29 @@ class HumorViewModel(private val container: AppContainer) : ViewModel() {
     }
 }
 
+class HumorDetailViewModel(private val container: AppContainer, private val postId: String) : ViewModel() {
+    private val _comments = MutableStateFlow<List<com.hyubs.skonnection.data.HumorComment>>(emptyList())
+    val comments = _comments.asStateFlow()
+    private val _loading = MutableStateFlow(true)
+    val loading = _loading.asStateFlow()
+
+    init { refresh() }
+    private fun refresh() = viewModelScope.launch {
+        _loading.value = true
+        _comments.value = runCatching { container.humorRepository.loadComments(postId) }.getOrDefault(emptyList())
+        _loading.value = false
+    }
+
+    fun addComment(body: String, onDone: () -> Unit) {
+        val me = container.currentUser?.name ?: return
+        if (body.isBlank()) return
+        viewModelScope.launch {
+            runCatching { container.humorRepository.addComment(postId, me, body.trim()) }
+            refresh(); onDone()
+        }
+    }
+}
+
 class GatheringsViewModel(private val container: AppContainer) : ViewModel() {
     private val _items = MutableStateFlow<List<Gathering>>(emptyList())
     val items: StateFlow<List<Gathering>> = _items.asStateFlow()

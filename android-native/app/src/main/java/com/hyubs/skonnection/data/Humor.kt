@@ -27,6 +27,23 @@ data class HumorPost(
     fun likedBy(name: String?) = name != null && likedBy.contains(name)
 }
 
+@Serializable
+data class HumorCommentRow(
+    val id: String,
+    @SerialName("post_id") val postId: String,
+    val author: String = "",
+    val body: String? = null,
+    @SerialName("created_at") val createdAt: String? = null,
+)
+
+data class HumorComment(
+    val id: String, val postId: String, val author: String, val body: String, val createdAt: String,
+)
+
+fun HumorCommentRow.toComment() = HumorComment(
+    id = id, postId = postId, author = author, body = body ?: "", createdAt = createdAt ?: "",
+)
+
 fun HumorPostRow.toPost() = HumorPost(
     id = id,
     author = author,
