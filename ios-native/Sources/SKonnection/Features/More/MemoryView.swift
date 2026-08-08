@@ -21,9 +21,11 @@ struct MemoryView: View {
             } else if tab == "게시물" {
                 InstaGrid(items: store.memories) { m in
                     Button { Haptics.selection(); selected = m } label: {
-                        GridTile(icon: "photo.stack.fill", title: m.title,
+                        // 인스타 앨범처럼 대표(커버) 사진을 타일로. 사진이 없으면 아이콘 타일로 폴백.
+                        GridTile(imageURL: store.coverURL(m.id), icon: "photo.stack.fill", title: m.title,
                                  meta: store.count(m.id) > 0 ? "사진 \(store.count(m.id))" : m.eventDate,
-                                 tint: Theme.Palette.tintPrimary, ink: Theme.Palette.tintPrimaryInk)
+                                 tint: Theme.Palette.tintPrimary, ink: Theme.Palette.tintPrimaryInk,
+                                 caption: (author: m.host.isEmpty ? "우리 팀" : m.host, text: m.title))
                     }
                     .buttonStyle(.plain)
                 }
@@ -32,7 +34,7 @@ struct MemoryView: View {
             }
         }
         .sheet(item: $selected) { m in
-            DetailSheet(title: "행사", heading: m.title, lines: detailLines(m), action: "앨범 열기")
+            AlbumView(memory: m, assets: store.assets(m.id))
         }
     }
 
@@ -67,15 +69,6 @@ struct MemoryView: View {
                 }
             }
         }
-    }
-
-    private func detailLines(_ m: TeamMemory) -> [String] {
-        var lines: [String] = []
-        if !m.summary.isEmpty { lines.append(m.summary) }
-        lines.append([m.eventDate, m.place].filter { !$0.isEmpty }.joined(separator: " · "))
-        if !m.host.isEmpty { lines.append("주최 \(m.host)") }
-        if store.count(m.id) > 0 { lines.append("사진·영상 \(store.count(m.id))개") }
-        return lines
     }
 
     private func monthLabel(_ ym: String) -> String {

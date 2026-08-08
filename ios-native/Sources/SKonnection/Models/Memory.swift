@@ -13,12 +13,25 @@ struct TeamMemory: Identifiable, Codable {
     var month: String { String(eventDate.prefix(7)) }   // "YYYY-MM"
 }
 
+/// 앨범 한 장(사진/영상). team_memory_assets 이식.
+struct MemoryAsset: Identifiable, Codable {
+    let id: Int
+    let memoryId: Int
+    let type: String          // "photo" | "video"
+    var title: String
+    var uploader: String
+    var previewURL: String
+
+    var isVideo: Bool { type == "video" }
+    var url: URL? { URL(string: previewURL) }
+}
+
 @MainActor
 final class MemoryStore: ObservableObject {
     private static let key = "skonnection.memories"
     @Published var memories: [TeamMemory] { didSet { Persist.save(memories, Self.key) } }
-    /// memory_id → 사진/영상 개수.
-    @Published var assetCounts: [Int: Int] = [:]
+    /// memory_id → 앨범 사진/영상(업로드 순).
+    @Published var assetsByMemory: [Int: [MemoryAsset]] = [:]
 
     init() {
         memories = Persist.load(Self.key, as: [TeamMemory].self) ?? Self.seed
@@ -32,19 +45,31 @@ final class MemoryStore: ObservableObject {
                                                  as: SupabaseMemoryRow.self) {
             memories = rows.map { $0.toMemory() }
         }
-        if let assets = try? await Supabase.select("team_memory_assets", query: "select=memory_id",
-                                                   as: AssetIdRow.self) {
-            var counts: [Int: Int] = [:]
-            for a in assets { if let m = a.memory_id { counts[m, default: 0] += 1 } }
-            assetCounts = counts
+        if let rows = try? await Supabase.select(
+            "team_memory_assets",
+            query: "select=id,memory_id,type,title,uploader,preview_url&order=created_at.asc",
+            as: SupabaseAssetRow.self
+        ) {
+            var grouped: [Int: [MemoryAsset]] = [:]
+            for r in rows { if let a = r.toAsset() { grouped[a.memoryId, default: []].append(a) } }
+            assetsByMemory = grouped
         }
     }
 
-    func count(_ id: Int) -> Int { assetCounts[id] ?? 0 }
+    func assets(_ id: Int) -> [MemoryAsset] { assetsByMemory[id] ?? [] }
+    func count(_ id: Int) -> Int { assetsByMemory[id]?.count ?? 0 }
+
+    /// 앨범 대표(커버) 사진 — 첫 사진 우선, 없으면 첫 자산.
+    func coverURL(_ id: Int) -> URL? {
+        let list = assets(id)
+        let cover = list.first { $0.type == "photo" && !$0.previewURL.isEmpty }
+            ?? list.first { !$0.previewURL.isEmpty }
+        return cover?.url
+    }
 
     /// 행사를 연 사람 수(중복 제거).
     var hostCount: Int { Set(memories.map(\.host).filter { !$0.isEmpty }).count }
-    var totalAssets: Int { assetCounts.values.reduce(0, +) }
+    var totalAssets: Int { assetsByMemory.values.reduce(0) { $0 + $1.count } }
 
     /// 월별 그룹(캘린더 탭).
     var byMonth: [(month: String, items: [TeamMemory])] {
@@ -71,4 +96,18 @@ struct SupabaseMemoryRow: Decodable {
                    place: place ?? "", host: host ?? "", summary: summary ?? "")
     }
 }
-struct AssetIdRow: Decodable { let memory_id: Int? }
+
+struct SupabaseAssetRow: Decodable {
+    let id: Int
+    let memory_id: Int?
+    let type: String?
+    let title: String?
+    let uploader: String?
+    let preview_url: String?
+    func toAsset() -> MemoryAsset? {
+        guard let memory_id else { return nil }
+        return MemoryAsset(id: id, memoryId: memory_id, type: type ?? "photo",
+                           title: title ?? "", uploader: uploader ?? "",
+                           previewURL: preview_url ?? "")
+    }
+}
