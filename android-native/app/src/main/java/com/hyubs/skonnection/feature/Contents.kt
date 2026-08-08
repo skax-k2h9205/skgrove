@@ -35,7 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hyubs.skonnection.AppContainer
 import kotlinx.coroutines.launch
 
-/** 홈 피드 — 여러 도메인 요약. M1에서는 유머 최신글을 보여준다(이후 통합 피드로 확장). */
+/** 홈 피드 — 인스타 스타일 세로 피드(유머 최신글). */
 @Composable
 fun HomeFeedContent(container: AppContainer, modifier: Modifier = Modifier) {
     val vm = remember { HumorViewModel(container) }
@@ -44,9 +44,17 @@ fun HomeFeedContent(container: AppContainer, modifier: Modifier = Modifier) {
     when {
         loading && posts.isEmpty() -> LoadingBox(modifier)
         posts.isEmpty() -> EmptyBox("아직 글이 없어요.", modifier)
-        else -> LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
+        else -> LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(top = 4.dp, bottom = 8.dp)) {
             items(posts, key = { it.id }) { p ->
-                FeedCard(title = p.author, body = p.body.ifBlank { null }, meta = "❤️ ${p.laughs}")
+                InstaPostCard(
+                    author = p.author,
+                    subtitle = p.createdAt.ifBlank { null },
+                    body = p.body,
+                    mediaUrl = p.mediaUrl,
+                    likes = p.laughs,
+                    liked = p.likedBy(vm.currentName),
+                    onToggleLike = { vm.toggleLike(p) },
+                )
             }
         }
     }
@@ -70,10 +78,12 @@ fun HumorContent(container: AppContainer, modifier: Modifier = Modifier) {
                     item { EmptyBox("아직 유머 글이 없어요. 첫 글을 남겨보세요!", Modifier.fillMaxWidth().padding(top = 80.dp)) }
                 }
                 items(posts, key = { it.id }) { p ->
-                    HumorPostCard(
+                    InstaPostCard(
                         author = p.author,
+                        subtitle = p.createdAt.ifBlank { null },
                         body = p.body,
-                        laughs = p.laughs,
+                        mediaUrl = p.mediaUrl,
+                        likes = p.laughs,
                         liked = p.likedBy(vm.currentName),
                         onToggleLike = { vm.toggleLike(p) },
                     )
@@ -94,34 +104,6 @@ fun HumorContent(container: AppContainer, modifier: Modifier = Modifier) {
             onDismiss = { composing = false },
             onSubmit = { body, media -> vm.createPost(body, media) { composing = false } },
         )
-    }
-}
-
-@Composable
-private fun HumorPostCard(
-    author: String,
-    body: String,
-    laughs: Int,
-    liked: Boolean,
-    onToggleLike: () -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
-        Column(Modifier.padding(16.dp)) {
-            Text(author, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            if (body.isNotBlank()) {
-                Text(body, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp))
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
-                FilledTonalButton(onClick = onToggleLike) {
-                    Icon(
-                        if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = "좋아요",
-                        modifier = Modifier.padding(end = 6.dp),
-                    )
-                    Text("$laughs")
-                }
-            }
-        }
     }
 }
 
