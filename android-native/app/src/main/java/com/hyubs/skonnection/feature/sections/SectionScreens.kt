@@ -1,13 +1,19 @@
 package com.hyubs.skonnection.feature.sections
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,17 +43,117 @@ private fun IssuesSection(c: AppContainer, modifier: Modifier) {
     val vm = remember { IssuesViewModel(c) }
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
-    when {
-        loading && items.isEmpty() -> LoadingBox(modifier)
-        items.isEmpty() -> EmptyBox("접수된 내용이 없어요.", modifier)
-        else -> LazyColumn(modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
-            items(items, key = { it.id }) { i ->
-                FeedCard(
-                    title = i.title.ifBlank { "(제목 없음)" },
-                    pill = i.status.ifBlank { null },
-                    subtitle = "${i.category} · ${i.target} · ${i.submitter}",
-                    body = i.body.ifBlank { null },
-                    meta = if (i.urgency.isNotBlank()) "긴급도 ${i.urgency}" else null,
+    var composing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    androidx.compose.foundation.layout.Box(modifier.fillMaxSize()) {
+        when {
+            loading && items.isEmpty() -> LoadingBox()
+            items.isEmpty() -> EmptyBox("접수된 내용이 없어요. 첫 의견을 남겨보세요.")
+            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = 88.dp)) {
+                items(items, key = { it.id }) { i ->
+                    FeedCard(
+                        title = i.title.ifBlank { "(제목 없음)" },
+                        pill = i.status.ifBlank { null },
+                        subtitle = "${i.category} · ${i.target} · ${i.submitter}",
+                        body = i.body.ifBlank { null },
+                        meta = if (i.urgency.isNotBlank()) "긴급도 ${i.urgency}" else null,
+                    )
+                }
+            }
+        }
+        androidx.compose.material3.ExtendedFloatingActionButton(
+            onClick = { composing = true },
+            icon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Add, contentDescription = null) },
+            text = { androidx.compose.material3.Text("접수하기") },
+            modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(16.dp),
+        )
+    }
+
+    if (composing) {
+        IssueComposeDialog(
+            onDismiss = { composing = false },
+            onSubmit = { t, cat, tgt, urg, body, exp, vis, anon ->
+                vm.submit(t, cat, tgt, urg, body, exp, vis, anon) { composing = false }
+            },
+        )
+    }
+}
+
+private val ISSUE_CATEGORIES = listOf("회의문화", "협업", "업무방식", "갈등", "성장/피드백", "복지/분위기", "기타")
+private val ISSUE_TARGETS = listOf("팀리더", "리더 전체")
+private val ISSUE_URGENCY = listOf("낮음", "보통", "높음")
+private val ISSUE_VISIBILITY = listOf("리더만 보기", "안건 후보로 공개 가능")
+
+@Composable
+private fun IssueComposeDialog(
+    onDismiss: () -> Unit,
+    onSubmit: (title: String, category: String, target: String, urgency: String, body: String, expected: String, visibility: String, anonymous: Boolean) -> Unit,
+) {
+    var title by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var body by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var expected by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var category by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(ISSUE_CATEGORIES[0]) }
+    var target by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(ISSUE_TARGETS[0]) }
+    var urgency by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("보통") }
+    var visibility by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(ISSUE_VISIBILITY[0]) }
+    var anonymous by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { androidx.compose.material3.Text("대나무숲 접수") },
+        text = {
+            androidx.compose.foundation.layout.Column(
+                Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
+            ) {
+                androidx.compose.material3.OutlinedTextField(
+                    value = title, onValueChange = { title = it },
+                    label = { androidx.compose.material3.Text("제목") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                ChipRow("분류", ISSUE_CATEGORIES, category) { category = it }
+                ChipRow("대상", ISSUE_TARGETS, target) { target = it }
+                ChipRow("긴급도", ISSUE_URGENCY, urgency) { urgency = it }
+                ChipRow("공개", ISSUE_VISIBILITY, visibility) { visibility = it }
+                androidx.compose.material3.OutlinedTextField(
+                    value = body, onValueChange = { body = it },
+                    label = { androidx.compose.material3.Text("내용") },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+                androidx.compose.material3.OutlinedTextField(
+                    value = expected, onValueChange = { expected = it },
+                    label = { androidx.compose.material3.Text("기대하는 변화") },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+                androidx.compose.foundation.layout.Row(
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 8.dp),
+                ) {
+                    androidx.compose.material3.Switch(checked = anonymous, onCheckedChange = { anonymous = it })
+                    androidx.compose.material3.Text("익명으로 접수", modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = { if (title.isNotBlank() && body.isNotBlank()) onSubmit(title, category, target, urgency, body, expected, visibility, anonymous) },
+                enabled = title.isNotBlank() && body.isNotBlank(),
+            ) { androidx.compose.material3.Text("접수") }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { androidx.compose.material3.Text("취소") } },
+    )
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun ChipRow(label: String, options: List<String>, selected: String, onSelect: (String) -> Unit) {
+    androidx.compose.foundation.layout.Column(Modifier.padding(top = 8.dp)) {
+        androidx.compose.material3.Text(label, style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.outline)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+            options.forEach { opt ->
+                androidx.compose.material3.FilterChip(
+                    selected = selected == opt,
+                    onClick = { onSelect(opt) },
+                    label = { androidx.compose.material3.Text(opt) },
                 )
             }
         }

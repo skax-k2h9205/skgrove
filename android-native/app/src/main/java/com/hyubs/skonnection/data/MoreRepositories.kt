@@ -5,10 +5,51 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 
+@Serializable
+private data class NewIssue(
+    val id: String,
+    val title: String,
+    val category: String,
+    val author: String,
+    val target: String,
+    val status: String,
+    val urgency: String,
+    val body: String,
+    @SerialName("expected_change") val expectedChange: String,
+    val visibility: String,
+    @SerialName("submitter_name") val submitterName: String?,
+    @SerialName("submitter_email") val submitterEmail: String?,
+    @SerialName("submitter_part") val submitterPart: String?,
+    @SerialName("created_at") val createdAt: String,
+)
+
 class IssueRepository(private val supabase: SupabaseClient) {
     suspend fun loadAll(): List<Issue> =
         supabase.select("issues", "select=*&order=created_at.desc", ListSerializer(IssueRow.serializer()))
             .map { it.toIssue() }
+
+    /** 대나무숲 접수 제출(웹 submitIssue 규칙: status '접수'). */
+    suspend fun create(
+        title: String, category: String, target: String, urgency: String,
+        body: String, expectedChange: String, visibility: String, anonymous: Boolean,
+        submitterName: String?, submitterEmail: String?, submitterPart: String?,
+    ) {
+        val id = "SOOP-" + System.currentTimeMillis().toString(36).uppercase()
+        supabase.insert(
+            "issues",
+            NewIssue(
+                id = id, title = title, category = category,
+                author = if (anonymous) "익명" else "실명",
+                target = target, status = "접수", urgency = urgency,
+                body = body, expectedChange = expectedChange, visibility = visibility,
+                submitterName = if (anonymous) null else submitterName,
+                submitterEmail = if (anonymous) null else submitterEmail,
+                submitterPart = if (anonymous) null else submitterPart,
+                createdAt = java.time.Instant.now().toString(),
+            ),
+            NewIssue.serializer(),
+        )
+    }
 }
 
 @Serializable

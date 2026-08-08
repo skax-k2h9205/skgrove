@@ -16,7 +16,32 @@ import kotlinx.coroutines.launch
 class IssuesViewModel(private val c: AppContainer) : ViewModel() {
     private val _items = MutableStateFlow<List<Issue>>(emptyList()); val items = _items.asStateFlow()
     private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()
-    init { viewModelScope.launch { _items.value = runCatching { c.issueRepository.loadAll() }.getOrDefault(emptyList()); _loading.value = false } }
+    init { refresh() }
+    private fun refresh() = viewModelScope.launch {
+        _loading.value = true
+        _items.value = runCatching { c.issueRepository.loadAll() }.getOrDefault(emptyList())
+        _loading.value = false
+    }
+
+    fun submit(
+        title: String, category: String, target: String, urgency: String,
+        body: String, expectedChange: String, visibility: String, anonymous: Boolean,
+        onDone: () -> Unit,
+    ) {
+        val me = c.currentUser
+        viewModelScope.launch {
+            runCatching {
+                c.issueRepository.create(
+                    title = title.trim(), category = category, target = target, urgency = urgency,
+                    body = body.trim(), expectedChange = expectedChange.trim(), visibility = visibility,
+                    anonymous = anonymous,
+                    submitterName = me?.name, submitterEmail = me?.email, submitterPart = me?.part,
+                )
+            }
+            refresh()
+            onDone()
+        }
+    }
 }
 
 class AgendaViewModel(private val c: AppContainer) : ViewModel() {
