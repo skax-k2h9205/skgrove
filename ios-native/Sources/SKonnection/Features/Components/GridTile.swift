@@ -9,7 +9,7 @@ struct GridTile: View {
     var meta: String? = nil
     var tint: Color = Theme.Palette.tintNeutral
     var ink: Color = Theme.Palette.ink
-    /// 사진 타일 하단에 글쓴이+제목 캡션을 그라데이션으로 얹을지(유머 게시판용).
+    /// 사진 타일 하단에 글쓴이+제목 캡션을 그라데이션으로 얹을지(시안 A · 유머 게시판용).
     var caption: (author: String, text: String)? = nil
 
     var body: some View {
