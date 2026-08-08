@@ -51,6 +51,8 @@ struct HomeFeedItem: Identifiable {
     let title: String
     var meta: String?
     var imageURL: URL?
+    /// 글쓴이(유머 작성자·모임 주최자·장터 판매자). 있으면 타일에 유머게시판처럼 글쓴이+내용 캡션을 얹는다.
+    var author: String?
 }
 
 extension HomeFeedItem {

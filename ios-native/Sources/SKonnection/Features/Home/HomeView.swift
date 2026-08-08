@@ -16,15 +16,15 @@ struct HomeView: View {
     private var feed: [HomeFeedItem] {
         let h = humor.posts.prefix(8).map {
             HomeFeedItem(id: "h:\($0.id)", kind: .humor, title: $0.body,
-                         meta: "빵터짐 \($0.laughs)", imageURL: humor.thumbnail($0))
+                         meta: "빵터짐 \($0.laughs)", imageURL: humor.thumbnail($0), author: $0.author)
         }
         let m = market.sorted.prefix(6).map {
             HomeFeedItem(id: "m:\($0.id)", kind: .market, title: $0.title,
-                         meta: market.status($0).rawValue, imageURL: URL(string: $0.imageURL))
+                         meta: market.status($0).rawValue, imageURL: URL(string: $0.imageURL), author: $0.seller)
         }
         let g = gatherings.gatherings.prefix(6).map {
             HomeFeedItem(id: "g:\($0.id)", kind: .gathering, title: $0.title,
-                         meta: gatherings.status($0).rawValue, imageURL: URL(string: $0.imageURL))
+                         meta: gatherings.status($0).rawValue, imageURL: URL(string: $0.imageURL), author: $0.host)
         }
         let a = agendas.agendas.prefix(4).map {
             HomeFeedItem(id: "a:\($0.id)", kind: .agenda, title: $0.title, meta: $0.status.rawValue)
@@ -56,8 +56,10 @@ struct HomeView: View {
             storyRow
             InstaGrid(items: feed) { item in
                 Button { Haptics.selection(); onOpen(tabFor(item.kind)) } label: {
+                    // 모임·장터·유머는 유머게시판처럼 글쓴이+내용 캡션을 얹는다(author 있는 항목).
                     GridTile(imageURL: item.imageURL, icon: item.kind.icon, title: item.title,
-                             meta: item.meta, tint: item.kind.tint, ink: item.kind.ink)
+                             meta: item.meta, tint: item.kind.tint, ink: item.kind.ink,
+                             caption: item.author.map { (author: $0, text: item.title) })
                 }
                 .buttonStyle(.plain)
             }
