@@ -23,11 +23,33 @@ class HumorViewModel(private val container: AppContainer) : ViewModel() {
     private val _loading = MutableStateFlow(true)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
+    val currentName: String? get() = container.currentUser?.name
+
     init { refresh() }
     fun refresh() = viewModelScope.launch {
         _loading.value = true
         _posts.value = runCatching { container.humorRepository.loadPosts() }.getOrDefault(emptyList())
         _loading.value = false
+    }
+
+    /** 좋아요 토글 — 낙관적 업데이트 후 Supabase 반영. */
+    fun toggleLike(post: HumorPost) {
+        val me = container.currentUser?.name ?: return
+        val next = if (post.likedBy.contains(me)) post.likedBy - me else post.likedBy + me
+        _posts.value = _posts.value.map { if (it.id == post.id) it.copy(likedBy = next) else it }
+        viewModelScope.launch {
+            runCatching { container.humorRepository.setLikedBy(post.id, next) }
+                .onFailure { refresh() } // 실패 시 서버 상태로 되돌림
+        }
+    }
+
+    fun createPost(body: String, mediaUrl: String, onDone: () -> Unit) {
+        val me = container.currentUser?.name ?: return
+        viewModelScope.launch {
+            runCatching { container.humorRepository.createPost(me, body.trim(), mediaUrl.trim()) }
+            refresh()
+            onDone()
+        }
     }
 }
 

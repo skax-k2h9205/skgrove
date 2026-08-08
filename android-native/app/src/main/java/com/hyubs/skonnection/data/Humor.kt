@@ -21,8 +21,11 @@ data class HumorPost(
     val body: String,
     val createdAt: String,
     val mediaUrl: String,
-    val laughs: Int,
-)
+    val likedBy: List<String>,
+) {
+    val laughs: Int get() = likedBy.size
+    fun likedBy(name: String?) = name != null && likedBy.contains(name)
+}
 
 fun HumorPostRow.toPost() = HumorPost(
     id = id,
@@ -30,5 +33,5 @@ fun HumorPostRow.toPost() = HumorPost(
     body = body ?: "",
     createdAt = createdAt ?: "",
     mediaUrl = mediaUrl ?: imageUrl ?: "",
-    laughs = likedBy?.size ?: 0,
+    likedBy = likedBy ?: emptyList(),
 )

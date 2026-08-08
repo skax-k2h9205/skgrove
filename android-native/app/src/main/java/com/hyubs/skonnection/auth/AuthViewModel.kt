@@ -22,6 +22,8 @@ class AuthViewModel(private val container: AppContainer) : ViewModel() {
     init {
         viewModelScope.launch {
             container.sessionStore.currentEmail.collect { email ->
+                // 쓰기 인터랙션에 쓸 현재 사용자(이름·권한)를 미리 해석해 캐싱.
+                runCatching { container.refreshCurrentUser(email) }
                 _state.value = _state.value.copy(loggedInEmail = email, sessionResolved = true)
             }
         }
