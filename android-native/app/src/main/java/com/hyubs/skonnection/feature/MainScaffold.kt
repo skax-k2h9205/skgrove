@@ -111,7 +111,12 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
             SectionHost(container, openSection!!, currentEmail, contentModifier)
         } else {
             when (tab) {
-                0 -> HomeFeedContent(container, contentModifier)
+                0 -> com.hyubs.skonnection.feature.home.HomeGridContent(
+                    container = container,
+                    onOpenTab = { tab = it },
+                    onCompose = { tab = 1 },
+                    modifier = contentModifier,
+                )
                 1 -> HumorContent(container, contentModifier)
                 2 -> GatheringsContent(container, contentModifier)
                 3 -> MarketContent(container, contentModifier)
