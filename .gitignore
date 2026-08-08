@@ -33,3 +33,12 @@ Thumbs.db
 .cache/
 coverage/
 .vercel
+*.local
+.env*
+# 값이 없는 설정 템플릿은 저장소에 있어야 한다. .env* 가 이것까지 잡아
+# 새 예시 파일이 조용히 빠지고 있었다(.env.ai.example 등 기존 3개는 강제 추가된 상태).
+!.env*.example
+
+# 실명·사번·이메일이 담긴 dev 시드 스크립트. 절대 커밋 금지(로컬 전용).
+scripts/seed-real-profiles.mjs
+scripts/set-account-photos.mjs

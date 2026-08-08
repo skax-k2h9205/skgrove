@@ -1,0 +1,806 @@
+<meta charset="utf-8" />
+<title>팀스타그램 — SK Grove 전체 메뉴 시안</title>
+<style>
+  :root {
+    --sans: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo",
+            "Malgun Gothic", "맑은 고딕", system-ui, "Segoe UI", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, monospace;
+
+    --bg: #ffffff; --ink: #262626; --ink-strong: #000000;
+    --sub: #737373; --faint: #a8a8a8;
+    --line: #dbdbdb; --line-soft: #efefef;
+    --link: #0095f6; --heart: #ed4956; --btn: #efefef; --btn-press: #dbdbdb;
+    --story-a: #f9ce34; --story-b: #ee2a7b; --story-c: #6228d7;
+    --deck: #fafafa; --deck-line: #dbdbdb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #000; --ink: #f5f5f5; --ink-strong: #fff; --sub: #a8a8a8; --faint: #737373;
+            --line: #262626; --line-soft: #1a1a1a; --btn: #262626; --btn-press: #363636;
+            --deck: #0a0a0a; --deck-line: #262626; }
+  }
+  :root[data-theme="dark"] {
+    --bg: #000; --ink: #f5f5f5; --ink-strong: #fff; --sub: #a8a8a8; --faint: #737373;
+    --line: #262626; --line-soft: #1a1a1a; --btn: #262626; --btn-press: #363636;
+    --deck: #0a0a0a; --deck-line: #262626;
+  }
+  :root[data-theme="light"] {
+    --bg: #fff; --ink: #262626; --ink-strong: #000; --sub: #737373; --faint: #a8a8a8;
+    --line: #dbdbdb; --line-soft: #efefef; --btn: #efefef; --btn-press: #dbdbdb;
+    --deck: #fafafa; --deck-line: #dbdbdb;
+  }
+
+  body { margin: 0; background: var(--deck); color: var(--ink);
+         font-family: var(--sans); font-size: 14px; line-height: 1.5;
+         -webkit-font-smoothing: antialiased; }
+  h1,h2,h3,h4,p,ul,ol,figure,dl,dd { margin: 0; }
+  ul,ol { padding: 0; list-style: none; }
+  h1,h2,h3 { text-wrap: balance; }
+  h1,h2,h3,h4,p,li,span,strong,button,small,figcaption,dt,dd { word-break: keep-all; overflow-wrap: anywhere; }
+  button { font: inherit; cursor: pointer; }
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--btn); border-radius: 4px; padding: 1px 5px; }
+
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 42px 20px 90px;
+          display: flex; flex-direction: column; gap: 34px; }
+
+  .lede { display: flex; flex-direction: column; gap: 9px; }
+  .lede > span { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--sub); font-weight: 500; }
+  .lede h1 { font-size: 30px; line-height: 1.2; letter-spacing: -.022em; font-weight: 700; }
+  .lede p { color: var(--sub); max-width: 70ch; font-size: 15px; }
+
+  /* 화면 카드 */
+  .scr { display: flex; flex-direction: column; gap: 11px; }
+  .scr-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .no { font-family: var(--mono); font-size: 12px; color: var(--faint); font-weight: 600; }
+  .scr-head h2 { font-size: 18px; font-weight: 700; letter-spacing: -.015em; }
+  .via { font-size: 12px; font-weight: 600; background: var(--btn); color: var(--sub);
+         border-radius: 999px; padding: 3px 10px; }
+  .scr-head p { flex-basis: 100%; font-size: 13.5px; color: var(--sub); max-width: 82ch; margin-top: -2px; }
+
+  .panel { background: var(--bg); border: 1px solid var(--deck-line); border-radius: 12px;
+           overflow: hidden; color: var(--ink); }
+  .pad { padding: 16px 18px; }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+
+  /* ── 인스타 공통 부품 ── */
+  .ava { width: 34px; height: 34px; border-radius: 50%; flex: none; background: var(--btn);
+         color: var(--sub); display: flex; align-items: center; justify-content: center;
+         font-size: 13px; font-weight: 700; overflow: hidden; }
+  .ava svg { width: 100%; height: 100%; display: block; }
+  .ava.sm { width: 28px; height: 28px; font-size: 11px; }
+  .ava.lg { width: 44px; height: 44px; font-size: 16px; }
+  .ring { width: 62px; height: 62px; border-radius: 50%; padding: 2.5px; flex: none;
+          background: conic-gradient(from 150deg, var(--story-a), var(--story-b) 45%, var(--story-c) 80%, var(--story-a));
+          display: flex; }
+  .ring.seen { background: var(--line); }
+  .ring > span { width: 100%; height: 100%; border-radius: 50%; border: 2.5px solid var(--bg);
+                 background: var(--btn); color: var(--sub); display: flex; align-items: center;
+                 justify-content: center; font-size: 16px; font-weight: 700; overflow: hidden; }
+  .ring svg { width: 100%; height: 100%; display: block; }
+
+  .bblue { background: var(--link); color: #fff; border: 0; border-radius: 8px;
+           font-size: 14px; font-weight: 600; padding: 8px 16px; }
+  .bsoft { background: var(--btn); color: var(--ink); border: 0; border-radius: 8px;
+           font-size: 14px; font-weight: 600; padding: 8px 16px; }
+  .blink { background: none; border: 0; color: var(--link); font-weight: 600; font-size: 13px; padding: 2px; }
+  .full { width: 100%; }
+
+  .row { display: flex; align-items: center; gap: 12px; }
+  .row .grow { flex: 1; min-width: 0; }
+  .row b { font-size: 14px; font-weight: 600; color: var(--ink-strong); display: block; }
+  .row span.s { font-size: 13px; color: var(--sub); display: block; }
+  .divide > * + * { border-top: 1px solid var(--line-soft); }
+  .divide > * { padding: 11px 0; }
+  .divide > *:first-child { padding-top: 0; }
+
+  .shot { aspect-ratio: 4/5; border-radius: 4px; overflow: hidden; border: 1px solid var(--line);
+          background: var(--btn); position: relative; }
+  .shot svg { width: 100%; height: 100%; display: block; }
+  .sq { aspect-ratio: 1; overflow: hidden; background: var(--btn); position: relative; }
+  .sq svg { width: 100%; height: 100%; display: block; }
+  .tagpill { position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,.62); color: #fff;
+             border-radius: 999px; font-size: 12px; font-weight: 600; padding: 3px 9px; }
+  .cornr { position: absolute; top: 7px; right: 7px; color: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+
+  .acts { display: flex; align-items: center; gap: 14px; padding: 9px 0 5px; }
+  .acts button { background: none; border: 0; padding: 2px; color: var(--ink); display: flex; }
+  .acts .liked { color: var(--heart); }
+  .acts .save { margin-left: auto; }
+  .likes { font-size: 14px; font-weight: 600; color: var(--ink-strong); }
+  .cap { font-size: 14px; line-height: 1.5; }
+  .cap b { font-weight: 600; color: var(--ink-strong); margin-right: 5px; }
+  .tag { color: var(--link); }
+  .ago { font-size: 12px; color: var(--faint); }
+
+  .tray { display: flex; gap: 13px; overflow-x: auto; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .story { display: grid; justify-items: center; gap: 6px; width: 66px; flex: none; }
+  .story small { font-size: 12px; max-width: 66px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .tabs { display: flex; gap: 44px; justify-content: center; border-top: 1px solid var(--line); }
+  .tabs button { background: none; border: 0; border-top: 1px solid transparent; margin-top: -1px;
+                 padding: 14px 0; font-size: 12px; font-weight: 600; letter-spacing: .06em;
+                 color: var(--sub); display: flex; align-items: center; gap: 6px; }
+  .tabs button.on { color: var(--ink-strong); border-top-color: var(--ink-strong); }
+
+  .cells { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+
+  /* 투표 스티커 */
+  .poll { display: grid; gap: 7px; }
+  .poll-q { font-size: 15px; font-weight: 600; color: var(--ink-strong); line-height: 1.4; }
+  .opt { position: relative; border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+         min-height: 42px; display: flex; align-items: center; padding: 0 13px; font-size: 14px; }
+  .opt .bar { position: absolute; inset: 0 auto 0 0; background: var(--btn); }
+  .opt.win .bar { background: color-mix(in srgb, var(--link) 20%, transparent); }
+  .opt b, .opt em { position: relative; font-style: normal; }
+  .opt b { font-weight: 600; }
+  .opt em { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  /* DM */
+  .dm { display: grid; grid-template-columns: 260px minmax(0,1fr); min-height: 330px; }
+  .dm-list { border-right: 1px solid var(--line); }
+  .dm-list header { padding: 13px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
+  .dm-list header b { font-size: 15px; font-weight: 700; margin-right: auto; }
+  .dm-item { display: flex; align-items: center; gap: 11px; padding: 10px 14px; }
+  .dm-item.on { background: var(--line-soft); }
+  .dm-item b { font-size: 14px; font-weight: 600; display: block; }
+  .dm-item span { font-size: 13px; color: var(--sub); display: block; overflow: hidden;
+                  text-overflow: ellipsis; white-space: nowrap; }
+  .dm-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--link); flex: none; }
+  .dm-view { display: flex; flex-direction: column; }
+  .dm-view header { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+  .dm-body { padding: 16px; display: grid; gap: 10px; align-content: start; flex: 1; }
+  .bub { max-width: 78%; padding: 10px 14px; border-radius: 20px; font-size: 14px; line-height: 1.45; }
+  .bub.them { background: var(--btn); border-bottom-left-radius: 6px; }
+  .bub.me { background: var(--link); color: #fff; justify-self: end; border-bottom-right-radius: 6px; }
+  .dm-foot { border-top: 1px solid var(--line); padding: 11px 14px; display: flex; gap: 9px; }
+
+  /* 인사이트 */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1px; background: var(--line); }
+  .kpi { background: var(--bg); padding: 15px 16px; display: grid; gap: 3px; }
+  .kpi small { font-size: 12px; color: var(--sub); }
+  .kpi b { font-size: 26px; font-weight: 700; color: var(--ink-strong); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .kpi em { font-style: normal; font-size: 12px; font-weight: 600; }
+  .up { color: #2e9c5f; } .down { color: var(--heart); }
+  .bars { display: grid; gap: 9px; }
+  .barrow { display: grid; grid-template-columns: 78px minmax(0,1fr) 42px; align-items: center; gap: 10px; font-size: 13px; }
+  .track { height: 8px; border-radius: 999px; background: var(--btn); overflow: hidden; }
+  .fill { height: 100%; border-radius: 999px; background: var(--ink-strong); }
+  .barrow em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; color: var(--sub); }
+
+  /* 설정 목록 */
+  .settings > button { width: 100%; display: flex; align-items: center; gap: 13px; background: none;
+                       border: 0; border-bottom: 1px solid var(--line-soft); padding: 14px 4px;
+                       color: var(--ink); text-align: left; font-size: 15px; }
+  .settings > button:last-child { border-bottom: 0; }
+  .settings svg:last-child { margin-left: auto; color: var(--faint); }
+
+  /* 릴스 */
+  .reels { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .reel { aspect-ratio: 9/16; border-radius: 8px; overflow: hidden; position: relative;
+          background: #1c1c1c; color: #fff; display: flex; flex-direction: column; justify-content: flex-end; }
+  .reel svg.bgart { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .9; }
+  .reel .txt { position: relative; padding: 12px; background: linear-gradient(to top, rgba(0,0,0,.72), transparent); }
+  .reel .txt b { display: block; font-size: 13px; font-weight: 600; }
+  .reel .txt span { display: block; font-size: 12px; opacity: .85; }
+  .reel .side { position: absolute; right: 8px; bottom: 62px; display: grid; gap: 14px; justify-items: center; }
+  .reel .side span { display: grid; justify-items: center; gap: 2px; font-size: 11px; font-weight: 600; }
+
+  /* 스토리 전체화면 */
+  .storyview { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  .phone { aspect-ratio: 9/16; border-radius: 14px; background: #101010; color: #fff;
+           position: relative; overflow: hidden; display: flex; flex-direction: column; }
+  .phone .prog { display: flex; gap: 3px; padding: 10px 10px 0; }
+  .phone .prog i { flex: 1; height: 2.5px; border-radius: 2px; background: rgba(255,255,255,.35); }
+  .phone .prog i.on { background: #fff; }
+  .phone .ph-head { display: flex; align-items: center; gap: 8px; padding: 10px; font-size: 13px; }
+  .phone .ph-head b { font-weight: 600; }
+  .phone .ph-head span { opacity: .75; }
+  .phone .mid { flex: 1; display: grid; place-content: center; gap: 14px; padding: 16px; text-align: center; }
+  .phone .mid h4 { font-size: 17px; font-weight: 700; line-height: 1.4; }
+  .phone .mid p { font-size: 13px; opacity: .8; }
+  .wheel { width: 132px; height: 132px; border-radius: 50%; margin: 0 auto; position: relative;
+           background: conic-gradient(#f9ce34 0 25%, #ee2a7b 0 50%, #6228d7 0 75%, #0095f6 0);
+           display: grid; place-content: center; }
+  .wheel span { width: 54px; height: 54px; border-radius: 50%; background: #101010;
+                display: grid; place-content: center; font-size: 12px; font-weight: 700; }
+  .phone .ph-foot { padding: 12px; display: flex; gap: 8px; }
+  .ph-btn { flex: 1; border: 1px solid rgba(255,255,255,.5); background: rgba(255,255,255,.12);
+            color: #fff; border-radius: 999px; min-height: 38px; font-size: 13px; font-weight: 600; }
+  .ph-btn.solid { background: #fff; color: #101010; border-color: #fff; }
+
+  /* 만들기 모달 */
+  .create { display: grid; grid-template-columns: minmax(0,1fr) 300px; min-height: 320px; }
+  .drop { border-right: 1px solid var(--line); display: grid; place-content: center; gap: 12px;
+          justify-items: center; padding: 26px; text-align: center; color: var(--sub); }
+  .drop h4 { font-size: 18px; font-weight: 400; color: var(--ink); }
+  .side-form { display: flex; flex-direction: column; }
+  .side-form header { padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 9px; }
+  .side-form textarea { border: 0; background: none; color: var(--ink); font: inherit; font-size: 14px;
+                        padding: 14px; min-height: 96px; resize: none; outline: none; }
+  .side-form textarea::placeholder { color: var(--sub); }
+  .switch-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--line-soft); }
+  .switch-row .grow b { font-size: 14px; font-weight: 500; display: block; }
+  .switch-row .grow small { font-size: 12px; color: var(--sub); }
+  .sw { width: 42px; height: 25px; border-radius: 999px; background: var(--line); position: relative; flex: none; }
+  .sw.on { background: var(--link); }
+  .sw i { position: absolute; top: 2.5px; left: 2.5px; width: 20px; height: 20px; border-radius: 50%; background: #fff; }
+  .sw.on i { left: auto; right: 2.5px; }
+
+  /* 컬렉션(액션아이템) */
+  .coll { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+  .coll-card { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .coll-cover { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); aspect-ratio: 2/1; }
+  .coll-cover .sq { aspect-ratio: auto; }
+  .coll-body { padding: 11px 12px; display: grid; gap: 3px; }
+  .coll-body b { font-size: 14px; font-weight: 600; }
+  .coll-body span { font-size: 12.5px; color: var(--sub); }
+  .todo { display: grid; gap: 9px; }
+  .todo-row { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+  .box { width: 19px; height: 19px; border-radius: 6px; border: 1.6px solid var(--line); flex: none; }
+  .box.on { background: var(--link); border-color: var(--link); display: grid; place-content: center; }
+  .todo-row.done span { color: var(--sub); text-decoration: line-through; }
+  .todo-row .who { margin-left: auto; font-size: 12px; color: var(--sub); }
+
+  /* 라이브 */
+  .live-badge { background: linear-gradient(90deg, #ee2a7b, #f9ce34); color: #fff; border-radius: 5px;
+                font-size: 11px; font-weight: 700; padding: 2px 7px; letter-spacing: .04em; }
+  .stack { display: flex; }
+  .stack .ava { margin-left: -9px; border: 2px solid var(--bg); }
+  .stack .ava:first-child { margin-left: 0; }
+
+  /* 매핑 표 */
+  .grid-note { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 1px;
+               background: var(--deck-line); border: 1px solid var(--deck-line); border-radius: 12px; overflow: hidden; }
+  .grid-note > div { background: var(--bg); padding: 15px 17px; display: grid; gap: 4px; align-content: start; }
+  .grid-note b { font-size: 13.5px; font-weight: 600; color: var(--ink-strong); }
+  .grid-note p { font-size: 13px; line-height: 1.6; color: var(--sub); }
+
+  @media (max-width: 760px) {
+    .dm, .create { grid-template-columns: minmax(0,1fr); }
+    .dm-list { border-right: 0; border-bottom: 1px solid var(--line); }
+    .drop { border-right: 0; border-bottom: 1px solid var(--line); }
+  }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="cr" x="-10%" y="-10%" width="120%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="4" seed="11" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="2" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <filter id="gr"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" seed="5" result="g"/>
+    <feColorMatrix in="g" type="saturate" values="0"/>
+    <feComponentTransfer><feFuncA type="linear" slope="0.17"/></feComponentTransfer></filter>
+
+  <symbol id="bowl" viewBox="0 0 320 400" preserveAspectRatio="xMidYMid slice">
+    <g filter="url(#cr)">
+      <rect width="320" height="400" fill="#f2ece0"/>
+      <rect width="320" height="120" fill="#8aa07d" opacity=".38"/>
+      <circle cx="46" cy="36" r="13" fill="#d4622e" opacity=".8"/><circle cx="128" cy="26" r="11" fill="#e3b23c" opacity=".85"/>
+      <circle cx="214" cy="34" r="12" fill="#d4622e" opacity=".75"/>
+      <rect y="120" width="320" height="34" fill="#c96a3f" opacity=".45"/>
+      <rect y="154" width="320" height="120" fill="#f2ece0"/>
+      <path d="M18 154 L2 274 M92 154 L74 274 M210 154 L232 274 M292 154 L316 274" stroke="#d4622e" stroke-width="2.6" opacity=".5"/>
+      <g stroke="#3a332a" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+        <g><path d="M36 152V128M52 152V128" fill="none"/><path d="M28 92h30a8 8 0 0 1 8 8v22a5 5 0 0 1-5 5H25a5 5 0 0 1-5-5v-22a8 8 0 0 1 8-8z" fill="#8aa07d"/><path d="M24 98L10 72M62 98l16-26" fill="none"/><circle cx="44" cy="74" r="13" fill="#f0dcc2"/><path d="M31 71c1-12 25-14 27-1 1 11-6 4-14 5s-12 6-13-4z" fill="#3a332a" stroke="none"/><path d="M39 75h.01M49 75h.01" stroke-width="3"/><path d="M40 81c3 3 6 3 9 0" fill="none"/></g>
+        <g><path d="M104 156V132M120 156V132" fill="none"/><path d="M96 96h30a8 8 0 0 1 8 8v22a5 5 0 0 1-5 5H93a5 5 0 0 1-5-5v-22a8 8 0 0 1 8-8z" fill="#c1502a"/><path d="M92 102L80 76M130 102l14-24" fill="none"/><circle cx="112" cy="78" r="13" fill="#f0dcc2"/><path d="M99 75c1-12 25-14 27-1 1 11-6 4-14 5s-12 6-13-4z" fill="#8a6a4a" stroke="none"/><path d="M107 79h.01M117 79h.01" stroke-width="3"/><path d="M108 85c3 3 6 3 9 0" fill="none"/></g>
+        <g><path d="M172 152V128M188 152V128" fill="none"/><path d="M164 92h30a8 8 0 0 1 8 8v22a5 5 0 0 1-5 5h-36a5 5 0 0 1-5-5v-22a8 8 0 0 1 8-8z" fill="#e3b23c"/><path d="M160 98l-12-26M198 98l14-26" fill="none"/><circle cx="180" cy="74" r="13" fill="#f0dcc2"/><path d="M167 71c1-12 25-14 27-1 1 11-6 4-14 5s-12 6-13-4z" fill="#b8452f" stroke="none"/><path d="M175 75h.01M185 75h.01" stroke-width="3"/><path d="M176 81c3 3 6 3 9 0" fill="none"/></g>
+        <g><path d="M240 156V132M256 156V132" fill="none"/><path d="M232 96h30a8 8 0 0 1 8 8v22a5 5 0 0 1-5 5h-36a5 5 0 0 1-5-5v-22a8 8 0 0 1 8-8z" fill="#4a6f9e"/><path d="M228 102l-14-24M266 102l14-26" fill="none"/><circle cx="248" cy="78" r="13" fill="#f0dcc2"/><path d="M235 75c1-12 25-14 27-1 1 11-6 4-14 5s-12 6-13-4z" fill="#c1502a" stroke="none"/><path d="M243 79h.01M253 79h.01" stroke-width="3"/><path d="M244 85c3 3 6 3 9 0" fill="none"/></g>
+      </g>
+      <g fill="#faf5ea" stroke="#3a332a" stroke-width="2.6">
+        <path d="M272 216c0-12 6-16 6-28s-6-13-6-22 5-12 5-12 5 3 5 12-6 10-6 22 6 16 6 28z"/>
+        <path d="M292 222c0-12 6-16 6-28s-6-13-6-22 5-12 5-12 5 3 5 12-6 10-6 22 6 16 6 28z"/>
+        <path d="M312 216c0-12 6-16 6-28s-6-13-6-22 5-12 5-12 5 3 5 12-6 10-6 22 6 16 6 28z"/>
+      </g>
+      <path d="M258 176l16-14M262 196l-20-6M272 208l6-22" stroke="#e3b23c" stroke-width="3.6" stroke-linecap="round"/>
+      <circle cx="176" cy="230" r="26" fill="#4a6f9e" stroke="#3a332a" stroke-width="3"/>
+      <g fill="#3a332a"><circle cx="168" cy="221" r="3.6"/><circle cx="181" cy="220" r="3.6"/><circle cx="175" cy="233" r="3.6"/></g>
+      <rect y="274" width="320" height="126" fill="#463629"/>
+      <path d="M0 300h320M0 336h320M0 372h320" stroke="#2e2219" stroke-width="2.4"/>
+      <path d="M28 292c0-16 10-22 22-22s22 6 22 22v108H28z" fill="#5a4838" stroke="#3a332a" stroke-width="2.6"/>
+      <path d="M38 296c0-11 5-15 12-15s12 4 12 15v104H38z" fill="#1d1712"/>
+    </g>
+    <rect width="320" height="400" filter="url(#gr)" opacity=".55"/>
+  </symbol>
+
+  <symbol id="cup" viewBox="0 0 320 400" preserveAspectRatio="xMidYMid slice">
+    <g filter="url(#cr)">
+      <rect width="320" height="400" fill="#f2ece0"/>
+      <rect y="248" width="320" height="152" fill="#c9a06a" opacity=".45"/>
+      <ellipse cx="160" cy="286" rx="118" ry="34" fill="#8aa07d" opacity=".3"/>
+      <path d="M88 156h116v70a52 52 0 0 1-52 52h-12a52 52 0 0 1-52-52z" fill="#c1502a" stroke="#3a332a" stroke-width="3.4"/>
+      <path d="M204 172h22a28 28 0 0 1 0 56h-22" fill="none" stroke="#3a332a" stroke-width="3.4"/>
+      <path d="M88 156h116" stroke="#faf5ea" stroke-width="11"/>
+      <path d="M120 128c0-16 16-16 16-32M164 124c0-16 16-16 16-32M208 130c0-14 14-14 14-30" stroke="#3a332a" stroke-width="3" stroke-linecap="round" fill="none"/>
+      <rect x="34" y="196" width="46" height="60" rx="6" fill="#e3b23c" stroke="#3a332a" stroke-width="3"/>
+      <circle cx="262" cy="86" r="26" fill="#e3b23c" opacity=".85"/>
+      <path d="M60 344h84M180 344h80" stroke="#d4622e" stroke-width="4" stroke-linecap="round"/>
+    </g>
+    <rect width="320" height="400" filter="url(#gr)" opacity=".55"/>
+  </symbol>
+
+  <symbol id="walk" viewBox="0 0 320 400" preserveAspectRatio="xMidYMid slice">
+    <g filter="url(#cr)">
+      <rect width="320" height="400" fill="#f2ece0"/>
+      <circle cx="242" cy="88" r="32" fill="#e3b23c"/>
+      <path d="M0 236c52-58 104-58 160 0s108 56 160 0v164H0z" fill="#4a6f9e" opacity=".4"/>
+      <path d="M62 244V168M62 168l-30-16M62 186l30-20" stroke="#3a332a" stroke-width="3.4" stroke-linecap="round"/>
+      <ellipse cx="62" cy="142" rx="40" ry="34" fill="#8aa07d" stroke="#3a332a" stroke-width="3"/>
+      <g stroke="#3a332a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M196 336v-26M214 336v-26" fill="none"/>
+        <path d="M190 260h30a8 8 0 0 1 8 8v34a6 6 0 0 1-6 6h-34a6 6 0 0 1-6-6v-34a8 8 0 0 1 8-8z" fill="#c1502a"/>
+        <path d="M186 268l-16 28M232 268l16 26" fill="none"/>
+        <circle cx="205" cy="240" r="15" fill="#f0dcc2"/>
+        <path d="M191 237c1-14 28-16 30-1 1 12-7 4-16 6s-13 7-14-5z" fill="#3a332a" stroke="none"/>
+        <path d="M199 241h.01M211 241h.01" stroke-width="3.2"/><path d="M200 248c3 3 7 3 10 0" fill="none"/>
+      </g>
+      <path d="M40 366h240" stroke="#d4622e" stroke-width="4" stroke-linecap="round"/>
+    </g>
+    <rect width="320" height="400" filter="url(#gr)" opacity=".55"/>
+  </symbol>
+</defs></svg>
+
+<div class="wrap">
+
+  <header class="lede">
+    <span>SK Grove · 팀스타그램</span>
+    <h1>메뉴 15개를 인스타 문법으로 어떻게 나눠 담을까</h1>
+    <p>
+      인스타그램은 피드 하나로 된 앱이 아닙니다. 피드 · 스토리 · 릴스 · 탐색 · DM · 프로필 ·
+      설정 · 인사이트라는 <strong>여덟 개의 서로 다른 문법</strong>을 가지고 있고, 콘텐츠 성격에 따라
+      골라 씁니다. SK Grove 의 메뉴도 성격이 제각각이라 하나의 문법으로 다 덮으면 망가집니다.
+      아래는 메뉴별로 어떤 문법을 쓸지, 그리고 <strong>어떤 메뉴는 인스타를 쓰지 않을지</strong> 정한 것입니다.
+      좌측 네비게이션은 모든 화면 공통이라 생략하고 본문 영역만 그렸습니다.
+    </p>
+  </header>
+
+  <!-- 01 홈 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">01</span><h2>홈</h2><span class="via">피드 + 스토리</span>
+      <p>스토리는 마감이 있는 것(번개·투표), 피드는 팀에 생긴 일 전부. 인스타 홈 그대로입니다.</p>
+    </div>
+    <div class="panel pad">
+      <div class="tray" style="margin-bottom:14px">
+        <div class="story"><span class="ring"><span><svg viewBox="0 0 320 400"><use href="#bowl"/></svg></span></span><small>볼링 번개</small></div>
+        <div class="story"><span class="ring"><span>투</span></span><small>회의 없는 날</small></div>
+        <div class="story"><span class="ring"><span><svg viewBox="0 0 320 400"><use href="#cup"/></svg></span></span><small>모각커</small></div>
+        <div class="story"><span class="ring"><span>커</span></span><small>커피뽑기</small></div>
+        <div class="story"><span class="ring seen"><span>회</span></span><small>3분기 회고</small></div>
+        <div class="story"><span class="ring seen"><span>환</span></span><small>신입 환영회</small></div>
+      </div>
+      <div style="display:grid; gap:11px">
+        <div class="row"><span class="ava">그</span><span class="grow"><b>sk_grove_team</b><span class="s">안건 "수요일 오후는 회의 없는 시간으로" 가 통과했어요 · 2시간</span></span></div>
+        <div class="poll">
+          <div class="opt win"><span class="bar" style="width:78%"></span><b>찬성</b><em>78%</em></div>
+          <div class="opt"><span class="bar" style="width:22%"></span><b>반대</b><em>22%</em></div>
+        </div>
+        <p class="cap"><b>다음</b>액션아이템 2건이 만들어졌어요. <span class="tag">#안건 #통과</span></p>
+        <div class="acts">
+          <button class="liked" type="button" aria-label="좋아요 취소"><svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.6S3.4 15.3 3.4 9.4A4.7 4.7 0 0 1 12 6.6a4.7 4.7 0 0 1 8.6 2.8c0 5.9-8.6 11.2-8.6 11.2z"/></svg></button>
+          <button type="button" aria-label="댓글"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M20.8 11.6a8.5 8.5 0 0 1-12.2 7.7L3.4 20.6l1.4-5A8.5 8.5 0 1 1 20.8 11.6z"/></svg></button>
+          <button class="save" type="button" aria-label="저장"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 3.6h12v17l-6-4.6-6 4.6z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 대나무숲 접수 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">02</span><h2>대나무숲 접수</h2><span class="via">만들기 모달</span>
+      <p>인스타 "새 게시물"의 2단 구조. 다른 점 하나 — <strong>익명 스위치를 켜면 계정 줄이 사라집니다.</strong> 익명이 옵션이 아니라 기본값으로 보이게 두는 것이 이 앱의 전제입니다.</p>
+    </div>
+    <div class="panel create">
+      <div class="drop">
+        <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2.6"/><path d="m5 16 4.2-4.6 3.2 3.2 3-2.6L19 16"/><circle cx="8.6" cy="9.2" r="1.3"/></svg>
+        <h4>하고 싶은 말을 남겨주세요</h4>
+        <p style="font-size:13px">사진이나 파일을 붙여도 되고, 글만 써도 돼요</p>
+        <button class="bblue" type="button">컴퓨터에서 선택</button>
+      </div>
+      <div class="side-form">
+        <header>
+          <span class="ava sm">익</span><b style="font-size:14px; font-weight:600">익명으로 게시</b>
+          <button class="blink" style="margin-left:auto" type="button">공유</button>
+        </header>
+        <textarea placeholder="팀에서 바뀌었으면 하는 것...">회의가 너무 자주 잡혀서 집중할 시간이 없어요. 수요일 오후만이라도 회의 없는 시간으로 정하면 어떨까요.</textarea>
+        <div class="switch-row">
+          <span class="grow"><b>익명으로 남기기</b><small>이름이 어디에도 남지 않아요</small></span>
+          <span class="sw on"><i></i></span>
+        </div>
+        <div class="switch-row">
+          <span class="grow"><b>리더에게만 보이기</b><small>끄면 팀 전체가 볼 수 있어요</small></span>
+          <span class="sw"><i></i></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 리더 관리함 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">03</span><h2>리더 관리함</h2><span class="via">DM 받은편지함</span>
+      <p>인스타 DM 의 "요청" 탭 구조가 접수함과 같습니다 — 읽지 않은 것이 왼쪽에 쌓이고, 처리하면 사라집니다. 익명 스레드는 아바타가 이름 대신 접수 번호를 씁니다.</p>
+    </div>
+    <div class="panel dm">
+      <div class="dm-list">
+        <header><b>접수함</b><span style="font-size:13px; color:var(--sub)">요청 4</span></header>
+        <div class="dm-item on"><span class="ava">익</span><span class="grow"><b>익명 · #142</b><span>회의가 너무 자주 잡혀서...</span></span><i class="dm-dot"></i></div>
+        <div class="dm-item"><span class="ava">익</span><span class="grow"><b>익명 · #141</b><span>온보딩 문서가 최신이 아니에요</span></span><i class="dm-dot"></i></div>
+        <div class="dm-item"><span class="ava">승</span><span class="grow"><b>김승현</b><span>파트 회식 주기 얘기하고 싶어요</span></span></div>
+        <div class="dm-item"><span class="ava">익</span><span class="grow"><b>익명 · #139</b><span>안건으로 올려주셔서 감사해요</span></span></div>
+      </div>
+      <div class="dm-view">
+        <header><span class="ava sm">익</span><b style="font-size:14px; font-weight:600">익명 · #142</b>
+          <button class="bsoft" style="margin-left:auto; padding:6px 13px; font-size:13px" type="button">안건으로 올리기</button></header>
+        <div class="dm-body">
+          <p class="bub them">회의가 너무 자주 잡혀서 집중할 시간이 없어요. 수요일 오후만이라도 회의 없는 시간으로 정하면 어떨까요.</p>
+          <p class="bub me">좋은 의견이에요. 이번 주 안건으로 올려서 투표해볼게요.</p>
+          <p class="bub them">감사합니다.</p>
+        </div>
+        <div class="dm-foot"><span class="ava sm">이</span><span style="flex:1; color:var(--sub); align-self:center">메시지 보내기...</span><button class="blink" type="button">보내기</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 안건함 / 투표 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">04</span><h2>안건함 / 투표</h2><span class="via">스토리 투표 스티커</span>
+      <p>인스타 투표 스티커는 <strong>누르면 즉시 결과가 채워지는</strong> 형태라 익명 투표와 잘 맞습니다. 투표 전에는 % 가 안 보이고, 누른 뒤에만 보입니다.</p>
+    </div>
+    <div class="panel pad" style="display:grid; gap:16px">
+      <div class="cols">
+        <div style="display:grid; gap:10px">
+          <div class="row"><span class="ava sm">그</span><span class="grow"><b style="font-size:13.5px">투표중 · 내일 오후 6시 마감</b><span class="s">14명 중 11명 참여</span></span></div>
+          <p class="poll-q">수요일 오후는 회의 없는 시간으로 하는 게 어때요?</p>
+          <div class="poll">
+            <div class="opt win"><span class="bar" style="width:68%"></span><b>찬성</b><em>68%</em></div>
+            <div class="opt"><span class="bar" style="width:32%"></span><b>반대</b><em>32%</em></div>
+          </div>
+          <span class="ago">내 표는 아무에게도 안 보여요</span>
+        </div>
+        <div style="display:grid; gap:10px">
+          <div class="row"><span class="ava sm">그</span><span class="grow"><b style="font-size:13.5px">투표 전</b><span class="s">모레 마감</span></span></div>
+          <p class="poll-q">점심 회식을 월 1회로 고정할까요?</p>
+          <div class="poll">
+            <div class="opt"><b>찬성</b></div>
+            <div class="opt"><b>반대</b></div>
+          </div>
+          <span class="ago">누르면 결과가 보여요</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 액션아이템 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">05</span><h2>액션아이템</h2><span class="via">저장됨 컬렉션 · 피드 아님</span>
+      <p>
+        <strong>여기는 피드를 쓰지 않습니다.</strong> 담당자와 마감을 훑고 비교하는 화면이라 스크롤로 하나씩
+        보여주면 안 됩니다. 인스타의 "저장됨 → 컬렉션" 구조만 빌려서 담당자별로 묶고, 안은 밀도 높은 체크리스트로 둡니다.
+      </p>
+    </div>
+    <div class="panel pad" style="display:grid; gap:16px">
+      <div class="coll">
+        <div class="coll-card">
+          <div class="coll-cover"><div class="sq"><svg viewBox="0 0 320 400"><use href="#bowl"/></svg></div><div class="sq"><svg viewBox="0 0 320 400"><use href="#cup"/></svg></div></div>
+          <div class="coll-body"><b>이상협</b><span>3건 · 1건 지남</span></div>
+        </div>
+        <div class="coll-card">
+          <div class="coll-cover"><div class="sq"><svg viewBox="0 0 320 400"><use href="#walk"/></svg></div><div class="sq"><svg viewBox="0 0 320 400"><use href="#bowl"/></svg></div></div>
+          <div class="coll-body"><b>김승현</b><span>2건 · 모두 진행중</span></div>
+        </div>
+        <div class="coll-card">
+          <div class="coll-cover"><div class="sq"><svg viewBox="0 0 320 400"><use href="#cup"/></svg></div><div class="sq"><svg viewBox="0 0 320 400"><use href="#walk"/></svg></div></div>
+          <div class="coll-body"><b>김수정</b><span>4건 · 3건 완료</span></div>
+        </div>
+      </div>
+      <div class="todo">
+        <div class="todo-row"><span class="box"></span><span class="grow">티미팅 아젠다 3개 제안 작성</span><span class="who">이상협 · 07-30 지남</span></div>
+        <div class="todo-row"><span class="box"></span><span class="grow">회의 없는 시간 캘린더 등록</span><span class="who">김승현 · 08-01</span></div>
+        <div class="todo-row done"><span class="box on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg></span><span class="grow">파트 섞기 커피챗 1차 매칭</span><span class="who">김수정 · 07-26</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 캔미팅 / 티미팅 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">06</span><h2>캔미팅 / 티미팅</h2><span class="via">예정된 라이브</span>
+      <p>인스타 라이브의 "예정됨 → 알림 받기 → 진행중" 흐름이 회의 예약과 같습니다. 참가자는 아바타 스택으로 보여 누가 오는지 미리 압니다.</p>
+    </div>
+    <div class="panel pad" style="display:grid; gap:14px">
+      <div class="row">
+        <span class="ring" style="width:54px;height:54px"><span>캔</span></span>
+        <span class="grow"><b>8월 상반기 캔미팅</b><span class="s">8월 12일 수 15:00 · 이선민 진행</span></span>
+        <span class="live-badge">예정됨</span>
+      </div>
+      <div class="row">
+        <span class="stack">
+          <span class="ava sm">상</span><span class="ava sm">승</span><span class="ava sm">수</span><span class="ava sm">두</span><span class="ava sm">+7</span>
+        </span>
+        <span class="s" style="margin-left:4px">11명이 알림을 받아요</span>
+        <button class="bblue" style="margin-left:auto" type="button">알림 받기</button>
+      </div>
+      <div class="divide" style="border-top:1px solid var(--line); padding-top:12px">
+        <div class="row"><span class="ava sm">1</span><span class="grow"><b>아젠다 모으기</b><span class="s">8월 10일까지 · 6건 모임</span></span><button class="blink" type="button">제안하기</button></div>
+        <div class="row"><span class="ava sm">2</span><span class="grow"><b>진행</b><span class="s">8월 12일 수 15:00</span></span></div>
+        <div class="row"><span class="ava sm">3</span><span class="grow"><b>액션아이템 배정</b><span class="s">회의 직후</span></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 모임 · 번개 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">07</span><h2>모임 · 번개</h2><span class="via">피드 게시물 + 스토리</span>
+      <p>가장 인스타에 가까운 화면. 포스터가 사진 자리이고, 하트는 관심 표시일 뿐 <strong>참여는 별도의 파란 버튼</strong>입니다 — 하트로 자리를 잡으면 실수로 눌렀을 때 되돌리기 어렵습니다.</p>
+    </div>
+    <div class="panel pad" style="max-width:470px">
+      <div class="row" style="padding-bottom:10px">
+        <span class="ava">상</span>
+        <span class="grow"><b>이상협</b><span class="s">강남 볼링장 · 금요일 19:00</span></span>
+        <button style="background:none;border:0;color:var(--ink)" type="button" aria-label="더 보기"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
+      </div>
+      <div class="shot"><svg viewBox="0 0 320 400" role="img" aria-label="볼링장에서 환호하는 팀원들 일러스트"><use href="#bowl"/></svg><span class="tagpill">4자리 남음</span></div>
+      <div class="acts">
+        <button class="liked" type="button" aria-label="좋아요 취소"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.6S3.4 15.3 3.4 9.4A4.7 4.7 0 0 1 12 6.6a4.7 4.7 0 0 1 8.6 2.8c0 5.9-8.6 11.2-8.6 11.2z"/></svg></button>
+        <button type="button" aria-label="댓글"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M20.8 11.6a8.5 8.5 0 0 1-12.2 7.7L3.4 20.6l1.4-5A8.5 8.5 0 1 1 20.8 11.6z"/></svg></button>
+        <button type="button" aria-label="공유"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 3 3.4 9.3l8.6 3.1 3.1 8.6z"/><path d="m12 12.4 9.4-9.4"/></svg></button>
+        <button class="save" type="button" aria-label="저장"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 3.6h12v17l-6-4.6-6 4.6z"/></svg></button>
+      </div>
+      <p class="likes">김승현님 외 11명이 좋아해요</p>
+      <p class="cap" style="margin-top:4px"><b>이상협</b>금요일 저녁에 볼링 한 판 어때요. 실력은 안 봐요, 저도 못 칩니다. <span class="tag">#번개 #볼링</span></p>
+      <button class="bblue full" style="margin-top:11px; min-height:40px" type="button">참여하기 · 4자리 남음</button>
+      <span class="ago" style="display:block; margin-top:7px">오늘 오후 6시 마감</span>
+    </div>
+  </section>
+
+  <!-- 08 동료 성향 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">08</span><h2>동료 성향</h2><span class="via">프로필 상단 + 태그 칩</span>
+      <p>사람 카드는 인스타 프로필 헤더를 그대로 씁니다. 성향은 해시태그처럼 칩으로 두어 <strong>같은 태그를 가진 사람으로 이동</strong>할 수 있게 합니다.</p>
+    </div>
+    <div class="panel pad">
+      <div class="cols">
+        <div style="display:grid; gap:11px">
+          <div class="row"><span class="ava lg">상</span><span class="grow"><b>이상협</b><span class="s">혁신도구파트 · 팀원</span></span><button class="bsoft" style="padding:6px 14px; font-size:13px" type="button">커피챗</button></div>
+          <p class="cap">조용히 오래 파는 편. 급하게 물어보면 오히려 느려져요.</p>
+          <div style="display:flex; flex-wrap:wrap; gap:6px">
+            <span class="via">#몰입형</span><span class="via">#비동기선호</span><span class="via">#문서로소통</span><span class="via">#아침형</span>
+          </div>
+        </div>
+        <div style="display:grid; gap:11px">
+          <div class="row"><span class="ava lg">수</span><span class="grow"><b>김수정</b><span class="s">혁신도구파트 · 팀원</span></span><button class="bsoft" style="padding:6px 14px; font-size:13px" type="button">커피챗</button></div>
+          <p class="cap">말하면서 정리되는 편. 30분 통화가 이메일 열 통보다 빨라요.</p>
+          <div style="display:flex; flex-wrap:wrap; gap:6px">
+            <span class="via">#대화형</span><span class="via">#즉시응답</span><span class="via">#화이트보드</span><span class="via">#저녁형</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 09 커피뽑기 / 조뽑기 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">09</span><h2>커피뽑기 / 조뽑기</h2><span class="via">전체화면 스토리</span>
+      <p>뽑기는 <strong>한 번 보고 끝나는 순간</strong>이라 스토리가 정확한 그릇입니다. 세로 전체화면, 상단 진행 막대, 결과는 스토리로 팀에 공유됩니다.</p>
+    </div>
+    <div class="panel pad">
+      <div class="storyview">
+        <div class="phone">
+          <div class="prog"><i class="on"></i><i></i><i></i></div>
+          <div class="ph-head"><span class="ava sm" style="width:26px;height:26px">이</span><b>커피뽑기</b><span>· 방금</span></div>
+          <div class="mid">
+            <div class="wheel"><span>돌리는 중</span></div>
+            <h4>오늘 커피 사는 사람은?</h4>
+            <p>참여 6명 · 이선민 님이 돌렸어요</p>
+          </div>
+          <div class="ph-foot"><button class="ph-btn" type="button">나도 참여</button><button class="ph-btn solid" type="button">돌리기</button></div>
+        </div>
+        <div class="phone">
+          <div class="prog"><i class="on"></i><i class="on"></i><i></i></div>
+          <div class="ph-head"><span class="ava sm" style="width:26px;height:26px">이</span><b>커피뽑기</b><span>· 방금</span></div>
+          <div class="mid">
+            <div class="ava lg" style="width:84px;height:84px;font-size:30px;margin:0 auto;background:rgba(255,255,255,.14);color:#fff">두</div>
+            <h4>이두민 님이 당첨됐어요</h4>
+            <p>아메리카노 6잔 · 다음엔 안 걸리시길</p>
+          </div>
+          <div class="ph-foot"><button class="ph-btn" type="button">다시 돌리기</button><button class="ph-btn solid" type="button">팀에 공유</button></div>
+        </div>
+        <div class="phone">
+          <div class="prog"><i class="on"></i><i class="on"></i><i class="on"></i></div>
+          <div class="ph-head"><span class="ava sm" style="width:26px;height:26px">이</span><b>조뽑기</b><span>· 방금</span></div>
+          <div class="mid" style="place-content:start; padding-top:30px">
+            <h4 style="text-align:left">3개 조로 나눴어요</h4>
+            <div style="display:grid; gap:10px; text-align:left">
+              <div><b style="font-size:13px; opacity:.7">A조</b><p style="font-size:13px">이상협 · 김수정 · 이두민</p></div>
+              <div><b style="font-size:13px; opacity:.7">B조</b><p style="font-size:13px">김승현 · 박지호 · 최유진</p></div>
+              <div><b style="font-size:13px; opacity:.7">C조</b><p style="font-size:13px">이선민 · 정한별 · 서다인</p></div>
+            </div>
+          </div>
+          <div class="ph-foot"><button class="ph-btn" type="button">다시 섞기</button><button class="ph-btn solid" type="button">팀에 공유</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 팀 추억 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">10</span><h2>팀 추억</h2><span class="via">프로필 격자 + 하이라이트</span>
+      <p>지난 모임의 사진이 쌓이는 곳이라 프로필 격자가 그대로 맞습니다. 분기·행사별 <strong>하이라이트 원형</strong>이 기존의 "다가오는 행사" 보드를 대신합니다.</p>
+    </div>
+    <div class="panel">
+      <div class="pad" style="display:flex; gap:16px; overflow-x:auto">
+        <div class="story"><span class="ring seen"><span><svg viewBox="0 0 320 400"><use href="#bowl"/></svg></span></span><small>2026 상반기</small></div>
+        <div class="story"><span class="ring seen"><span><svg viewBox="0 0 320 400"><use href="#cup"/></svg></span></span><small>커피챗</small></div>
+        <div class="story"><span class="ring seen"><span><svg viewBox="0 0 320 400"><use href="#walk"/></svg></span></span><small>워크숍</small></div>
+        <div class="story"><span class="ring seen"><span>회</span></span><small>회고</small></div>
+        <div class="story"><span class="ring seen"><span>환</span></span><small>환영회</small></div>
+      </div>
+      <div class="tabs">
+        <button class="on" type="button"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="2" y="2" width="6.6" height="6.6"/><rect x="8.7" y="2" width="6.6" height="6.6"/><rect x="15.4" y="2" width="6.6" height="6.6"/><rect x="2" y="8.7" width="6.6" height="6.6"/><rect x="8.7" y="8.7" width="6.6" height="6.6"/><rect x="15.4" y="8.7" width="6.6" height="6.6"/></svg>게시물</button>
+        <button type="button">함께한 사람</button>
+        <button type="button">저장됨</button>
+      </div>
+      <div class="cells">
+        <div class="sq"><svg viewBox="0 0 320 400"><use href="#bowl"/></svg><i class="cornr"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="14" height="14" rx="3" opacity=".55"/><rect x="7" y="7" width="14" height="14" rx="3"/></svg></i></div>
+        <div class="sq"><svg viewBox="0 0 320 400"><use href="#cup"/></svg></div>
+        <div class="sq"><svg viewBox="0 0 320 400"><use href="#walk"/></svg></div>
+        <div class="sq"><svg viewBox="0 0 320 400"><use href="#walk"/></svg></div>
+        <div class="sq"><svg viewBox="0 0 320 400"><use href="#bowl"/></svg></div>
+        <div class="sq"><svg viewBox="0 0 320 400"><use href="#cup"/></svg></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 유~머게시판 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">11</span><h2>유~머게시판</h2><span class="via">릴스</span>
+      <p>짧고 소비가 빠른 콘텐츠라 릴스가 맞습니다. 세로 카드 · 우측 액션 스택 · 명예의 전당은 릴스의 "인기" 탭 자리에 둡니다.</p>
+    </div>
+    <div class="panel pad">
+      <div class="reels">
+        <div class="reel">
+          <svg class="bgart" viewBox="0 0 320 400"><use href="#cup"/></svg>
+          <div class="side">
+            <span><svg width="24" height="24" viewBox="0 0 24 24" fill="#ed4956"><path d="M12 20.6S3.4 15.3 3.4 9.4A4.7 4.7 0 0 1 12 6.6a4.7 4.7 0 0 1 8.6 2.8c0 5.9-8.6 11.2-8.6 11.2z"/></svg>42</span>
+            <span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><path d="M20.8 11.6a8.5 8.5 0 0 1-12.2 7.7L3.4 20.6l1.4-5A8.5 8.5 0 1 1 20.8 11.6z"/></svg>9</span>
+            <span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><path d="M6 3.6h12v17l-6-4.6-6 4.6z"/></svg></span>
+          </div>
+          <div class="txt"><b>김승현</b><span>커피 내리다 말고 회의 들어온 사람 특징</span></div>
+        </div>
+        <div class="reel">
+          <svg class="bgart" viewBox="0 0 320 400"><use href="#bowl"/></svg>
+          <div class="side">
+            <span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><path d="M12 20.4S3.6 15.2 3.6 9.4A4.6 4.6 0 0 1 12 6.7a4.6 4.6 0 0 1 8.4 2.7c0 5.8-8.4 11-8.4 11z"/></svg>28</span>
+            <span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><path d="M20.8 11.6a8.5 8.5 0 0 1-12.2 7.7L3.4 20.6l1.4-5A8.5 8.5 0 1 1 20.8 11.6z"/></svg>14</span>
+            <span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><path d="M6 3.6h12v17l-6-4.6-6 4.6z"/></svg></span>
+          </div>
+          <div class="txt"><b>이두민</b><span>스트라이크 치고 뒤도 안 돌아본 사람</span></div>
+        </div>
+        <div class="reel">
+          <svg class="bgart" viewBox="0 0 320 400"><use href="#walk"/></svg>
+          <div class="side">
+            <span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><path d="M12 20.4S3.6 15.2 3.6 9.4A4.6 4.6 0 0 1 12 6.7a4.6 4.6 0 0 1 8.4 2.7c0 5.8-8.4 11-8.4 11z"/></svg>17</span>
+            <span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><path d="M20.8 11.6a8.5 8.5 0 0 1-12.2 7.7L3.4 20.6l1.4-5A8.5 8.5 0 1 1 20.8 11.6z"/></svg>5</span>
+            <span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><path d="M6 3.6h12v17l-6-4.6-6 4.6z"/></svg></span>
+          </div>
+          <div class="txt"><b>박지호</b><span>점심 산책 나갔다가 부장님 만난 썰</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 벼룩숲 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">12</span><h2>벼룩숲</h2><span class="via">쇼핑 격자 + 상품 태그</span>
+      <p>인스타 쇼핑의 가격 태그가 입찰가와 정확히 대응합니다. 남은 시간은 스토리처럼 <strong>사라지는 것</strong>으로 표현하고, 마감된 것은 회색으로 가라앉힙니다.</p>
+    </div>
+    <div class="panel pad">
+      <div class="cols" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px">
+        <figure style="display:grid; gap:7px">
+          <div class="sq" style="border-radius:6px; border:1px solid var(--line)"><svg viewBox="0 0 320 400"><use href="#cup"/></svg><span class="tagpill">12,000원</span></div>
+          <figcaption><b style="font-size:13.5px; font-weight:600; display:block">거의 안 쓴 드립 세트</b><span class="s" style="font-size:12.5px">입찰 3 · 4시간 남음</span></figcaption>
+        </figure>
+        <figure style="display:grid; gap:7px">
+          <div class="sq" style="border-radius:6px; border:1px solid var(--line)"><svg viewBox="0 0 320 400"><use href="#bowl"/></svg><span class="tagpill">8,000원</span></div>
+          <figcaption><b style="font-size:13.5px; font-weight:600; display:block">볼링 장갑 (M)</b><span class="s" style="font-size:12.5px">입찰 1 · 내일 마감</span></figcaption>
+        </figure>
+        <figure style="display:grid; gap:7px; opacity:.5">
+          <div class="sq" style="border-radius:6px; border:1px solid var(--line)"><svg viewBox="0 0 320 400"><use href="#walk"/></svg><span class="tagpill">낙찰</span></div>
+          <figcaption><b style="font-size:13.5px; font-weight:600; display:block">캠핑 의자 2개</b><span class="s" style="font-size:12.5px">김수정 님 낙찰 · 25,000원</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13 파트지수 / 리포트 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">13</span><h2>파트지수 / 리포트</h2><span class="via">인사이트 · 피드 아님</span>
+      <p>
+        인스타에도 <strong>인사이트</strong>라는 숫자 전용 화면이 따로 있습니다. 흑백에 큰 숫자와 얇은 막대만 쓰고,
+        사진도 하트도 없습니다. 파트지수는 정확히 이 문법입니다.
+      </p>
+    </div>
+    <div class="panel">
+      <div class="kpis">
+        <div class="kpi"><small>이번 달 접수</small><b>12</b><em class="up">▲ 3건</em></div>
+        <div class="kpi"><small>안건 전환율</small><b>58%</b><em class="up">▲ 6%p</em></div>
+        <div class="kpi"><small>투표 참여</small><b>79%</b><em class="down">▼ 4%p</em></div>
+        <div class="kpi"><small>액션 완료</small><b>64%</b><em class="up">▲ 11%p</em></div>
+      </div>
+      <div class="pad">
+        <div class="row" style="margin-bottom:12px"><b style="font-size:14px">파트별 참여</b><span class="s" style="margin-left:auto">최근 30일</span></div>
+        <div class="bars">
+          <div class="barrow"><span>혁신도구</span><span class="track"><span class="fill" style="width:86%"></span></span><em>86%</em></div>
+          <div class="barrow"><span>ITS혁신</span><span class="track"><span class="fill" style="width:71%"></span></span><em>71%</em></div>
+          <div class="barrow"><span>TEST혁신</span><span class="track"><span class="fill" style="width:54%"></span></span><em>54%</em></div>
+          <div class="barrow"><span>전체 평균</span><span class="track"><span class="fill" style="width:70%"></span></span><em>70%</em></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14 알림 / 메시지 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">14</span><h2>알림 / 메시지</h2><span class="via">활동 목록</span>
+      <p>인스타 활동 탭 그대로 — 아바타 · 한 문장 · 시간 · 우측 썸네일. 행동이 필요한 것에만 우측에 버튼이 붙습니다.</p>
+    </div>
+    <div class="panel pad">
+      <div class="divide">
+        <div class="row"><span class="ava">승</span><span class="grow"><span style="font-size:14px"><b style="display:inline">김승현</b> 님이 회원님의 안건에 투표했어요. <span class="ago">2시간</span></span></span><span class="sq" style="width:44px;height:44px;border-radius:4px"><svg viewBox="0 0 320 400"><use href="#bowl"/></svg></span></div>
+        <div class="row"><span class="ava">상</span><span class="grow"><span style="font-size:14px"><b style="display:inline">이상협</b> 님이 볼링 번개를 열었어요. <span class="ago">5시간</span></span></span><button class="bblue" style="padding:6px 15px; font-size:13px" type="button">참여</button></div>
+        <div class="row"><span class="ava">익</span><span class="grow"><span style="font-size:14px">익명 의견이 <b style="display:inline">안건으로 올라갔어요</b>. <span class="ago">어제</span></span></span></div>
+        <div class="row"><span class="ava">수</span><span class="grow"><span style="font-size:14px"><b style="display:inline">김수정</b> 님이 액션아이템을 완료했어요. <span class="ago">어제</span></span></span><span class="sq" style="width:44px;height:44px;border-radius:4px"><svg viewBox="0 0 320 400"><use href="#cup"/></svg></span></div>
+        <div class="row"><span class="ava">그</span><span class="grow"><span style="font-size:14px">목표일이 지난 액션아이템이 <b style="display:inline">2건</b> 있어요. <span class="ago">2일</span></span></span><button class="bsoft" style="padding:6px 14px; font-size:13px" type="button">보기</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15 계정 관리 -->
+  <section class="scr">
+    <div class="scr-head">
+      <span class="no">15</span><h2>계정 관리</h2><span class="via">설정 목록 · 피드 아님</span>
+      <p>인스타 설정의 단순한 행 목록입니다. 권한처럼 되돌리기 어려운 것은 목록에서 바로 바꾸지 않고 <strong>한 단계 들어가서</strong> 바꿉니다.</p>
+    </div>
+    <div class="panel pad">
+      <div class="settings">
+        <button type="button"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>가입 계정 <span style="margin-left:auto; color:var(--sub); font-size:13px">4명</span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"/></svg></button>
+        <button type="button"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l8 3.6v5c0 5-3.4 8.8-8 10.4-4.6-1.6-8-5.4-8-10.4v-5z"/></svg>리더 권한 <span style="margin-left:auto; color:var(--sub); font-size:13px">2명</span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"/></svg></button>
+        <button type="button"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v4M5 21V10l7-4 7 4v11"/></svg>파트 <span style="margin-left:auto; color:var(--sub); font-size:13px">3개</span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"/></svg></button>
+        <button type="button"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10.5 19a1.8 1.8 0 0 0 3 0"/></svg>알림 · 슬랙 연동<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"/></svg></button>
+        <button type="button"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>구글 캘린더 연결<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"/></svg></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 정리 -->
+  <section class="scr">
+    <div class="scr-head"><h2>정리 — 어떤 문법을 어디에 썼나</h2>
+      <p>인스타를 흉내 내는 것이 목적이 아니라, 콘텐츠 성격에 맞는 그릇을 고르는 것이 목적입니다.</p>
+    </div>
+    <div class="grid-note">
+      <div><b>피드 · 스토리 (5개)</b><p>홈 · 모임 · 번개 · 안건함 · 커피뽑기 · 캔미팅. 시간이 지나면 의미가 옅어지고, 하나씩 읽는 것이 자연스러운 것들입니다.</p></div>
+      <div><b>격자 · 릴스 (3개)</b><p>팀 추억 · 유~머게시판 · 벼룩숲. 훑어보다 눈에 걸리는 것을 누르는 화면. 기존 <code>.poster-grid</code> 3열 고정이 그대로 살아납니다.</p></div>
+      <div><b>DM · 활동 (2개)</b><p>리더 관리함 · 알림. 받은 것을 처리하는 화면이라 목록 + 상세 2단이 맞습니다.</p></div>
+      <div><b>인스타를 쓰지 않는 것 (3개)</b><p>액션아이템 · 파트지수 · 계정 관리. 훑고 비교하고 판단하는 화면입니다. 피드로 만들면 한 번에 하나씩만 보이게 되어 오히려 나빠집니다.</p></div>
+      <div><b>만들기 · 프로필 (2개)</b><p>대나무숲 접수 · 동료 성향. 각각 인스타의 만들기 모달과 프로필 헤더를 씁니다.</p></div>
+      <div><b>공통 규칙</b><p>UI 는 흑백 + 파랑 <code>#0095f6</code> 하나. 그라디언트는 스토리 링에만. 이렇게 해야 크레파스 일러스트가 화면에서 <strong>유일한 색</strong>으로 남습니다.</p></div>
+    </div>
+  </section>
+
+  <div class="grid-note" style="grid-template-columns:minmax(0,1fr)">
+    <div><b>위 그림은 자리표시입니다</b>
+      <p>첨부하신 파일을 제가 읽을 수 없어 같은 4:5 비율 · 같은 크라프트지 바탕 · 같은 5색으로 비슷하게 그려 넣었습니다. 실물과 다릅니다. 파일을 <code>public/illust/</code> 에 넣어 주시면 실제 이미지로 바꿔 다시 보여드리겠습니다.</p>
+    </div>
+  </div>
+
+</div>

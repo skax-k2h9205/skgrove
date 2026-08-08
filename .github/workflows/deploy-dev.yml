@@ -1,0 +1,25 @@
+name: deploy-dev
+
+# Vercel Hobby 의 기본 Git 연동은 '소유자가 작성한 커밋'만 배포한다. 팀원이 dev 에
+# 머지하면 커밋 이메일이 소유자 계정과 안 맞아 "commit email could not be matched" 로
+# 차단된다. Deploy Hook 은 커밋 작성자를 따지지 않고 'dev 최신을 빌드하라'는 순수
+# 트리거라, 누가 머지하든 이 워크플로가 훅을 눌러 자동배포한다.
+#
+# 훅 URL 은 secrets.VERCEL_DEPLOY_HOOK 에 있다(dev 재배포를 트리거하는 값이라 노출 금지).
+# native dev 자동배포는 vercel.json 에서 꺼서 이중배포·차단항목이 쌓이는 것을 막는다.
+
+on:
+  push:
+    branches: [dev]
+
+# 머지가 연달아 몰리면 마지막 것만 배포하면 된다. 앞 실행은 취소한다.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire Vercel deploy hook
+        run: curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"

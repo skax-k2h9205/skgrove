@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "dev": false
+    }
+  },
+  "functions": {
+    "api/gathering-image.ts": {
+      "maxDuration": 60
+    },
+    "api/review.ts": {
+      "maxDuration": 60
+    },
+    "api/chat.ts": {
+      "maxDuration": 60
+    }
+  }
+}
