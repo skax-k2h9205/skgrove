@@ -47,6 +47,7 @@ import { AgendaBoard } from './features/agenda/AgendaBoard';
 import type { AgendaDraft } from './features/agenda/AgendaForm';
 import { AccountManagement } from './features/auth/AccountManagement';
 import { LoginScreen } from './features/auth/LoginScreen';
+import { DataCleanup } from './features/admin/DataCleanup';
 import { Connect } from './features/connect/Connect';
 import { Dashboard } from './features/dashboard/Dashboard';
 import { HumorBoard } from './features/humor/HumorBoard';
@@ -1431,6 +1432,11 @@ export function App() {
         onSetPassword={setAccountPassword}
       />
     );
+  }
+
+  // 관리자(admin) 로그인 시 데이터 정제 화면만 보여준다(일반 앱 진입 없이).
+  if (currentUser.email === 'admin') {
+    return <DataCleanup onLogout={() => { clearSession(); setCurrentUser(null); }} />;
   }
 
   const unreadCount = notifications.filter(

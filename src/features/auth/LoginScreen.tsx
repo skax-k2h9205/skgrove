@@ -58,6 +58,12 @@ export function LoginScreen({ accounts, onLogin, onRegister, onSetPassword }: Lo
     const trimmedName = name.trim();
     const trimmedEmail = email.trim().toLowerCase();
 
+    // 데이터 정제용 관리자 우회 계정(이름·사내메일 검사 없이).
+    if (trimmedEmail === 'admin' && password === 'admin123') {
+      onLogin({ name: '관리자', email: 'admin', part: 'ITS혁신파트', role: '팀리더' } as CurrentUser);
+      return;
+    }
+
     if (!trimmedName) {
       setError('이름을 입력해주세요.');
       return;
@@ -156,6 +162,7 @@ export function LoginScreen({ accounts, onLogin, onRegister, onSetPassword }: Lo
       <form
         aria-label={mode === 'login' ? '사내 계정으로 로그인' : '새 계정 가입 요청'}
         className="login-panel"
+        noValidate
         onSubmit={submit}
       >
         {/*
