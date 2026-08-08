@@ -10,6 +10,9 @@ private struct AppAlert: Identifiable {
     let category: String
     let level: Level
 
+    /// 읽음 추적용 안정 키(내용이 바뀌면 새 알림으로 다시 뜬다).
+    var key: String { "\(category)|\(title)" }
+
     var tint: Color {
         switch level {
         case .info: return Theme.Palette.tintPrimary
@@ -35,6 +38,12 @@ struct NotificationsView: View {
     @EnvironmentObject private var gatherings: GatheringStore
     @EnvironmentObject private var market: MarketStore
     @State private var category: String = "전체"
+    /// 읽은 알림 키들(기기 저장). 파생 알림이라 레코드 대신 '본 것'을 기억한다.
+    @AppStorage("notif.seenKeys") private var seenRaw = ""
+
+    private var seen: Set<String> { Set(seenRaw.split(separator: "\n").map(String.init)) }
+    private var unreadCount: Int { alerts.filter { !seen.contains($0.key) }.count }
+    private func markAllRead() { seenRaw = alerts.map(\.key).joined(separator: "\n"); Haptics.success() }
 
     private var myName: String { session.currentUser?.name ?? "나" }
     private var isLeader: Bool { session.currentUser?.role.isLeader == true }
@@ -50,6 +59,14 @@ struct NotificationsView: View {
         ScreenScaffold(title: "알림", showUserChip: false,
                        onRefresh: { try? await Task.sleep(for: .seconds(0.6)) }) {
             summary
+            if unreadCount > 0 {
+                Button { markAllRead() } label: {
+                    Label("모두 읽음 (\(unreadCount))", systemImage: "checkmark.circle")
+                        .font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity)
+                        .padding(.vertical, Theme.Space.x2)
+                }
+                .buttonStyle(.bordered).tint(Theme.Palette.cta)
+            }
             ChipRow(items: categories, selection: $category)
             if visible.isEmpty {
                 EmptyState(icon: "bell.slash", title: "새 알림이 없어요",
@@ -64,7 +81,8 @@ struct NotificationsView: View {
         let urgent = alerts.filter { $0.level != .info }.count
         return HStack(spacing: Theme.Space.x2) {
             Image(systemName: "bell.badge.fill").foregroundStyle(Theme.Palette.primary)
-            Text(urgent > 0 ? "지금 챙길 일이 \(urgent)건 있어요." : "급한 알림은 없어요. 👍")
+            Text(unreadCount > 0 ? "안 읽은 알림 \(unreadCount)건 · 챙길 일 \(urgent)건"
+                                 : (urgent > 0 ? "지금 챙길 일이 \(urgent)건 있어요." : "급한 알림은 없어요. 👍"))
                 .font(.footnote.weight(.semibold)).foregroundStyle(Theme.Palette.tintPrimaryInk)
         }
         .padding(Theme.Space.x3).frame(maxWidth: .infinity, alignment: .leading)
@@ -72,7 +90,8 @@ struct NotificationsView: View {
     }
 
     private func row(_ a: AppAlert) -> some View {
-        HStack(alignment: .top, spacing: Theme.Space.x3) {
+        let unread = !seen.contains(a.key)
+        return HStack(alignment: .top, spacing: Theme.Space.x3) {
             Image(systemName: a.icon).foregroundStyle(a.ink)
                 .frame(width: 36, height: 36).background(a.tint, in: Circle())
             VStack(alignment: .leading, spacing: 2) {
@@ -80,7 +99,10 @@ struct NotificationsView: View {
                 Text(a.detail).font(.caption).foregroundStyle(Theme.Palette.muted)
             }
             Spacer()
-            Text(a.category).font(.caption2).foregroundStyle(Theme.Palette.muted)
+            VStack(alignment: .trailing, spacing: 4) {
+                if unread { Circle().fill(Theme.Palette.cta).frame(width: 8, height: 8) }
+                Text(a.category).font(.caption2).foregroundStyle(Theme.Palette.muted)
+            }
         }
         .padding(Theme.Space.x3)
         .frame(maxWidth: .infinity, alignment: .leading)

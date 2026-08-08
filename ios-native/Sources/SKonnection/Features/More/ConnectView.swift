@@ -6,6 +6,7 @@ struct ConnectView: View {
     @State private var mix = "파트 골고루"
     @State private var groupCount = 2
     @State private var result: [[TeamProfile]] = []
+    @State private var savedToast: String?
 
     private var people: [TeamProfile] { profiles.profiles }
 
@@ -34,6 +35,22 @@ struct ConnectView: View {
             }
 
             if !result.isEmpty {
+                if let savedToast {
+                    Label(savedToast, systemImage: "checkmark.circle.fill")
+                        .font(.footnote.weight(.semibold)).foregroundStyle(Theme.Palette.tintSuccessInk)
+                        .padding(Theme.Space.x3).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Theme.Palette.tintSuccess, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
+                }
+                HStack(spacing: Theme.Space.x2) {
+                    Button { saveResult() } label: {
+                        Label("결과 저장", systemImage: "square.and.arrow.down").font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
+                    }.buttonStyle(.bordered).tint(Theme.Palette.cta)
+                    ShareLink(item: shareText) {
+                        Label("공유", systemImage: "square.and.arrow.up").font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
+                    }.buttonStyle(.bordered).tint(Theme.Palette.primary)
+                }
                 ForEach(Array(result.enumerated()), id: \.offset) { idx, group in
                     card {
                         HStack {
@@ -82,6 +99,26 @@ struct ConnectView: View {
             else { if g == 0 { forward = true } else { g -= 1 } }
         }
         result = groups
+        savedToast = nil
+        Haptics.success()
+    }
+
+    /// 뽑은 조 편성을 공유용 텍스트로.
+    private var shareText: String {
+        result.enumerated().map { idx, g in
+            "\(idx + 1)조: " + g.map(\.name).joined(separator: ", ")
+        }.joined(separator: "\n")
+    }
+
+    /// 결과를 웹과 같은 connect_results 에 저장(팀 공유·이력).
+    private func saveResult() {
+        let id = "CR-\(Int(Date().timeIntervalSince1970))"
+        let now = ISO8601DateFormatter().string(from: Date())
+        let title = "\(groupCount)개 조 · \(people.count)명 (\(mix))"
+        Task { try? await Supabase.insert("connect_results",
+            ["id": id, "mode": mix == "완전 랜덤" ? "random" : "balanced", "title": title,
+             "created_at": now, "summary": title, "share_text": shareText, "share_url": ""]) }
+        savedToast = "결과를 저장했어요 — 팀과 공유됩니다."
         Haptics.success()
     }
 
