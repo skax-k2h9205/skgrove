@@ -46,7 +46,44 @@ class GatheringRepository(private val supabase: SupabaseClient) {
         val encodedName = java.net.URLEncoder.encode(name, "UTF-8")
         supabase.delete("gathering_signups", "gathering_id=eq.$gatheringId&name=eq.$encodedName")
     }
+
+    suspend fun create(
+        kind: String, title: String, place: String, description: String,
+        capacity: Int?, host: String, part: String,
+    ) {
+        val id = "GAT-" + System.currentTimeMillis().toString(36).uppercase()
+        supabase.insert(
+            "gatherings",
+            NewGathering(
+                id = id, kind = kind, title = title,
+                // place·description 은 NOT NULL(기본값 '') — null 대신 빈 문자열로 보낸다.
+                place = place, description = description,
+                capacity = capacity, host = host, part = part,
+                createdAt = java.time.Instant.now().toString(),
+            ),
+            NewGathering.serializer(),
+        )
+    }
+
+    /** admin 전용 모임 삭제(신청 기록은 FK on delete cascade 로 함께 정리된다는 가정, 아니면 남을 수 있음). */
+    suspend fun delete(id: String) {
+        supabase.delete("gathering_signups", "gathering_id=eq.$id")
+        supabase.delete("gatherings", "id=eq.$id")
+    }
 }
+
+@Serializable
+private data class NewGathering(
+    val id: String,
+    val kind: String,
+    val title: String,
+    val place: String,
+    val description: String,
+    val capacity: Int?,
+    val host: String,
+    val part: String,
+    @SerialName("created_at") val createdAt: String,
+)
 
 @Serializable
 private data class BidRow(
@@ -91,4 +128,38 @@ class MarketRepository(private val supabase: SupabaseClient) {
             NewBid.serializer(),
         )
     }
+
+    suspend fun create(
+        kind: String, title: String, description: String,
+        startPrice: Int, minStep: Int, seller: String,
+    ) {
+        val id = "MKT-" + System.currentTimeMillis().toString(36).uppercase()
+        supabase.insert(
+            "market_items",
+            NewMarketItem(
+                // description 은 NOT NULL(기본값 '') — 빈 문자열로 보낸다.
+                id = id, kind = kind, title = title, description = description,
+                startPrice = startPrice, minStep = minStep, seller = seller,
+                createdAt = java.time.Instant.now().toString(),
+            ),
+            NewMarketItem.serializer(),
+        )
+    }
+
+    suspend fun delete(id: String) {
+        supabase.delete("market_bids", "item_id=eq.$id")
+        supabase.delete("market_items", "id=eq.$id")
+    }
 }
+
+@Serializable
+private data class NewMarketItem(
+    val id: String,
+    val kind: String,
+    val title: String,
+    val description: String,
+    @SerialName("start_price") val startPrice: Int,
+    @SerialName("min_step") val minStep: Int,
+    val seller: String,
+    @SerialName("created_at") val createdAt: String,
+)

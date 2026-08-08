@@ -1,5 +1,6 @@
 package com.hyubs.skonnection.feature
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -158,43 +159,76 @@ fun GatheringsContent(container: AppContainer, modifier: Modifier = Modifier) {
     val items by vm.items.collectAsStateWithLifecycle()
     val signups by vm.signups.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
-    when {
-        loading && items.isEmpty() -> LoadingBox(modifier)
-        items.isEmpty() -> EmptyBox("열린 모임이 없어요.", modifier)
-        else -> LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
-            items(items, key = { it.id }) { g ->
-                val roster = signups[g.id].orEmpty()
-                val joined = vm.currentName != null && roster.contains(vm.currentName)
-                GatheringCard(
-                    title = g.title.ifBlank { "(제목 없음)" },
-                    kind = g.kind,
-                    subtitle = "${g.host} · ${g.part}",
-                    body = g.description.ifBlank { null },
-                    meta = buildString {
-                        if (g.startAt.isNotBlank()) append(g.startAt.take(16).replace("T", " "))
-                        if (g.place.isNotBlank()) append(" · ${g.place}")
-                        if (g.cost.isNotBlank()) append(" · ${g.cost}")
-                    }.ifBlank { null },
-                    count = roster.size,
-                    capacity = g.capacity,
-                    joined = joined,
-                    onToggle = { vm.toggleJoin(g) },
-                )
+    var composing by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<com.hyubs.skonnection.data.Gathering?>(null) }
+
+    Box(modifier.fillMaxSize()) {
+        when {
+            loading && items.isEmpty() -> LoadingBox()
+            items.isEmpty() -> EmptyBox("열린 모임이 없어요. 첫 모임을 열어보세요!")
+            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)) {
+                items(items, key = { it.id }) { g ->
+                    val roster = signups[g.id].orEmpty()
+                    val joined = vm.currentName != null && roster.contains(vm.currentName)
+                    GatheringCard(
+                        title = g.title.ifBlank { "(제목 없음)" },
+                        kind = g.kind,
+                        subtitle = "${g.host} · ${g.part}",
+                        body = g.description.ifBlank { null },
+                        meta = buildString {
+                            if (g.startAt.isNotBlank()) append(g.startAt.take(16).replace("T", " "))
+                            if (g.place.isNotBlank()) append(" · ${g.place}")
+                            if (g.cost.isNotBlank()) append(" · ${g.cost}")
+                        }.ifBlank { null },
+                        count = roster.size,
+                        capacity = g.capacity,
+                        joined = joined,
+                        onToggle = { vm.toggleJoin(g) },
+                        onDelete = if (vm.isAdmin) ({ deleteTarget = g }) else null,
+                    )
+                }
             }
         }
+        ExtendedFloatingActionButton(
+            onClick = { composing = true },
+            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+            text = { Text("모임 열기") },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 88.dp),
+        )
+    }
+
+    if (composing) {
+        GatheringComposeDialog(
+            onDismiss = { composing = false },
+            onSubmit = { title, place, desc, cap, kind -> vm.create(title, place, desc, cap, kind) { composing = false } },
+        )
+    }
+    deleteTarget?.let { t ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("모임 삭제") },
+            text = { Text("이 모임을 삭제할까요? 신청 기록도 함께 삭제됩니다.") },
+            confirmButton = { TextButton(onClick = { vm.delete(t); deleteTarget = null }) { Text("삭제", color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("취소") } },
+        )
     }
 }
 
 @Composable
 private fun GatheringCard(
     title: String, kind: String, subtitle: String, body: String?, meta: String?,
-    count: Int, capacity: Int?, joined: Boolean, onToggle: () -> Unit,
+    count: Int, capacity: Int?, joined: Boolean, onToggle: () -> Unit, onDelete: (() -> Unit)? = null,
 ) {
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(end = 8.dp))
                 Text(kind, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                if (onDelete != null) {
+                    androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                    Text("삭제", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.clickable { onDelete() }.padding(4.dp))
+                }
             }
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 2.dp))
             if (!body.isNullOrBlank()) Text(body, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp))
@@ -213,6 +247,33 @@ private fun GatheringCard(
 }
 
 @Composable
+private fun GatheringComposeDialog(onDismiss: () -> Unit, onSubmit: (title: String, place: String, desc: String, capacity: Int?, kind: String) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var place by remember { mutableStateOf("") }
+    var desc by remember { mutableStateOf("") }
+    var capacity by remember { mutableStateOf("") }
+    var kind by remember { mutableStateOf("flash") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("모임 열기") },
+        text = {
+            Column {
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("제목") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(Modifier.padding(top = 8.dp)) {
+                    androidx.compose.material3.FilterChip(selected = kind == "flash", onClick = { kind = "flash" }, label = { Text("번개") }, modifier = Modifier.padding(end = 6.dp))
+                    androidx.compose.material3.FilterChip(selected = kind == "gathering", onClick = { kind = "gathering" }, label = { Text("모임") })
+                }
+                OutlinedTextField(value = place, onValueChange = { place = it }, label = { Text("장소") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                OutlinedTextField(value = capacity, onValueChange = { s -> capacity = s.filter { it.isDigit() } }, label = { Text("정원(명, 선택)") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("설명") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+            }
+        },
+        confirmButton = { TextButton(onClick = { if (title.isNotBlank()) onSubmit(title, place, desc, capacity.toIntOrNull(), kind) }, enabled = title.isNotBlank()) { Text("열기") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
+    )
+}
+
+@Composable
 fun MarketContent(container: AppContainer, modifier: Modifier = Modifier) {
     val vm = remember { MarketViewModel(container) }
     val items by vm.items.collectAsStateWithLifecycle()
@@ -222,11 +283,14 @@ fun MarketContent(container: AppContainer, modifier: Modifier = Modifier) {
     val snackScope = androidx.compose.runtime.rememberCoroutineScope()
     val snackHost = remember { androidx.compose.material3.SnackbarHostState() }
 
+    var composing by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<com.hyubs.skonnection.data.MarketItem?>(null) }
+
     Box(modifier.fillMaxSize()) {
         when {
             loading && items.isEmpty() -> LoadingBox()
-            items.isEmpty() -> EmptyBox("등록된 물건이 없어요.")
-            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
+            items.isEmpty() -> EmptyBox("등록된 물건이 없어요. 첫 물건을 올려보세요!")
+            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)) {
                 items(items, key = { it.id }) { m ->
                     val top = topBids[m.id]
                     MarketCard(
@@ -239,11 +303,34 @@ fun MarketContent(container: AppContainer, modifier: Modifier = Modifier) {
                         else "시작가 ${"%,d".format(m.startPrice)}원",
                         canceled = m.canceled,
                         onBid = { bidding = m },
+                        onDelete = if (vm.isAdmin) ({ deleteTarget = m }) else null,
                     )
                 }
             }
         }
+        ExtendedFloatingActionButton(
+            onClick = { composing = true },
+            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+            text = { Text("물건 등록") },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 88.dp),
+        )
         androidx.compose.material3.SnackbarHost(snackHost, modifier = Modifier.align(Alignment.BottomCenter))
+    }
+
+    if (composing) {
+        MarketComposeDialog(
+            onDismiss = { composing = false },
+            onSubmit = { title, desc, price, step, kind -> vm.create(title, desc, price, step, kind) { composing = false } },
+        )
+    }
+    deleteTarget?.let { t ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("물건 삭제") },
+            text = { Text("이 물건을 삭제할까요? 입찰 기록도 함께 삭제됩니다.") },
+            confirmButton = { TextButton(onClick = { vm.delete(t); deleteTarget = null }) { Text("삭제", color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("취소") } },
+        )
     }
 
     bidding?.let { item ->
@@ -264,13 +351,18 @@ fun MarketContent(container: AppContainer, modifier: Modifier = Modifier) {
 @Composable
 private fun MarketCard(
     title: String, giveaway: Boolean, seller: String, body: String?, priceLine: String,
-    canceled: Boolean, onBid: () -> Unit,
+    canceled: Boolean, onBid: () -> Unit, onDelete: (() -> Unit)? = null,
 ) {
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(end = 8.dp))
                 Text(if (giveaway) "나눔" else "경매", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                if (onDelete != null) {
+                    androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                    Text("삭제", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.clickable { onDelete() }.padding(4.dp))
+                }
             }
             Text(seller, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 2.dp))
             if (!body.isNullOrBlank()) Text(body, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp))
@@ -282,6 +374,47 @@ private fun MarketCard(
             }
         }
     }
+}
+
+@Composable
+private fun MarketComposeDialog(onDismiss: () -> Unit, onSubmit: (title: String, desc: String, price: Int, step: Int, kind: String) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var desc by remember { mutableStateOf("") }
+    var price by remember { mutableStateOf("") }
+    var step by remember { mutableStateOf("1000") }
+    var kind by remember { mutableStateOf("auction") }
+    val numKeyboard = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("물건 등록") },
+        text = {
+            Column {
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("제목") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(Modifier.padding(top = 8.dp)) {
+                    androidx.compose.material3.FilterChip(selected = kind == "auction", onClick = { kind = "auction" }, label = { Text("경매") }, modifier = Modifier.padding(end = 6.dp))
+                    androidx.compose.material3.FilterChip(selected = kind == "giveaway", onClick = { kind = "giveaway" }, label = { Text("나눔") })
+                }
+                if (kind == "auction") {
+                    OutlinedTextField(value = price, onValueChange = { s -> price = s.filter { it.isDigit() } }, label = { Text("시작가(원)") }, singleLine = true, keyboardOptions = numKeyboard, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                    OutlinedTextField(value = step, onValueChange = { s -> step = s.filter { it.isDigit() } }, label = { Text("입찰 단위(원)") }, singleLine = true, keyboardOptions = numKeyboard, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                }
+                OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("설명") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (title.isNotBlank()) {
+                        val p = if (kind == "giveaway") 0 else price.toIntOrNull() ?: 0
+                        val s = step.toIntOrNull() ?: 1000
+                        onSubmit(title, desc, p, s, kind)
+                    }
+                },
+                enabled = title.isNotBlank(),
+            ) { Text("등록") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
+    )
 }
 
 @Composable

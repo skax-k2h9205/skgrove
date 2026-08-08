@@ -72,6 +72,7 @@ class GatheringsViewModel(private val container: AppContainer) : ViewModel() {
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
     val currentName: String? get() = container.currentUser?.name
+    val isAdmin: Boolean get() = container.isAdmin
 
     init { refresh() }
     fun refresh() = viewModelScope.launch {
@@ -79,6 +80,20 @@ class GatheringsViewModel(private val container: AppContainer) : ViewModel() {
         _items.value = runCatching { container.gatheringRepository.loadAll() }.getOrDefault(emptyList())
         _signups.value = runCatching { container.gatheringRepository.loadSignups() }.getOrDefault(emptyMap())
         _loading.value = false
+    }
+
+    fun create(title: String, place: String, description: String, capacity: Int?, kind: String, onDone: () -> Unit) {
+        val me = container.currentUser ?: return
+        viewModelScope.launch {
+            runCatching { container.gatheringRepository.create(kind, title.trim(), place, description, capacity, me.name, me.part) }
+            refresh(); onDone()
+        }
+    }
+
+    fun delete(g: Gathering) {
+        if (!container.isAdmin) return
+        _items.value = _items.value.filterNot { it.id == g.id }
+        viewModelScope.launch { runCatching { container.gatheringRepository.delete(g.id) }.onFailure { refresh() } }
     }
 
     fun toggleJoin(g: Gathering) {
@@ -105,6 +120,7 @@ class MarketViewModel(private val container: AppContainer) : ViewModel() {
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
     val currentName: String? get() = container.currentUser?.name
+    val isAdmin: Boolean get() = container.isAdmin
 
     init { refresh() }
     fun refresh() = viewModelScope.launch {
@@ -112,6 +128,20 @@ class MarketViewModel(private val container: AppContainer) : ViewModel() {
         _items.value = runCatching { container.marketRepository.loadAll() }.getOrDefault(emptyList())
         _topBids.value = runCatching { container.marketRepository.loadTopBids() }.getOrDefault(emptyMap())
         _loading.value = false
+    }
+
+    fun create(title: String, description: String, startPrice: Int, minStep: Int, kind: String, onDone: () -> Unit) {
+        val me = container.currentUser ?: return
+        viewModelScope.launch {
+            runCatching { container.marketRepository.create(kind, title.trim(), description, startPrice, minStep, me.name) }
+            refresh(); onDone()
+        }
+    }
+
+    fun delete(item: MarketItem) {
+        if (!container.isAdmin) return
+        _items.value = _items.value.filterNot { it.id == item.id }
+        viewModelScope.launch { runCatching { container.marketRepository.delete(item.id) }.onFailure { refresh() } }
     }
 
     /** 현재가(최고 입찰 없으면 시작가). */
