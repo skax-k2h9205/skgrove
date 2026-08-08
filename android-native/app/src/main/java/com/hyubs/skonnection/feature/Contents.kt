@@ -2,6 +2,8 @@ package com.hyubs.skonnection.feature
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -72,12 +74,15 @@ fun HomeFeedContent(container: AppContainer, modifier: Modifier = Modifier) {
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun HumorContent(container: AppContainer, modifier: Modifier = Modifier) {
+fun HumorContent(
+    container: AppContainer,
+    composing: Boolean,
+    onComposingChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val vm = remember { HumorViewModel(container) }
     val posts by vm.posts.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
-    var composing by remember { mutableStateOf(false) }
-    var deleteTarget by remember { mutableStateOf<com.hyubs.skonnection.data.HumorPost?>(null) }
     var detailPost by remember { mutableStateOf<com.hyubs.skonnection.data.HumorPost?>(null) }
 
     detailPost?.let { post ->
@@ -88,70 +93,31 @@ fun HumorContent(container: AppContainer, modifier: Modifier = Modifier) {
             liked = post.likedBy(vm.currentName),
             onToggleLike = { vm.toggleLike(post) },
             onBack = { detailPost = null },
+            isAdmin = vm.isAdmin,
+            onDelete = { vm.deletePost(post); detailPost = null },
             modifier = modifier,
         )
         return
     }
 
     Box(modifier.fillMaxSize()) {
-        if (loading && posts.isEmpty()) {
-            LoadingBox()
-        } else {
-            androidx.compose.material3.pulltorefresh.PullToRefreshBox(
-                isRefreshing = loading,
-                onRefresh = { vm.refresh() },
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                LazyColumn(
-                    Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp),
-                ) {
-                    if (posts.isEmpty()) {
-                        item { EmptyBox("아직 유머 글이 없어요. 첫 글을 남겨보세요!", Modifier.fillMaxWidth().padding(top = 80.dp)) }
-                    }
-                    items(posts, key = { it.id }) { p ->
-                        InstaPostCard(
-                            author = p.author,
-                            subtitle = p.createdAt.ifBlank { null },
-                            body = p.body,
-                            mediaUrl = p.mediaUrl,
-                            likes = p.laughs,
-                            liked = p.likedBy(vm.currentName),
-                            onToggleLike = { vm.toggleLike(p) },
-                            onComment = { detailPost = p },
-                            onOverflow = if (vm.isAdmin) ({ deleteTarget = p }) else null,
-                        )
-                    }
-                }
-            }
-        }
-        // 챗 FAB(우하단)와 겹치지 않게 그 위로 올린다.
-        ExtendedFloatingActionButton(
-            onClick = { composing = true },
-            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-            text = { Text("글쓰기") },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 88.dp),
+        com.hyubs.skonnection.feature.home.DomainTileGrid(
+            tiles = posts.map {
+                com.hyubs.skonnection.feature.home.HomeTile(
+                    "h:${it.id}", "humor", it.body.ifBlank { "(사진)" }, "❤️ ${it.laughs}", it.mediaUrl, it.author, 1,
+                )
+            },
+            loading = loading,
+            emptyText = "아직 유머 글이 없어요. 첫 글을 남겨보세요!",
+            onRefresh = { vm.refresh() },
+            onTap = { tile -> detailPost = posts.firstOrNull { "h:${it.id}" == tile.id } },
         )
     }
 
     if (composing) {
         ComposeHumorDialog(
-            onDismiss = { composing = false },
-            onSubmit = { body, media -> vm.createPost(body, media) { composing = false } },
-        )
-    }
-
-    deleteTarget?.let { target ->
-        AlertDialog(
-            onDismissRequest = { deleteTarget = null },
-            title = { Text("글 삭제") },
-            text = { Text("이 글을 삭제할까요? 되돌릴 수 없습니다.") },
-            confirmButton = {
-                TextButton(onClick = { vm.deletePost(target); deleteTarget = null }) {
-                    Text("삭제", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("취소") } },
+            onDismiss = { onComposingChange(false) },
+            onSubmit = { body, media -> vm.createPost(body, media) { onComposingChange(false) } },
         )
     }
 }
@@ -187,64 +153,113 @@ private fun ComposeHumorDialog(onDismiss: () -> Unit, onSubmit: (body: String, m
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun GatheringsContent(container: AppContainer, modifier: Modifier = Modifier) {
+fun GatheringsContent(
+    container: AppContainer,
+    composing: Boolean,
+    onComposingChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val vm = remember { GatheringsViewModel(container) }
     val items by vm.items.collectAsStateWithLifecycle()
     val signups by vm.signups.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
-    var composing by remember { mutableStateOf(false) }
-    var deleteTarget by remember { mutableStateOf<com.hyubs.skonnection.data.Gathering?>(null) }
+    var detail by remember { mutableStateOf<com.hyubs.skonnection.data.Gathering?>(null) }
+
+    detail?.let { g ->
+        androidx.activity.compose.BackHandler { detail = null }
+        val roster = signups[g.id].orEmpty()
+        GatheringDetailView(
+            g = g, count = roster.size,
+            joined = vm.currentName != null && roster.contains(vm.currentName),
+            onToggleJoin = { vm.toggleJoin(g) },
+            isAdmin = vm.isAdmin,
+            onDelete = { vm.delete(g); detail = null },
+            onBack = { detail = null },
+            modifier = modifier,
+        )
+        return
+    }
 
     Box(modifier.fillMaxSize()) {
-        if (loading && items.isEmpty()) LoadingBox()
-        else androidx.compose.material3.pulltorefresh.PullToRefreshBox(
-            isRefreshing = loading, onRefresh = { vm.refresh() }, modifier = Modifier.fillMaxSize(),
-        ) {
-            if (items.isEmpty()) EmptyBox("열린 모임이 없어요. 첫 모임을 열어보세요!")
-            else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)) {
-                items(items, key = { it.id }) { g ->
-                    val roster = signups[g.id].orEmpty()
-                    val joined = vm.currentName != null && roster.contains(vm.currentName)
-                    GatheringCard(
-                        title = g.title.ifBlank { "(제목 없음)" },
-                        kind = g.kind,
-                        subtitle = "${g.host} · ${g.part}",
-                        body = g.description.ifBlank { null },
-                        meta = buildString {
-                            if (g.startAt.isNotBlank()) append(g.startAt.take(16).replace("T", " "))
-                            if (g.place.isNotBlank()) append(" · ${g.place}")
-                            if (g.cost.isNotBlank()) append(" · ${g.cost}")
-                        }.ifBlank { null },
-                        count = roster.size,
-                        capacity = g.capacity,
-                        joined = joined,
-                        onToggle = { vm.toggleJoin(g) },
-                        onDelete = if (vm.isAdmin) ({ deleteTarget = g }) else null,
-                    )
-                }
-            }
-        }
-        ExtendedFloatingActionButton(
-            onClick = { composing = true },
-            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-            text = { Text("모임 열기") },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 88.dp),
+        com.hyubs.skonnection.feature.home.DomainTileGrid(
+            tiles = items.map { g ->
+                com.hyubs.skonnection.feature.home.HomeTile(
+                    "g:${g.id}", "gathering", g.title.ifBlank { "(제목 없음)" }, g.kind, g.imageUrl, g.host, 2,
+                )
+            },
+            loading = loading,
+            emptyText = "열린 모임이 없어요. 첫 모임을 열어보세요!",
+            onRefresh = { vm.refresh() },
+            onTap = { tile -> detail = items.firstOrNull { "g:${it.id}" == tile.id } },
         )
     }
 
     if (composing) {
         GatheringComposeDialog(
-            onDismiss = { composing = false },
-            onSubmit = { title, place, desc, cap, kind -> vm.create(title, place, desc, cap, kind) { composing = false } },
+            onDismiss = { onComposingChange(false) },
+            onSubmit = { title, place, desc, cap, kind -> vm.create(title, place, desc, cap, kind) { onComposingChange(false) } },
         )
     }
-    deleteTarget?.let { t ->
+}
+
+@Composable
+private fun GatheringDetailView(
+    g: com.hyubs.skonnection.data.Gathering, count: Int, joined: Boolean,
+    onToggleJoin: () -> Unit, isAdmin: Boolean, onDelete: () -> Unit, onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var confirmDelete by remember { mutableStateOf(false) }
+    Column(modifier.fillMaxSize()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
+            androidx.compose.material3.IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
+            }
+            Text("모임", style = MaterialTheme.typography.titleMedium)
+            if (isAdmin) {
+                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                TextButton(onClick = { confirmDelete = true }) { Text("삭제", color = MaterialTheme.colorScheme.error) }
+            }
+        }
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(16.dp)) {
+            item {
+                val cover = g.imageUrl
+                if (cover.isNotBlank()) {
+                    coil.compose.AsyncImage(
+                        model = cover, contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 10f)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
+                    Text(g.title.ifBlank { "(제목 없음)" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text(g.kind, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
+                Text("${g.host} · ${g.part}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 4.dp))
+                val meta = buildString {
+                    if (g.startAt.isNotBlank()) append(g.startAt.take(16).replace("T", " "))
+                    if (g.place.isNotBlank()) { if (isNotEmpty()) append(" · "); append(g.place) }
+                    if (g.cost.isNotBlank()) { if (isNotEmpty()) append(" · "); append(g.cost) }
+                }
+                if (meta.isNotBlank()) Text(meta, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp))
+                if (g.description.isNotBlank()) Text(g.description, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 12.dp))
+                val cap = if (g.capacity != null && g.capacity > 0) "/${g.capacity}" else ""
+                Text("신청 $count$cap 명", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
+                if (joined) {
+                    androidx.compose.material3.OutlinedButton(onClick = onToggleJoin, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) { Text("신청 취소") }
+                } else {
+                    androidx.compose.material3.Button(onClick = onToggleJoin, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) { Text("신청하기") }
+                }
+            }
+        }
+    }
+    if (confirmDelete) {
         AlertDialog(
-            onDismissRequest = { deleteTarget = null },
+            onDismissRequest = { confirmDelete = false },
             title = { Text("모임 삭제") },
             text = { Text("이 모임을 삭제할까요? 신청 기록도 함께 삭제됩니다.") },
-            confirmButton = { TextButton(onClick = { vm.delete(t); deleteTarget = null }) { Text("삭제", color = MaterialTheme.colorScheme.error) } },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("취소") } },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("삭제", color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소") } },
         )
     }
 }
@@ -310,78 +325,122 @@ private fun GatheringComposeDialog(onDismiss: () -> Unit, onSubmit: (title: Stri
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun MarketContent(container: AppContainer, modifier: Modifier = Modifier) {
+fun MarketContent(
+    container: AppContainer,
+    composing: Boolean,
+    onComposingChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val vm = remember { MarketViewModel(container) }
     val items by vm.items.collectAsStateWithLifecycle()
     val topBids by vm.topBids.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
-    var bidding by remember { mutableStateOf<com.hyubs.skonnection.data.MarketItem?>(null) }
-    val snackScope = androidx.compose.runtime.rememberCoroutineScope()
-    val snackHost = remember { androidx.compose.material3.SnackbarHostState() }
+    var detail by remember { mutableStateOf<com.hyubs.skonnection.data.MarketItem?>(null) }
 
-    var composing by remember { mutableStateOf(false) }
-    var deleteTarget by remember { mutableStateOf<com.hyubs.skonnection.data.MarketItem?>(null) }
+    detail?.let { m ->
+        androidx.activity.compose.BackHandler { detail = null }
+        val top = topBids[m.id]
+        MarketDetailView(
+            m = m,
+            priceLine = if (m.kind == "giveaway") "무료 나눔"
+            else if (top != null) "현재가 ${"%,d".format(top.amount)}원 · 최고 ${top.name}"
+            else "시작가 ${"%,d".format(m.startPrice)}원",
+            nextMinBid = vm.nextMinBid(m),
+            onBid = { amount, onResult -> vm.bid(m, amount, onResult) },
+            isAdmin = vm.isAdmin,
+            onDelete = { vm.delete(m); detail = null },
+            onBack = { detail = null },
+            modifier = modifier,
+        )
+        return
+    }
 
     Box(modifier.fillMaxSize()) {
-        if (loading && items.isEmpty()) LoadingBox()
-        else androidx.compose.material3.pulltorefresh.PullToRefreshBox(
-            isRefreshing = loading, onRefresh = { vm.refresh() }, modifier = Modifier.fillMaxSize(),
-        ) {
-            if (items.isEmpty()) EmptyBox("등록된 물건이 없어요. 첫 물건을 올려보세요!")
-            else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)) {
-                items(items, key = { it.id }) { m ->
-                    val top = topBids[m.id]
-                    MarketCard(
-                        title = m.title.ifBlank { "(제목 없음)" },
-                        giveaway = m.kind == "giveaway",
-                        seller = m.seller,
-                        body = m.description.ifBlank { null },
-                        priceLine = if (m.kind == "giveaway") "무료 나눔"
-                        else if (top != null) "현재가 ${"%,d".format(top.amount)}원 · 최고 ${top.name}"
-                        else "시작가 ${"%,d".format(m.startPrice)}원",
-                        canceled = m.canceled,
-                        onBid = { bidding = m },
-                        onDelete = if (vm.isAdmin) ({ deleteTarget = m }) else null,
-                    )
-                }
-            }
-        }
-        ExtendedFloatingActionButton(
-            onClick = { composing = true },
-            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-            text = { Text("물건 등록") },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 88.dp),
+        com.hyubs.skonnection.feature.home.DomainTileGrid(
+            tiles = items.map { m ->
+                com.hyubs.skonnection.feature.home.HomeTile(
+                    "m:${m.id}", "market", m.title.ifBlank { "(제목 없음)" },
+                    if (m.kind == "giveaway") "나눔" else "경매", m.imageUrl, m.seller, 3,
+                )
+            },
+            loading = loading,
+            emptyText = "등록된 물건이 없어요. 첫 물건을 올려보세요!",
+            onRefresh = { vm.refresh() },
+            onTap = { tile -> detail = items.firstOrNull { "m:${it.id}" == tile.id } },
         )
-        androidx.compose.material3.SnackbarHost(snackHost, modifier = Modifier.align(Alignment.BottomCenter))
     }
 
     if (composing) {
         MarketComposeDialog(
-            onDismiss = { composing = false },
-            onSubmit = { title, desc, price, step, kind -> vm.create(title, desc, price, step, kind) { composing = false } },
+            onDismiss = { onComposingChange(false) },
+            onSubmit = { title, desc, price, step, kind -> vm.create(title, desc, price, step, kind) { onComposingChange(false) } },
         )
     }
-    deleteTarget?.let { t ->
-        AlertDialog(
-            onDismissRequest = { deleteTarget = null },
-            title = { Text("물건 삭제") },
-            text = { Text("이 물건을 삭제할까요? 입찰 기록도 함께 삭제됩니다.") },
-            confirmButton = { TextButton(onClick = { vm.delete(t); deleteTarget = null }) { Text("삭제", color = MaterialTheme.colorScheme.error) } },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("취소") } },
-        )
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun MarketDetailView(
+    m: com.hyubs.skonnection.data.MarketItem, priceLine: String, nextMinBid: Int,
+    onBid: (Int, (String?) -> Unit) -> Unit, isAdmin: Boolean, onDelete: () -> Unit, onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var confirmDelete by remember { mutableStateOf(false) }
+    var bidding by remember { mutableStateOf(false) }
+    val snackScope = androidx.compose.runtime.rememberCoroutineScope()
+    val snackHost = remember { androidx.compose.material3.SnackbarHostState() }
+    val giveaway = m.kind == "giveaway"
+
+    Box(modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
+                androidx.compose.material3.IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로") }
+                Text("이음장터", style = MaterialTheme.typography.titleMedium)
+                if (isAdmin) {
+                    androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { confirmDelete = true }) { Text("삭제", color = MaterialTheme.colorScheme.error) }
+                }
+            }
+            LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(16.dp)) {
+                item {
+                    if (m.imageUrl.isNotBlank()) {
+                        coil.compose.AsyncImage(
+                            model = m.imageUrl, contentDescription = null,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 10f)
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
+                        Text(m.title.ifBlank { "(제목 없음)" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text(if (giveaway) "나눔" else "경매", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    }
+                    Text(m.seller, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 4.dp))
+                    if (m.description.isNotBlank()) Text(m.description, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 12.dp))
+                    Text(priceLine, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
+                    if (m.canceled) {
+                        Text("거래 취소됨", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 10.dp))
+                    } else if (!giveaway) {
+                        androidx.compose.material3.Button(onClick = { bidding = true }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) { Text("입찰하기") }
+                    }
+                }
+            }
+        }
+        androidx.compose.material3.SnackbarHost(snackHost, modifier = Modifier.align(Alignment.BottomCenter))
     }
 
-    bidding?.let { item ->
-        BidDialog(
-            title = item.title,
-            minBid = vm.nextMinBid(item),
-            onDismiss = { bidding = null },
-            onSubmit = { amount ->
-                vm.bid(item, amount) { err ->
-                    bidding = null
-                    if (err != null) snackScope.launch { snackHost.showSnackbar(err) }
-                }
-            },
+    if (bidding) {
+        BidDialog(title = m.title, minBid = nextMinBid, onDismiss = { bidding = false }, onSubmit = { amount ->
+            onBid(amount) { err -> bidding = false; if (err != null) snackScope.launch { snackHost.showSnackbar(err) } }
+        })
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("물건 삭제") },
+            text = { Text("이 물건을 삭제할까요? 입찰 기록도 함께 삭제됩니다.") },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("삭제", color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소") } },
         )
     }
 }
@@ -493,12 +552,15 @@ private fun HumorDetailView(
     liked: Boolean,
     onToggleLike: () -> Unit,
     onBack: () -> Unit,
+    isAdmin: Boolean = false,
+    onDelete: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val vm = remember(post.id) { com.hyubs.skonnection.feature.HumorDetailViewModel(container, post.id) }
     val comments by vm.comments.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     var input by remember { mutableStateOf("") }
+    var confirmDelete by remember { mutableStateOf(false) }
 
     Column(modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
@@ -506,6 +568,21 @@ private fun HumorDetailView(
                 Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
             }
             Text("게시물", style = MaterialTheme.typography.titleMedium)
+            if (isAdmin && onDelete != null) {
+                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                TextButton(onClick = { confirmDelete = true }) {
+                    Text("삭제", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        if (confirmDelete) {
+            AlertDialog(
+                onDismissRequest = { confirmDelete = false },
+                title = { Text("글 삭제") },
+                text = { Text("이 글을 삭제할까요? 되돌릴 수 없습니다.") },
+                confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete?.invoke() }) { Text("삭제", color = MaterialTheme.colorScheme.error) } },
+                dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소") } },
+            )
         }
         androidx.compose.foundation.lazy.LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
             item {

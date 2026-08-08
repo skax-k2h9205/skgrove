@@ -3,6 +3,7 @@ package com.hyubs.skonnection.feature
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Home
@@ -59,6 +60,11 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
     if (inSection) BackHandler { openSection = null }
     if (showChat) BackHandler { showChat = false }
 
+    // 생성(글쓰기·모임 열기·물건 등록)을 iOS처럼 상단 타이틀 좌측 + 버튼으로 올린다.
+    var composeHumor by remember { mutableStateOf(false) }
+    var composeGathering by remember { mutableStateOf(false) }
+    var composeMarket by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             when {
@@ -78,7 +84,26 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
                         }
                     },
                 )
-                else -> TopAppBar(title = { Text(TABS[tab].label) })
+                else -> TopAppBar(
+                    title = { Text(TABS[tab].label) },
+                    navigationIcon = {
+                        // 유머·모임·장터 탭에서 타이틀 좌측 + 로 생성(iOS ScreenScaffold onCompose).
+                        if (tab in 1..3) {
+                            IconButton(onClick = {
+                                when (tab) {
+                                    1 -> composeHumor = true
+                                    2 -> composeGathering = true
+                                    3 -> composeMarket = true
+                                }
+                            }) {
+                                Icon(
+                                    androidx.compose.material.icons.Icons.Filled.Add,
+                                    contentDescription = when (tab) { 1 -> "글쓰기"; 2 -> "모임 열기"; else -> "물건 등록" },
+                                )
+                            }
+                        }
+                    },
+                )
             }
         },
         bottomBar = {
@@ -117,9 +142,9 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
                     onCompose = { tab = 1 },
                     modifier = contentModifier,
                 )
-                1 -> HumorContent(container, contentModifier)
-                2 -> GatheringsContent(container, contentModifier)
-                3 -> MarketContent(container, contentModifier)
+                1 -> HumorContent(container, composeHumor, { composeHumor = it }, contentModifier)
+                2 -> GatheringsContent(container, composeGathering, { composeGathering = it }, contentModifier)
+                3 -> MarketContent(container, composeMarket, { composeMarket = it }, contentModifier)
                 else -> MoreContent(
                     currentEmail = currentEmail,
                     onLogout = onLogout,

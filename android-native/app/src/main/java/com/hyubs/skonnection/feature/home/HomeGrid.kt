@@ -179,6 +179,37 @@ fun HomeGridContent(
     }
 }
 
+/** 도메인 탭(유머·모임·장터) 공용 3열 그리드 — 홈과 같은 타일 언어로 통일. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun DomainTileGrid(
+    tiles: List<HomeTile>,
+    loading: Boolean,
+    emptyText: String,
+    onRefresh: () -> Unit,
+    onTap: (HomeTile) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (loading && tiles.isEmpty()) { LoadingBox(modifier); return }
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = loading, onRefresh = onRefresh, modifier = modifier.fillMaxSize(),
+    ) {
+        if (tiles.isEmpty()) {
+            com.hyubs.skonnection.feature.EmptyBox(emptyText)
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 96.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                items(tiles, key = { it.id }) { tile -> HomeGridTile(tile) { onTap(tile) } }
+            }
+        }
+    }
+}
+
 @Composable
 private fun StoryRow(onCompose: () -> Unit, onCoffee: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
