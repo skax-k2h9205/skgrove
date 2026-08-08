@@ -3,9 +3,13 @@ package com.hyubs.skonnection
 import android.content.Context
 import com.hyubs.skonnection.core.SessionStore
 import com.hyubs.skonnection.data.AccountRepository
+import com.hyubs.skonnection.data.ActionRepository
+import com.hyubs.skonnection.data.AgendaRepository
 import com.hyubs.skonnection.data.GatheringRepository
 import com.hyubs.skonnection.data.HumorRepository
+import com.hyubs.skonnection.data.IssueRepository
 import com.hyubs.skonnection.data.MarketRepository
+import com.hyubs.skonnection.data.NotificationRepository
 import com.hyubs.skonnection.net.SupabaseClient
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -21,5 +25,9 @@ class AppContainer(context: Context) {
     val humorRepository = HumorRepository(supabase)
     val gatheringRepository = GatheringRepository(supabase)
     val marketRepository = MarketRepository(supabase)
+    val issueRepository = IssueRepository(supabase)
+    val agendaRepository = AgendaRepository(supabase)
+    val actionRepository = ActionRepository(supabase)
+    val notificationRepository = NotificationRepository(supabase)
     val sessionStore = SessionStore(context.applicationContext)
 }
