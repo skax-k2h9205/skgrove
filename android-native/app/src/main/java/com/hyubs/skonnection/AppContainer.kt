@@ -46,6 +46,10 @@ class AppContainer(context: Context) {
     var currentUser: Account? = null
         private set
 
+    /** 데이터 삭제(정제) 전용 관리자. 웹과 동일하게 admin@sk.com 계정만 삭제 가능. */
+    val isAdmin: Boolean
+        get() = currentUser?.email?.equals("admin@sk.com", ignoreCase = true) == true
+
     suspend fun refreshCurrentUser(email: String?): Account? {
         if (email == null) { currentUser = null; return null }
         currentUser = runCatching {

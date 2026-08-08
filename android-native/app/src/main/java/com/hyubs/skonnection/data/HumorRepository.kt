@@ -24,6 +24,12 @@ class HumorRepository(private val supabase: SupabaseClient) {
         )
     }
 
+    /** 글 삭제(admin 전용) — 글 + 딸린 댓글 제거. */
+    suspend fun deletePost(postId: String) {
+        supabase.delete("humor_comments", "post_id=eq.$postId")
+        supabase.delete("humor_posts", "id=eq.$postId")
+    }
+
     /** 새 유머 글 등록. */
     suspend fun createPost(author: String, body: String, mediaUrl: String) {
         val id = "H-" + System.currentTimeMillis().toString(36).uppercase()

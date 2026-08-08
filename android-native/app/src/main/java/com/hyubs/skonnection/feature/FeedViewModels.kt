@@ -24,12 +24,22 @@ class HumorViewModel(private val container: AppContainer) : ViewModel() {
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
     val currentName: String? get() = container.currentUser?.name
+    val isAdmin: Boolean get() = container.isAdmin
 
     init { refresh() }
     fun refresh() = viewModelScope.launch {
         _loading.value = true
         _posts.value = runCatching { container.humorRepository.loadPosts() }.getOrDefault(emptyList())
         _loading.value = false
+    }
+
+    /** 글 삭제(admin 전용). */
+    fun deletePost(post: HumorPost) {
+        if (!container.isAdmin) return
+        _posts.value = _posts.value.filterNot { it.id == post.id } // 낙관적
+        viewModelScope.launch {
+            runCatching { container.humorRepository.deletePost(post.id) }.onFailure { refresh() }
+        }
     }
 
     /** 좋아요 토글 — 낙관적 업데이트 후 Supabase 반영. */

@@ -66,6 +66,7 @@ fun HumorContent(container: AppContainer, modifier: Modifier = Modifier) {
     val posts by vm.posts.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     var composing by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<com.hyubs.skonnection.data.HumorPost?>(null) }
 
     Box(modifier.fillMaxSize()) {
         when {
@@ -86,6 +87,7 @@ fun HumorContent(container: AppContainer, modifier: Modifier = Modifier) {
                         likes = p.laughs,
                         liked = p.likedBy(vm.currentName),
                         onToggleLike = { vm.toggleLike(p) },
+                        onOverflow = if (vm.isAdmin) ({ deleteTarget = p }) else null,
                     )
                 }
             }
@@ -103,6 +105,20 @@ fun HumorContent(container: AppContainer, modifier: Modifier = Modifier) {
         ComposeHumorDialog(
             onDismiss = { composing = false },
             onSubmit = { body, media -> vm.createPost(body, media) { composing = false } },
+        )
+    }
+
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("글 삭제") },
+            text = { Text("이 글을 삭제할까요? 되돌릴 수 없습니다.") },
+            confirmButton = {
+                TextButton(onClick = { vm.deletePost(target); deleteTarget = null }) {
+                    Text("삭제", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("취소") } },
         )
     }
 }
