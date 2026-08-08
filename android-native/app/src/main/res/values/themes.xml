@@ -1,3 +1,10 @@
 <resources>
     <style name="Theme.SKonnection" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- 브랜드 스플래시(런치 화면). core-splashscreen가 postSplashScreenTheme로 전환. -->
+    <style name="Theme.SKonnection.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/brand_blue</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_brand_heart</item>
+        <item name="postSplashScreenTheme">@style/Theme.SKonnection</item>
+    </style>
 </resources>
