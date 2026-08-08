@@ -45,7 +45,8 @@ struct MarketView: View {
                         GridTile(imageURL: URL(string: item.imageURL),
                                  icon: item.kind == .giveaway ? "gift.fill" : "hammer.fill",
                                  title: item.title, meta: metaFor(item),
-                                 tint: store.status(item).tint, ink: store.status(item).ink)
+                                 tint: store.status(item).tint, ink: store.status(item).ink,
+                                 caption: (author: item.seller.isEmpty ? "익명" : item.seller, text: item.title))
                     }
                     .buttonStyle(.plain)
                 }

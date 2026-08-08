@@ -35,7 +35,8 @@ struct GatheringsView: View {
                 InstaGrid(items: visible) { g in
                     Button { Haptics.selection(); selected = g } label: {
                         GridTile(imageURL: URL(string: g.imageURL), icon: icon(g.kind), title: g.title, meta: metaFor(g),
-                                 tint: store.status(g).tint, ink: store.status(g).ink)
+                                 tint: store.status(g).tint, ink: store.status(g).ink,
+                                 caption: (author: g.host.isEmpty ? "우리 팀" : g.host, text: g.title))
                     }
                     .buttonStyle(.plain)
                 }
