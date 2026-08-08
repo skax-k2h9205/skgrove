@@ -1,4 +1,5 @@
 import SwiftUI
+import CryptoKit
 
 /// 안건 / 투표 — 필터 탭 + 안건 카드(투표 진행바). 웹 Agenda 이식.
 /// 투표는 되돌릴 수 없으므로 확정 전 확인 다이얼로그를 거친다. 정족수·참여율을 함께 보여준다.
@@ -54,7 +55,10 @@ struct AgendaView: View {
 
     private func commitPending() {
         guard let p = pending else { return }
-        store.vote(agendaId: p.agendaId, optionId: p.optionId)
+        // 중복 투표 방지용 voter_key — 투표자 이메일의 SHA256(웹 ballot 스킴과 동형).
+        let key = SHA256.hash(data: Data((session.currentUser?.email ?? "").utf8))
+            .map { String(format: "%02x", $0) }.joined()
+        store.vote(agendaId: p.agendaId, optionId: p.optionId, voterKey: key)
         pending = nil
         Haptics.success()
     }

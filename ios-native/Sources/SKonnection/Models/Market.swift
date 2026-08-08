@@ -178,6 +178,7 @@ final class MarketStore: ObservableObject {
     func cancel(_ itemId: String, seller: String) {
         guard let i = items.firstIndex(where: { $0.id == itemId }), items[i].seller == seller else { return }
         items[i].canceled = true
+        Task { try? await Supabase.patch("market_items", id: itemId, ["canceled": true]) }
     }
 
     func list(kind: MarketKind, title: String, seller: String, startPrice: Int, minStep: Int,

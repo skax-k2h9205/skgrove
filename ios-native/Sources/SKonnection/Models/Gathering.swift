@@ -156,11 +156,13 @@ final class GatheringStore: ObservableObject {
 
     func leave(_ g: Gathering, name: String) {
         signups.removeAll { $0.gatheringId == g.id && $0.name == name }
+        Task { try? await Supabase.delete("gathering_signups", query: "gathering_id=eq.\(g.id)&name=eq.\(name)") }
     }
 
     func cancel(_ id: String, host: String) {
         guard let i = gatherings.firstIndex(where: { $0.id == id }), gatherings[i].host == host else { return }
         gatherings[i].canceled = true
+        Task { try? await Supabase.patch("gatherings", id: id, ["canceled": true]) }
     }
 
     /// 확정 로스터에서 커피 담당 한 명을 뽑는다.
@@ -169,14 +171,19 @@ final class GatheringStore: ObservableObject {
         let pool = coffeeCandidates(g)
         guard let pick = pool.randomElement() else { return }
         gatherings[i].coffeePick = pick.name
+        Task { try? await Supabase.patch("gatherings", id: g.id, ["coffee_pick": pick.name]) }
     }
 
     func create(kind: GatheringKind, title: String, host: String, startAt: String, closeAt: String,
                 capacity: Int?, place: String, desc: String, coffeeDraw: Bool) {
-        let maxNum = gatherings.compactMap { Int($0.id.split(separator: "-").last ?? "") }.max() ?? 0
-        gatherings.insert(Gathering(id: "GAT-\(maxNum + 1)", title: title, host: host, kind: kind,
+        let id = "GAT-\(Int(Date().timeIntervalSince1970))"
+        gatherings.insert(Gathering(id: id, title: title, host: host, kind: kind,
                                     startAt: startAt, closeAt: closeAt, capacity: capacity, minPeople: nil,
                                     place: place, desc: desc, coffeeDraw: coffeeDraw), at: 0)
+        Task { try? await Supabase.insert("gatherings",
+            SupabaseGatheringInsert(id: id, kind: kind.dbValue, title: title, start_at: startAt,
+                                    close_at: closeAt, capacity: capacity, place: place, description: desc,
+                                    host: host, coffee_draw: coffeeDraw)) }
     }
 
     /// 시작까지 남은 시간 사람말.
@@ -258,4 +265,8 @@ struct SupabaseSignupRow: Decodable {
     func toSignup() -> GatheringSignup {
         GatheringSignup(id: id, gatheringId: gathering_id, name: name ?? "", createdAt: created_at ?? "")
     }
+}
+struct SupabaseGatheringInsert: Encodable {
+    let id: String; let kind: String; let title: String; let start_at: String; let close_at: String
+    let capacity: Int?; let place: String; let description: String; let host: String; let coffee_draw: Bool
 }

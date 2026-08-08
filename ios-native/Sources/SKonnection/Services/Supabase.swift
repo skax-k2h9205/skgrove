@@ -47,6 +47,13 @@ enum Supabase {
         try check(resp, data)
     }
 
+    /// 임의 필터(예: "gathering_id=eq.X&name=eq.Y")로 삭제.
+    static func delete(_ table: String, query: String) async throws {
+        let (data, resp) = try await URLSession.shared.data(for:
+            request(table, method: "DELETE", query: query, prefer: "return=minimal"))
+        try check(resp, data)
+    }
+
     static let decoder = JSONDecoder()
     static let encoder = JSONEncoder()
 

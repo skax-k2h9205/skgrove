@@ -38,6 +38,7 @@ struct Agenda: Identifiable, Codable {
     var eligibleCount: Int
     var deadline: String        // "5일 남음" 등 표시용
     var votedOptionId: String?  // 내가 고른 선택지(로컬)
+    var voteType: String = "객관식"  // "찬반" | "객관식" — 원격 저장 시 어느 컬럼을 쓸지 결정
 
     var totalVotes: Int { options.reduce(0) { $0 + $1.count } }
     func percent(_ option: AgendaOption) -> Int {
@@ -109,13 +110,30 @@ final class AgendaStore: ObservableObject {
                voterCount: 25, eligibleCount: 30, deadline: "마감됨"),
     ]
 
-    func vote(agendaId: String, optionId: String) {
+    func vote(agendaId: String, optionId: String, voterKey: String = "") {
         guard let ai = agendas.firstIndex(where: { $0.id == agendaId }) else { return }
         guard agendas[ai].status == .voting, agendas[ai].votedOptionId == nil else { return }
         guard let oi = agendas[ai].options.firstIndex(where: { $0.id == optionId }) else { return }
         agendas[ai].options[oi].count += 1
         agendas[ai].voterCount += 1
         agendas[ai].votedOptionId = optionId
+
+        // 원격 반영: 찬반은 approve/reject 컬럼, 객관식은 options 배열을 갱신. 참여자는 ballot 으로 기록.
+        let a = agendas[ai]
+        let newCount = a.options[oi].count
+        Task {
+            if a.voteType == "찬반" {
+                let col = optionId == "y" ? "approve" : "reject"
+                try? await Supabase.patch("agendas", id: agendaId,
+                    [col: newCount, "voter_count": a.voterCount])
+            } else {
+                try? await Supabase.patch("agendas", id: agendaId,
+                    AgendaOptionsPatch(options: a.options, voter_count: a.voterCount))
+            }
+            if !voterKey.isEmpty {
+                try? await Supabase.insert("agenda_ballots", ["agenda_id": agendaId, "voter_key": voterKey])
+            }
+        }
     }
 
     /// 리더가 안건을 지금 마감한다. 정족수 미달이면 부결, 채웠으면 결정됨으로 확정한다.
@@ -124,6 +142,8 @@ final class AgendaStore: ObservableObject {
         guard let ai = agendas.firstIndex(where: { $0.id == agendaId }) else { return }
         guard agendas[ai].status == .voting else { return }
         agendas[ai].status = agendas[ai].quorumMet ? .decided : .rejected
+        let newStatus = agendas[ai].status.rawValue
+        Task { try? await Supabase.patch("agendas", id: agendaId, ["status": newStatus]) }
     }
 
     /// 리더가 접수 의견을 안건으로 올린다(찬반 투표). 접수→리더→안건 파이프라인의 연결점.
@@ -136,8 +156,23 @@ final class AgendaStore: ObservableObject {
                               category: issue.category, status: .voting,
                               options: [AgendaOption(id: "y", label: "찬성", count: 0),
                                         AgendaOption(id: "n", label: "반대", count: 0)],
-                              voterCount: 0, eligibleCount: eligibleCount, deadline: "7일 남음"), at: 0)
+                              voterCount: 0, eligibleCount: eligibleCount, deadline: "7일 남음",
+                              voteType: "찬반"), at: 0)
+        Task { try? await Supabase.insert("agendas",
+            SupabaseAgendaInsert(id: id, title: issue.title, description: desc, category: issue.category,
+                                 status: "투표중", vote_type: "찬반", eligible_count: eligibleCount)) }
     }
+}
+
+/// 객관식 안건 투표 반영용 — options 배열 + 참여자 수.
+struct AgendaOptionsPatch: Encodable {
+    let options: [AgendaOption]
+    let voter_count: Int
+}
+/// 리더 안건화 시 insert 페이로드.
+struct SupabaseAgendaInsert: Encodable {
+    let id: String; let title: String; let description: String; let category: String
+    let status: String; let vote_type: String; let eligible_count: Int
 }
 
 /// Supabase agendas 행 → iOS Agenda 매핑. 찬반은 approve/reject를 찬성/반대 옵션으로 합성.
@@ -173,6 +208,6 @@ struct SupabaseAgendaRow: Decodable {
                       category: category ?? "기타",
                       status: AgendaStatus(rawValue: status ?? "") ?? .voting,
                       options: opts, voterCount: voters, eligibleCount: eligible_count ?? 30,
-                      deadline: deadline ?? "")
+                      deadline: deadline ?? "", voteType: vote_type ?? "객관식")
     }
 }

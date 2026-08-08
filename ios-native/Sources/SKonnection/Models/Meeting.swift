@@ -28,6 +28,7 @@ enum CanStage: String, CaseIterable, Codable {
         return all[i + 1]
     }
     var index: Int { CanStage.allCases.firstIndex(of: self) ?? 0 }
+    var dbValue: String { String(describing: self) }   // setup/collect/share/select/summary
 }
 
 /// 캔미팅 3-Step — 의견을 이 단계로 분류한다(웹 CAN_STEPS 이식).
@@ -149,23 +150,31 @@ final class MeetingStore: ObservableObject {
     func advance(_ sessionId: String) {
         guard let i = cans.firstIndex(where: { $0.id == sessionId }), let next = cans[i].stage.next else { return }
         cans[i].stage = next
+        Task { try? await Supabase.patch("can_sessions", id: sessionId, ["stage": next.dbValue]) }
     }
 
     func addOpinion(sessionId: String, step: CanStep, content: String, author: String) {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let id = "CAN-O-\(opinions.count + 1)-\(step.rawValue)"
+        let id = "CAN-O-\(Int(Date().timeIntervalSince1970))-\(step.rawValue)"
         opinions.insert(CanOpinion(id: id, sessionId: sessionId, step: step, content: trimmed, author: author), at: 0)
+        Task { try? await Supabase.insert("can_opinions",
+            SupabaseOpinionInsert(id: id, session_id: sessionId, step: String(describing: step),
+                                  content: trimmed, author_name: author, selected: false)) }
     }
 
     func toggleSelect(_ opinionId: String) {
         guard let i = opinions.firstIndex(where: { $0.id == opinionId }) else { return }
         opinions[i].selected.toggle()
+        let sel = opinions[i].selected
+        Task { try? await Supabase.patch("can_opinions", id: opinionId, ["selected": sel]) }
     }
 
     func createCan(title: String, part: String, date: String) {
-        let maxNum = cans.compactMap { Int($0.id.split(separator: "-").last ?? "") }.max() ?? 0
-        cans.insert(CanSession(id: "CAN-\(maxNum + 1)", title: title, part: part, date: date, stage: .setup), at: 0)
+        let id = "CAN-S-\(Int(Date().timeIntervalSince1970))"
+        cans.insert(CanSession(id: id, title: title, part: part, date: date, stage: .setup), at: 0)
+        Task { try? await Supabase.insert("can_sessions",
+            ["id": id, "topic": title, "team_name": part, "held_at": date, "stage": "setup"]) }
     }
 
     // MARK: 티미팅
@@ -173,13 +182,19 @@ final class MeetingStore: ObservableObject {
     func advanceTea(_ id: String) {
         guard let i = teas.firstIndex(where: { $0.id == id }), let next = teas[i].status.next else { return }
         teas[i].status = next
+        // 예정 상태는 웹에서 '채택'으로 저장된다.
+        let dbStatus = next == .scheduled ? "채택" : next.rawValue
+        Task { try? await Supabase.patch("tea_sessions", id: id, ["status": dbStatus]) }
     }
 
     func createTea(title: String, type: String, presenter: String, part: String, heldAt: String) {
-        let maxNum = teas.compactMap { Int($0.id.split(separator: "-").last ?? "") }.max() ?? 0
+        let id = "TEA-\(Int(Date().timeIntervalSince1970))"
         let status: TeaStatus = heldAt.isEmpty ? .proposed : .scheduled
-        teas.insert(TeaSession(id: "TEA-\(maxNum + 1)", title: title, type: type, presenter: presenter,
+        teas.insert(TeaSession(id: id, title: title, type: type, presenter: presenter,
                                part: part, heldAt: heldAt, status: status), at: 0)
+        Task { try? await Supabase.insert("tea_sessions",
+            ["id": id, "title": title, "type": type, "presenter": presenter, "part": part,
+             "held_at": heldAt, "status": heldAt.isEmpty ? "제안" : "채택"]) }
     }
 
     // MARK: 시드
@@ -240,6 +255,10 @@ struct SupabaseCanOpinionRow: Decodable {
         return CanOpinion(id: id, sessionId: session_id, step: sp, content: content ?? "",
                           author: author_name ?? "익명", selected: selected ?? false)
     }
+}
+struct SupabaseOpinionInsert: Encodable {
+    let id: String; let session_id: String; let step: String
+    let content: String; let author_name: String; let selected: Bool
 }
 struct SupabaseTeaRow: Decodable {
     let id: String

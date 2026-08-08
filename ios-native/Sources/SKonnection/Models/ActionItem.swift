@@ -122,20 +122,24 @@ final class ActionStore: ObservableObject {
     }
 
     /// 상태 전이. 전이 규칙에 없으면 무시하고, 완료/재검토면 근거(note)를 함께 기록한다.
+    /// 웹과 같은 Supabase 에 반영(낙관적).
     func setStatus(_ id: String, _ status: ActionStatus, note: String = "") {
         guard let i = items.firstIndex(where: { $0.id == id }) else { return }
         guard items[i].status.nextStatuses.contains(status) else { return }
         items[i].status = status
-        if status == .done { items[i].outcome = note }
-        if status == .review { items[i].reviewReason = note }
+        var fields = ["status": status.rawValue]
+        if status == .done { items[i].outcome = note; fields["outcome"] = note }
+        if status == .review { items[i].reviewReason = note; fields["review_reason"] = note }
+        Task { try? await Supabase.patch("action_items", id: id, fields) }
     }
 
     /// 통과된 안건에서 액션아이템을 만든다(리더가 안건 마감 후 후속 조치를 생성).
     func createFromAgenda(title: String, sourceLabel: String) {
-        let maxNum = items.compactMap { Int($0.id.split(separator: "-").last ?? "") }.max() ?? 0
-        let id = String(format: "ACT-%04d", maxNum + 1)
+        let id = "ACT-\(Int(Date().timeIntervalSince1970))"
         items.insert(ActionItem(id: id, title: title, owner: "미정", due: "",
                                 status: .waiting, sourceLabel: sourceLabel), at: 0)
+        Task { try? await Supabase.insert("action_items",
+            ["id": id, "title": title, "owner": "미정", "status": "대기", "source_label": sourceLabel]) }
     }
 }
 
