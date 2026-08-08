@@ -185,6 +185,7 @@ private fun ComposeHumorDialog(onDismiss: () -> Unit, onSubmit: (body: String, m
     )
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun GatheringsContent(container: AppContainer, modifier: Modifier = Modifier) {
     val vm = remember { GatheringsViewModel(container) }
@@ -195,10 +196,12 @@ fun GatheringsContent(container: AppContainer, modifier: Modifier = Modifier) {
     var deleteTarget by remember { mutableStateOf<com.hyubs.skonnection.data.Gathering?>(null) }
 
     Box(modifier.fillMaxSize()) {
-        when {
-            loading && items.isEmpty() -> LoadingBox()
-            items.isEmpty() -> EmptyBox("열린 모임이 없어요. 첫 모임을 열어보세요!")
-            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)) {
+        if (loading && items.isEmpty()) LoadingBox()
+        else androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+            isRefreshing = loading, onRefresh = { vm.refresh() }, modifier = Modifier.fillMaxSize(),
+        ) {
+            if (items.isEmpty()) EmptyBox("열린 모임이 없어요. 첫 모임을 열어보세요!")
+            else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)) {
                 items(items, key = { it.id }) { g ->
                     val roster = signups[g.id].orEmpty()
                     val joined = vm.currentName != null && roster.contains(vm.currentName)
@@ -305,6 +308,7 @@ private fun GatheringComposeDialog(onDismiss: () -> Unit, onSubmit: (title: Stri
     )
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun MarketContent(container: AppContainer, modifier: Modifier = Modifier) {
     val vm = remember { MarketViewModel(container) }
@@ -319,10 +323,12 @@ fun MarketContent(container: AppContainer, modifier: Modifier = Modifier) {
     var deleteTarget by remember { mutableStateOf<com.hyubs.skonnection.data.MarketItem?>(null) }
 
     Box(modifier.fillMaxSize()) {
-        when {
-            loading && items.isEmpty() -> LoadingBox()
-            items.isEmpty() -> EmptyBox("등록된 물건이 없어요. 첫 물건을 올려보세요!")
-            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)) {
+        if (loading && items.isEmpty()) LoadingBox()
+        else androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+            isRefreshing = loading, onRefresh = { vm.refresh() }, modifier = Modifier.fillMaxSize(),
+        ) {
+            if (items.isEmpty()) EmptyBox("등록된 물건이 없어요. 첫 물건을 올려보세요!")
+            else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)) {
                 items(items, key = { it.id }) { m ->
                     val top = topBids[m.id]
                     MarketCard(
