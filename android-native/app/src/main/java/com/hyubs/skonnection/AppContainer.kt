@@ -4,6 +4,7 @@ import android.content.Context
 import com.hyubs.skonnection.core.SessionStore
 import com.hyubs.skonnection.data.AccountRepository
 import com.hyubs.skonnection.data.ActionRepository
+import com.hyubs.skonnection.data.ChatRepository
 import com.hyubs.skonnection.data.AgendaRepository
 import com.hyubs.skonnection.data.GatheringRepository
 import com.hyubs.skonnection.data.HumorRepository
@@ -36,6 +37,7 @@ class AppContainer(context: Context) {
     val profileRepository = ProfileRepository(supabase)
     val memoryRepository = MemoryRepository(supabase)
     val meetingRepository = MeetingRepository(supabase)
+    val chatRepository = ChatRepository(httpClient)
     val sessionStore = SessionStore(context.applicationContext)
 
     /**

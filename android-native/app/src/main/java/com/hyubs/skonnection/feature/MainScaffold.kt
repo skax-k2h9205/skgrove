@@ -51,16 +51,26 @@ private val TABS = listOf(
 fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var openSection by rememberSaveable { mutableStateOf<String?>(null) }
+    var showChat by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     val inSection = openSection != null
     if (inSection) BackHandler { openSection = null }
+    if (showChat) BackHandler { showChat = false }
 
     Scaffold(
         topBar = {
-            if (inSection) {
-                TopAppBar(
+            when {
+                showChat -> TopAppBar(
+                    title = { Text("AI 상담") },
+                    navigationIcon = {
+                        IconButton(onClick = { showChat = false }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
+                        }
+                    },
+                )
+                inSection -> TopAppBar(
                     title = { Text(openSection!!) },
                     navigationIcon = {
                         IconButton(onClick = { openSection = null }) {
@@ -68,12 +78,11 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
                         }
                     },
                 )
-            } else {
-                TopAppBar(title = { Text(TABS[tab].label) })
+                else -> TopAppBar(title = { Text(TABS[tab].label) })
             }
         },
         bottomBar = {
-            if (!inSection) {
+            if (!inSection && !showChat) {
                 NavigationBar {
                     TABS.forEachIndexed { i, t ->
                         NavigationBarItem(
@@ -87,10 +96,8 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
             }
         },
         floatingActionButton = {
-            if (!inSection) {
-                FloatingActionButton(onClick = {
-                    scope.launch { snackbar.showSnackbar("AI 상담은 곧 제공됩니다.") }
-                }) {
+            if (!inSection && !showChat) {
+                FloatingActionButton(onClick = { showChat = true }) {
                     Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = "AI 상담")
                 }
             }
@@ -98,7 +105,9 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         val contentModifier = Modifier.padding(padding)
-        if (inSection) {
+        if (showChat) {
+            com.hyubs.skonnection.feature.chat.ChatScreen(container, contentModifier)
+        } else if (inSection) {
             SectionHost(container, openSection!!, currentEmail, contentModifier)
         } else {
             when (tab) {
