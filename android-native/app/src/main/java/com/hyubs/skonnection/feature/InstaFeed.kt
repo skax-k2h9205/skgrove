@@ -26,7 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -95,9 +97,10 @@ fun InstaPostCard(
         }
 
         // 액션 바
+        val haptic = LocalHapticFeedback.current
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 6.dp, top = 2.dp)) {
             if (onToggleLike != null) {
-                IconButton(onClick = onToggleLike) {
+                IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onToggleLike() }) {
                     Icon(
                         if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                         contentDescription = "좋아요",
