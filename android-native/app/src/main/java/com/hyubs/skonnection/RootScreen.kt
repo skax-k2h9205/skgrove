@@ -10,8 +10,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hyubs.skonnection.auth.AuthViewModel
+import com.hyubs.skonnection.feature.MainScaffold
 import com.hyubs.skonnection.feature.auth.LoginScreen
-import com.hyubs.skonnection.feature.home.HomeScreen
 
 @Composable
 fun RootScreen(container: AppContainer) {
@@ -25,6 +25,6 @@ fun RootScreen(container: AppContainer) {
         state.loggedInEmail == null ->
             LoginScreen(loading = state.loading, error = state.error, onLogin = vm::login)
         else ->
-            HomeScreen(container = container, onLogout = vm::logout)
+            MainScaffold(container = container, currentEmail = state.loggedInEmail, onLogout = vm::logout)
     }
 }
