@@ -1,6 +1,6 @@
 import SwiftUI
 
-private struct ManagedAccount: Identifiable, Codable {
+private struct ManagedAccount: Identifiable, Codable, Equatable {
     let id: String
     let name: String
     let email: String
@@ -20,6 +20,42 @@ private final class AccountStore: ObservableObject {
             ManagedAccount(id: $0.id, name: $0.name, email: $0.email, role: $0.role,
                            part: $0.part, active: true, connectioner: $0.connectioner)
         }
+        Task { await syncFromRemote() }
+    }
+
+    /// 웹과 같은 accounts 테이블에서 계정을 불러온다.
+    func syncFromRemote() async {
+        guard Supabase.isConfigured else { return }
+        if let rows = try? await Supabase.select("accounts", query: "select=*&order=role.asc",
+                                                 as: AccountRow.self) {
+            accounts = rows.map { $0.toManaged() }
+        }
+    }
+
+    /// 권한·상태·커넥셔너 변경을 accounts 테이블에 반영(팀 공유).
+    func push(_ a: ManagedAccount) {
+        Task { try? await Supabase.patch("accounts", id: a.id,
+            AccountPatch(role: a.role.rawValue, part: a.part,
+                         status: a.active ? "활성" : "비활성", is_connectioner: a.connectioner)) }
+    }
+}
+
+private struct AccountPatch: Encodable {
+    let role: String; let part: String; let status: String; let is_connectioner: Bool
+}
+
+private struct AccountRow: Decodable {
+    let id: String
+    let name: String?
+    let email: String?
+    let role: String?
+    let part: String?
+    let status: String?
+    let is_connectioner: Bool?
+    func toManaged() -> ManagedAccount {
+        ManagedAccount(id: id, name: name ?? "", email: email ?? "",
+                       role: Role(rawValue: role ?? "") ?? .member, part: part ?? "",
+                       active: (status ?? "활성") == "활성", connectioner: is_connectioner ?? false)
     }
 }
 
@@ -64,6 +100,10 @@ struct AccountsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.lg))
                 .overlay(RoundedRectangle(cornerRadius: Theme.Radius.lg).stroke(Theme.Palette.border))
+                // 변경 즉시 accounts 테이블에 반영(팀 공유).
+                .onChange(of: account.role) { _, _ in store.push(account); Haptics.selection() }
+                .onChange(of: account.active) { _, _ in store.push(account); Haptics.selection() }
+                .onChange(of: account.connectioner) { _, _ in store.push(account); Haptics.selection() }
             }
         }
     }
