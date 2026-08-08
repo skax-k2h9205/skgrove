@@ -1,6 +1,7 @@
 package com.hyubs.skonnection.feature.sections
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -58,6 +59,7 @@ private fun AgendaSection(c: AppContainer, modifier: Modifier) {
     val vm = remember { AgendaViewModel(c) }
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
+    val votedIds by vm.votedIds.collectAsStateWithLifecycle()
     when {
         loading && items.isEmpty() -> LoadingBox(modifier)
         items.isEmpty() -> EmptyBox("등록된 안건이 없어요.", modifier)
@@ -65,13 +67,64 @@ private fun AgendaSection(c: AppContainer, modifier: Modifier) {
             items(items, key = { it.id }) { a ->
                 val total = a.approve + a.reject
                 val rate = if (total > 0) a.approve * 100 / total else 0
-                FeedCard(
-                    title = a.title.ifBlank { "(제목 없음)" },
-                    pill = a.status.ifBlank { null },
-                    subtitle = "${a.category} · ${a.part}",
-                    body = a.description.ifBlank { null },
-                    meta = "찬성 ${a.approve} · 반대 ${a.reject} (찬성률 ${rate}%)",
-                )
+                val voted = votedIds.contains(a.id)
+                val open = a.status == "투표중"
+                androidx.compose.material3.Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                ) {
+                    androidx.compose.foundation.layout.Column(Modifier.padding(16.dp)) {
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            androidx.compose.material3.Text(
+                                a.title.ifBlank { "(제목 없음)" },
+                                style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                modifier = Modifier.padding(end = 8.dp),
+                            )
+                            androidx.compose.material3.Text(
+                                a.status,
+                                style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        androidx.compose.material3.Text(
+                            "${a.category} · ${a.part}",
+                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                        if (a.description.isNotBlank()) {
+                            androidx.compose.material3.Text(
+                                a.description,
+                                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                        }
+                        androidx.compose.material3.Text(
+                            "찬성 ${a.approve} · 반대 ${a.reject} (찬성률 ${rate}%)",
+                            style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                        if (open && !voted) {
+                            androidx.compose.foundation.layout.Row(modifier = Modifier.padding(top = 10.dp)) {
+                                androidx.compose.material3.Button(
+                                    onClick = { vm.vote(a, true) },
+                                    modifier = Modifier.padding(end = 8.dp),
+                                ) { androidx.compose.material3.Text("찬성") }
+                                androidx.compose.material3.OutlinedButton(onClick = { vm.vote(a, false) }) {
+                                    androidx.compose.material3.Text("반대")
+                                }
+                            }
+                        } else if (voted) {
+                            androidx.compose.material3.Text(
+                                "✓ 투표 완료",
+                                style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 10.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
     }

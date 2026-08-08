@@ -157,15 +157,18 @@ private fun ComposeHumorDialog(onDismiss: () -> Unit, onSubmit: (body: String, m
 fun GatheringsContent(container: AppContainer, modifier: Modifier = Modifier) {
     val vm = remember { GatheringsViewModel(container) }
     val items by vm.items.collectAsStateWithLifecycle()
+    val signups by vm.signups.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     when {
         loading && items.isEmpty() -> LoadingBox(modifier)
         items.isEmpty() -> EmptyBox("열린 모임이 없어요.", modifier)
         else -> LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
             items(items, key = { it.id }) { g ->
-                FeedCard(
+                val roster = signups[g.id].orEmpty()
+                val joined = vm.currentName != null && roster.contains(vm.currentName)
+                GatheringCard(
                     title = g.title.ifBlank { "(제목 없음)" },
-                    pill = g.kind,
+                    kind = g.kind,
                     subtitle = "${g.host} · ${g.part}",
                     body = g.description.ifBlank { null },
                     meta = buildString {
@@ -173,7 +176,38 @@ fun GatheringsContent(container: AppContainer, modifier: Modifier = Modifier) {
                         if (g.place.isNotBlank()) append(" · ${g.place}")
                         if (g.cost.isNotBlank()) append(" · ${g.cost}")
                     }.ifBlank { null },
+                    count = roster.size,
+                    capacity = g.capacity,
+                    joined = joined,
+                    onToggle = { vm.toggleJoin(g) },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GatheringCard(
+    title: String, kind: String, subtitle: String, body: String?, meta: String?,
+    count: Int, capacity: Int?, joined: Boolean, onToggle: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(end = 8.dp))
+                Text(kind, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            }
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 2.dp))
+            if (!body.isNullOrBlank()) Text(body, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp))
+            if (meta != null) Text(meta, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
+                val cap = if (capacity != null && capacity > 0) "/$capacity" else ""
+                Text("신청 $count$cap 명", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 12.dp))
+                if (joined) {
+                    androidx.compose.material3.OutlinedButton(onClick = onToggle) { Text("신청 취소") }
+                } else {
+                    androidx.compose.material3.Button(onClick = onToggle) { Text("신청하기") }
+                }
             }
         }
     }

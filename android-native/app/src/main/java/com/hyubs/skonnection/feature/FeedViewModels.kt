@@ -56,14 +56,33 @@ class HumorViewModel(private val container: AppContainer) : ViewModel() {
 class GatheringsViewModel(private val container: AppContainer) : ViewModel() {
     private val _items = MutableStateFlow<List<Gathering>>(emptyList())
     val items: StateFlow<List<Gathering>> = _items.asStateFlow()
+    private val _signups = MutableStateFlow<Map<String, List<String>>>(emptyMap())
+    val signups: StateFlow<Map<String, List<String>>> = _signups.asStateFlow()
     private val _loading = MutableStateFlow(true)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
+
+    val currentName: String? get() = container.currentUser?.name
 
     init { refresh() }
     fun refresh() = viewModelScope.launch {
         _loading.value = true
         _items.value = runCatching { container.gatheringRepository.loadAll() }.getOrDefault(emptyList())
+        _signups.value = runCatching { container.gatheringRepository.loadSignups() }.getOrDefault(emptyMap())
         _loading.value = false
+    }
+
+    fun toggleJoin(g: Gathering) {
+        val me = container.currentUser?.name ?: return
+        val current = _signups.value[g.id].orEmpty()
+        val joined = current.contains(me)
+        val next = if (joined) current - me else current + me
+        _signups.value = _signups.value + (g.id to next)  // 낙관적
+        viewModelScope.launch {
+            runCatching {
+                if (joined) container.gatheringRepository.leave(g.id, me)
+                else container.gatheringRepository.join(g.id, me)
+            }.onFailure { refresh() }
+        }
     }
 }
 
