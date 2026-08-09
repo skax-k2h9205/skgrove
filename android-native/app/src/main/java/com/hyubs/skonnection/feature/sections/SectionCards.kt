@@ -74,26 +74,31 @@ fun StatusBadge(text: String, color: Color = statusColor(text)) {
     )
 }
 
-/** 인스타 투표 스티커식 막대 — 배경 트랙 + 채움 + 라벨/퍼센트 오버레이. */
+/**
+ * 인스타 투표 스티커식 막대 — 배경 트랙 + 채움 + "N표 · N%" 오버레이.
+ *
+ * 퍼센트만 보여주면 "찬성 100%"가 1표인지 30표인지 구분이 안 된다. 표수를 같이 적어
+ * 읽는 사람이 집계의 무게를 알 수 있게 한다.
+ */
 @Composable
-fun PollBar(label: String, pct: Int, leading: Boolean, color: Color) {
+fun PollBar(label: String, votes: Int, pct: Int, leading: Boolean, color: Color) {
     Box(
-        Modifier.fillMaxWidth().height(36.dp).clip(RoundedCornerShape(9.dp))
+        Modifier.fillMaxWidth().height(38.dp).clip(RoundedCornerShape(9.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Box(
-            Modifier.fillMaxWidth(pct / 100f).height(36.dp)
+            Modifier.fillMaxWidth(pct / 100f).height(38.dp)
                 .clip(RoundedCornerShape(9.dp))
                 .background(if (leading) color.copy(alpha = 0.28f) else color.copy(alpha = 0.14f)),
         )
         Row(
-            Modifier.fillMaxWidth().height(36.dp).padding(horizontal = 12.dp),
+            Modifier.fillMaxWidth().height(38.dp).padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(label, style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (leading) FontWeight.Bold else FontWeight.Normal)
             Spacer(Modifier.weight(1f))
-            Text("$pct%", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text("${votes}표 · $pct%", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -123,46 +128,80 @@ fun IssueCard(title: String, status: String, urgency: String, category: String, 
     }
 }
 
-/** 안건 카드 — 제목 + 상태 + 투표 막대(찬성/반대) + 투표 버튼/완료. */
+/** 안건 카드(iOS 이식) — 상태 + 찬반 바(N표·N%) + 정족수 진행바 + 참여·대상·마감 + 투표. */
 @Composable
 fun AgendaCard(
     title: String, status: String, category: String, part: String, description: String,
-    approve: Int, reject: Int, voted: Boolean, open: Boolean,
-    onApprove: () -> Unit, onReject: () -> Unit,
+    approve: Int, reject: Int, eligible: Int, deadline: String, quorum: Int,
+    voted: Boolean, open: Boolean, onApprove: () -> Unit, onReject: () -> Unit,
 ) {
     val total = approve + reject
     val rate = if (total > 0) approve * 100 / total else 0
-    // 0표면 양쪽 0%로 두고 선두 강조를 끈다("반대 100%"처럼 보이는 오해 방지).
-    val approvePct = if (total > 0) rate else 0
-    val rejectPct = if (total > 0) 100 - rate else 0
+    val rejectRate = if (total > 0) 100 - rate else 0
+    val quorumProgress = if (quorum > 0) (total.toFloat() / quorum).coerceIn(0f, 1f) else 1f
+    val remaining = (quorum - total).coerceAtLeast(0)
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title.ifBlank { "(제목 없음)" }, style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(listOf(category, part).filter { it.isNotBlank() }.joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.weight(1f))
                 StatusBadge(status)
             }
-            Text("$category · $part", style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 2.dp))
+            Text(title.ifBlank { "(제목 없음)" }, style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
             if (description.isNotBlank()) {
-                Text(description, style = MaterialTheme.typography.bodyMedium, maxLines = 2, modifier = Modifier.padding(top = 8.dp))
+                Text(description, style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, modifier = Modifier.padding(top = 4.dp))
             }
+            // 찬반 바 — "N표 · N%"
             Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                PollBar("찬성", approvePct, leading = total > 0 && rate >= 50, color = Green)
-                PollBar("반대", rejectPct, leading = total > 0 && rate < 50, color = Red)
+                PollBar("찬성", approve, if (total > 0) rate else 0, leading = total > 0 && rate >= 50, color = Green)
+                PollBar("반대", reject, if (total > 0) rejectRate else 0, leading = total > 0 && rate < 50, color = Red)
             }
-            Text("총 ${total}표", style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 6.dp))
+            // 정족수 진행바 + 남은 표
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
+                Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                    Box(Modifier.fillMaxWidth(quorumProgress).height(6.dp).clip(RoundedCornerShape(50)).background(Blue))
+                }
+                Text(if (remaining > 0) "성립까지 ${remaining}표" else "정족수 충족",
+                    style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
+                    color = if (remaining > 0) MaterialTheme.colorScheme.outline else Green,
+                    modifier = Modifier.padding(start = 10.dp))
+            }
+            Text(
+                buildString {
+                    append("${total}명 참여")
+                    if (eligible > 0) append(" · 대상 ${eligible}명")
+                    deadlineLabel(deadline)?.let { append(" · $it") }
+                },
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.padding(top = 8.dp),
+            )
             if (open && !voted) {
-                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onApprove, modifier = Modifier.weight(1f)) { Text("찬성") }
                     OutlinedButton(onClick = onReject, modifier = Modifier.weight(1f)) { Text("반대") }
                 }
             } else if (voted) {
                 Text("✓ 투표 완료", color = Blue, style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
             }
         }
+    }
+}
+
+/**
+ * 마감일을 남은 기간으로 읽어준다("D-3"). 날짜만 적혀 있으면 급한지 아닌지 한눈에 안 들어온다.
+ * 마감일이 없거나 형식이 어긋나면 null — 없는 정보를 지어내지 않는다.
+ */
+private fun deadlineLabel(deadline: String): String? {
+    val date = runCatching { java.time.LocalDate.parse(deadline.take(10)) }.getOrNull() ?: return null
+    val days = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), date)
+    return when {
+        days < 0 -> "마감 지남"
+        days == 0L -> "오늘 마감"
+        else -> "마감 D-$days"
     }
 }
 

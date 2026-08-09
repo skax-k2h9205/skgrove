@@ -166,6 +166,7 @@ private fun AgendaSection(c: AppContainer, modifier: Modifier) {
                 AgendaCard(
                     title = a.title, status = a.status, category = a.category, part = a.part,
                     description = a.description, approve = a.approve, reject = a.reject,
+                    eligible = a.eligibleCount, deadline = a.deadline, quorum = a.quorum,
                     voted = votedIds.contains(a.id), open = a.status == "투표중",
                     onApprove = { vm.vote(a, true) }, onReject = { vm.vote(a, false) },
                 )

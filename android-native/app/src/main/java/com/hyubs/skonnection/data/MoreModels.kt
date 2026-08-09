@@ -40,17 +40,26 @@ data class AgendaRow(
     val approve: Int = 0,
     val reject: Int = 0,
     val status: String = "",
+    val deadline: String? = null,
+    @SerialName("eligible_count") val eligibleCount: Int? = null,
     @SerialName("created_at") val createdAt: String? = null,
 )
 
 data class Agenda(
     val id: String, val title: String, val description: String, val category: String,
     val part: String, val approve: Int, val reject: Int, val status: String,
-)
+    val deadline: String, val eligibleCount: Int,
+) {
+    val total: Int get() = approve + reject
+    /** 정족수 = ceil(대상/3). 웹 agendaRules.QUORUM_RATIO(1/3)와 동일. */
+    val quorum: Int get() = if (eligibleCount > 0) Math.ceil(eligibleCount / 3.0).toInt() else 0
+    val quorumRemaining: Int get() = (quorum - total).coerceAtLeast(0)
+}
 
 fun AgendaRow.toAgenda() = Agenda(
     id = id, title = title, description = description ?: "", category = category,
     part = part, approve = approve, reject = reject, status = status,
+    deadline = deadline?.take(10) ?: "", eligibleCount = eligibleCount ?: 0,
 )
 
 // ── 액션아이템 (action_items) ─────────────────────────────────────
