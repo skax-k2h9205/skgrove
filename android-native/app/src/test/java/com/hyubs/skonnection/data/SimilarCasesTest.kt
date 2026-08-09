@@ -84,4 +84,26 @@ class SimilarCasesTest {
         )
         assertEquals("야근을 줄이면 좋겠습니다", cases.single().snippet)
     }
+
+    /**
+     * 실제 팀 데이터로 끝단 확인 — 이 질문이 이 접수를 근거로 고르지 못하면
+     * 상담 답에서 "우리 팀에도 이런 일이 있었다"가 사라진다.
+     */
+    @Test
+    fun `실제 접수 문구로 회의 고민을 물으면 그 접수가 근거로 뽑힌다`() {
+        val real = issue(
+            "SOOP-MSIOBTEC",
+            "회의 시간 및 운영 방식 효율화가 필요합니다.",
+            "사전 안건 공유나 명확한 쟁점 정리 없이 회의가 소집되어 쓸데없이 논의가 길어지는 경우가 많습니다",
+        )
+        val noise = issue("SOOP-X", "주차장 자리가 부족해요", "출근길이 힘듭니다")
+
+        val cases = SimilarCases.find(
+            "회의가 너무 길고 쟁점 없이 흘러가서 지칩니다. 어떻게 하면 좋을까요?",
+            listOf(noise, real),
+            emptyList(),
+        )
+        assertEquals("SOOP-MSIOBTEC", cases.first().id)
+        assertEquals("대나무숲", cases.first().source)
+    }
 }
