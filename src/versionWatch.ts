@@ -19,16 +19,43 @@ async function liveVersion(): Promise<string | null> {
   }
 }
 
+/**
+ * 계속 보고 있는 탭에는 새로고침을 강요하지 않는다 — 쓰던 글이 날아간다.
+ * 대신 눈에 띄는 띠를 띄워 사용자가 직접 누르게 한다.
+ */
+function showStaleBanner() {
+  if (document.getElementById('version-stale-banner')) return;
+
+  const bar = document.createElement('div');
+  bar.id = 'version-stale-banner';
+  bar.setAttribute('role', 'status');
+
+  const text = document.createElement('span');
+  text.textContent = '새 버전이 배포됐어요. 새로고침해야 최신 데이터로 저장됩니다.';
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = '새로고침';
+  button.addEventListener('click', () => window.location.reload());
+
+  bar.append(text, button);
+  document.body.appendChild(bar);
+}
+
 export async function startVersionWatch() {
   const boot = await liveVersion();
   // 로컬(dev)이거나 식별자를 못 얻으면 비활성 — 헛된 새로고침을 만들지 않는다.
   if (!boot || boot === 'dev') return;
 
   let reloading = false;
+  const isStale = async () => {
+    const live = await liveVersion();
+    return Boolean(live && live !== boot);
+  };
+
   const reloadIfStale = async () => {
     if (reloading) return;
-    const live = await liveVersion();
-    if (live && live !== boot) {
+    if (await isStale()) {
       reloading = true;
       window.location.reload();
     }
@@ -38,8 +65,23 @@ export async function startVersionWatch() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void reloadIfStale();
   });
-  // 배경 탭은 조용히 갱신한다(포그라운드 입력을 끊지 않는다). 5분 간격.
+
+  /*
+    예전에는 배경 탭만 검사했다. 그러면 모니터에 계속 띄워둔 탭은 아무리 오래돼도
+    갱신되지 않는다 — 옛 번들이 공유 DB 를 되돌리는 사고가 실제로 그 탭에서 났다.
+    이제 포그라운드도 같은 주기로 보되, 처리 방식만 가른다:
+      · 배경  → 조용히 새로고침 (끊길 입력이 없다)
+      · 포그라운드 → 띠로 알리고 판단은 사용자에게 (쓰던 글을 날리지 않는다)
+  */
   window.setInterval(() => {
-    if (document.hidden) void reloadIfStale();
+    void (async () => {
+      if (reloading || !(await isStale())) return;
+      if (document.hidden) {
+        reloading = true;
+        window.location.reload();
+      } else {
+        showStaleBanner();
+      }
+    })();
   }, 5 * 60 * 1000);
 }

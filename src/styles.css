@@ -12923,3 +12923,32 @@ button.notif-row {
   object-fit: cover;
   border: 1px solid var(--color-border);
 }
+
+/* 옛 번들 탭 알림 띠(versionWatch). React 밖에서 만들어 붙이므로 클래스가 아닌 id 로 잡는다.
+   포그라운드 탭은 강제로 새로고침하지 않는다 — 쓰던 글이 날아간다. */
+#version-stale-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-ink);
+  color: var(--color-surface);
+  font-size: var(--text-meta);
+  box-shadow: 0 -2px 12px rgb(0 0 0 / 18%);
+}
+
+#version-stale-banner button {
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-weight: 700;
+  cursor: pointer;
+}
