@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -85,6 +86,16 @@ fun HumorContent(
     val loading by vm.loading.collectAsStateWithLifecycle()
     var detailPost by remember { mutableStateOf<com.hyubs.skonnection.data.HumorPost?>(null) }
 
+    if (composing) {
+        androidx.activity.compose.BackHandler { onComposingChange(false) }
+        HumorComposeForm(
+            onClose = { onComposingChange(false) },
+            onSubmit = { body, media -> vm.createPost(body, media) { onComposingChange(false) } },
+            modifier = modifier,
+        )
+        return
+    }
+
     detailPost?.let { post ->
         androidx.activity.compose.BackHandler { detailPost = null }
         HumorDetailView(
@@ -113,42 +124,29 @@ fun HumorContent(
             onTap = { tile -> detailPost = posts.firstOrNull { "h:${it.id}" == tile.id } },
         )
     }
-
-    if (composing) {
-        ComposeHumorDialog(
-            onDismiss = { onComposingChange(false) },
-            onSubmit = { body, media -> vm.createPost(body, media) { onComposingChange(false) } },
-        )
-    }
 }
 
 @Composable
-private fun ComposeHumorDialog(onDismiss: () -> Unit, onSubmit: (body: String, media: String) -> Unit) {
+private fun HumorComposeForm(onClose: () -> Unit, onSubmit: (body: String, media: String) -> Unit, modifier: Modifier = Modifier) {
     var body by remember { mutableStateOf("") }
     var media by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("유머 글쓰기") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = body, onValueChange = { body = it },
-                    label = { Text("내용") }, modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = media, onValueChange = { media = it },
-                    label = { Text("이미지/영상 링크 (선택)") },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { if (body.isNotBlank()) onSubmit(body, media) }, enabled = body.isNotBlank()) {
-                Text("등록")
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
-    )
+    com.hyubs.skonnection.feature.FormScaffold(
+        title = "유머 글쓰기", submitLabel = "등록", canSubmit = body.isNotBlank(),
+        onSubmit = { if (body.isNotBlank()) onSubmit(body, media) }, onClose = onClose, modifier = modifier,
+    ) {
+        com.hyubs.skonnection.feature.FormLabel("내용", required = true)
+        OutlinedTextField(
+            value = body, onValueChange = { body = it },
+            placeholder = { Text("팀에 웃음을 주는 이야기를 남겨보세요") },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp),
+        )
+        com.hyubs.skonnection.feature.FormLabel("이미지 / 영상 링크 (선택)")
+        OutlinedTextField(
+            value = media, onValueChange = { media = it },
+            placeholder = { Text("https://…") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -164,6 +162,16 @@ fun GatheringsContent(
     val signups by vm.signups.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     var detail by remember { mutableStateOf<com.hyubs.skonnection.data.Gathering?>(null) }
+
+    if (composing) {
+        androidx.activity.compose.BackHandler { onComposingChange(false) }
+        GatheringComposeForm(
+            onClose = { onComposingChange(false) },
+            onSubmit = { title, place, desc, cap, kind -> vm.create(title, place, desc, cap, kind) { onComposingChange(false) } },
+            modifier = modifier,
+        )
+        return
+    }
 
     detail?.let { g ->
         androidx.activity.compose.BackHandler { detail = null }
@@ -191,13 +199,6 @@ fun GatheringsContent(
             emptyText = "열린 모임이 없어요. 첫 모임을 열어보세요!",
             onRefresh = { vm.refresh() },
             onTap = { tile -> detail = items.firstOrNull { "g:${it.id}" == tile.id } },
-        )
-    }
-
-    if (composing) {
-        GatheringComposeDialog(
-            onDismiss = { onComposingChange(false) },
-            onSubmit = { title, place, desc, cap, kind -> vm.create(title, place, desc, cap, kind) { onComposingChange(false) } },
         )
     }
 }
@@ -297,30 +298,31 @@ private fun GatheringCard(
 }
 
 @Composable
-private fun GatheringComposeDialog(onDismiss: () -> Unit, onSubmit: (title: String, place: String, desc: String, capacity: Int?, kind: String) -> Unit) {
+private fun GatheringComposeForm(onClose: () -> Unit, onSubmit: (title: String, place: String, desc: String, capacity: Int?, kind: String) -> Unit, modifier: Modifier = Modifier) {
     var title by remember { mutableStateOf("") }
     var place by remember { mutableStateOf("") }
     var desc by remember { mutableStateOf("") }
     var capacity by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf("flash") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("모임 열기") },
-        text = {
-            Column {
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("제목") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Row(Modifier.padding(top = 8.dp)) {
-                    androidx.compose.material3.FilterChip(selected = kind == "flash", onClick = { kind = "flash" }, label = { Text("번개") }, modifier = Modifier.padding(end = 6.dp))
-                    androidx.compose.material3.FilterChip(selected = kind == "gathering", onClick = { kind = "gathering" }, label = { Text("모임") })
-                }
-                OutlinedTextField(value = place, onValueChange = { place = it }, label = { Text("장소") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-                OutlinedTextField(value = capacity, onValueChange = { s -> capacity = s.filter { it.isDigit() } }, label = { Text("정원(명, 선택)") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-                OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("설명") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-            }
-        },
-        confirmButton = { TextButton(onClick = { if (title.isNotBlank()) onSubmit(title, place, desc, capacity.toIntOrNull(), kind) }, enabled = title.isNotBlank()) { Text("열기") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
-    )
+    com.hyubs.skonnection.feature.FormScaffold(
+        title = "모임 열기", submitLabel = "열기", canSubmit = title.isNotBlank(),
+        onSubmit = { if (title.isNotBlank()) onSubmit(title, place, desc, capacity.toIntOrNull(), kind) },
+        onClose = onClose, modifier = modifier,
+    ) {
+        com.hyubs.skonnection.feature.FormLabel("제목", required = true)
+        OutlinedTextField(value = title, onValueChange = { title = it }, placeholder = { Text("무엇을 함께 할까요?") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        com.hyubs.skonnection.feature.FormLabel("종류")
+        Row {
+            androidx.compose.material3.FilterChip(selected = kind == "flash", onClick = { kind = "flash" }, label = { Text("번개") }, modifier = Modifier.padding(end = 8.dp))
+            androidx.compose.material3.FilterChip(selected = kind == "gathering", onClick = { kind = "gathering" }, label = { Text("모임") })
+        }
+        com.hyubs.skonnection.feature.FormLabel("장소")
+        OutlinedTextField(value = place, onValueChange = { place = it }, placeholder = { Text("예: 4층 카페") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        com.hyubs.skonnection.feature.FormLabel("정원 (선택)")
+        OutlinedTextField(value = capacity, onValueChange = { s -> capacity = s.filter { it.isDigit() } }, placeholder = { Text("명 수") }, singleLine = true, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+        com.hyubs.skonnection.feature.FormLabel("설명")
+        OutlinedTextField(value = desc, onValueChange = { desc = it }, placeholder = { Text("자세한 내용을 적어주세요" ) }, modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp))
+    }
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -336,6 +338,16 @@ fun MarketContent(
     val topBids by vm.topBids.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     var detail by remember { mutableStateOf<com.hyubs.skonnection.data.MarketItem?>(null) }
+
+    if (composing) {
+        androidx.activity.compose.BackHandler { onComposingChange(false) }
+        MarketComposeForm(
+            onClose = { onComposingChange(false) },
+            onSubmit = { title, desc, price, step, kind -> vm.create(title, desc, price, step, kind) { onComposingChange(false) } },
+            modifier = modifier,
+        )
+        return
+    }
 
     detail?.let { m ->
         androidx.activity.compose.BackHandler { detail = null }
@@ -367,13 +379,6 @@ fun MarketContent(
             emptyText = "등록된 물건이 없어요. 첫 물건을 올려보세요!",
             onRefresh = { vm.refresh() },
             onTap = { tile -> detail = items.firstOrNull { "m:${it.id}" == tile.id } },
-        )
-    }
-
-    if (composing) {
-        MarketComposeDialog(
-            onDismiss = { onComposingChange(false) },
-            onSubmit = { title, desc, price, step, kind -> vm.create(title, desc, price, step, kind) { onComposingChange(false) } },
         )
     }
 }
@@ -474,44 +479,39 @@ private fun MarketCard(
 }
 
 @Composable
-private fun MarketComposeDialog(onDismiss: () -> Unit, onSubmit: (title: String, desc: String, price: Int, step: Int, kind: String) -> Unit) {
+private fun MarketComposeForm(onClose: () -> Unit, onSubmit: (title: String, desc: String, price: Int, step: Int, kind: String) -> Unit, modifier: Modifier = Modifier) {
     var title by remember { mutableStateOf("") }
     var desc by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
     var step by remember { mutableStateOf("1000") }
     var kind by remember { mutableStateOf("auction") }
     val numKeyboard = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("물건 등록") },
-        text = {
-            Column {
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("제목") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Row(Modifier.padding(top = 8.dp)) {
-                    androidx.compose.material3.FilterChip(selected = kind == "auction", onClick = { kind = "auction" }, label = { Text("경매") }, modifier = Modifier.padding(end = 6.dp))
-                    androidx.compose.material3.FilterChip(selected = kind == "giveaway", onClick = { kind = "giveaway" }, label = { Text("나눔") })
-                }
-                if (kind == "auction") {
-                    OutlinedTextField(value = price, onValueChange = { s -> price = s.filter { it.isDigit() } }, label = { Text("시작가(원)") }, singleLine = true, keyboardOptions = numKeyboard, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-                    OutlinedTextField(value = step, onValueChange = { s -> step = s.filter { it.isDigit() } }, label = { Text("입찰 단위(원)") }, singleLine = true, keyboardOptions = numKeyboard, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-                }
-                OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("설명") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+    com.hyubs.skonnection.feature.FormScaffold(
+        title = "물건 등록", submitLabel = "등록", canSubmit = title.isNotBlank(),
+        onSubmit = {
+            if (title.isNotBlank()) {
+                val p = if (kind == "giveaway") 0 else price.toIntOrNull() ?: 0
+                onSubmit(title, desc, p, step.toIntOrNull() ?: 1000, kind)
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (title.isNotBlank()) {
-                        val p = if (kind == "giveaway") 0 else price.toIntOrNull() ?: 0
-                        val s = step.toIntOrNull() ?: 1000
-                        onSubmit(title, desc, p, s, kind)
-                    }
-                },
-                enabled = title.isNotBlank(),
-            ) { Text("등록") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
-    )
+        onClose = onClose, modifier = modifier,
+    ) {
+        com.hyubs.skonnection.feature.FormLabel("제목", required = true)
+        OutlinedTextField(value = title, onValueChange = { title = it }, placeholder = { Text("무엇을 올릴까요?") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        com.hyubs.skonnection.feature.FormLabel("종류")
+        Row {
+            androidx.compose.material3.FilterChip(selected = kind == "auction", onClick = { kind = "auction" }, label = { Text("경매") }, modifier = Modifier.padding(end = 8.dp))
+            androidx.compose.material3.FilterChip(selected = kind == "giveaway", onClick = { kind = "giveaway" }, label = { Text("나눔") })
+        }
+        if (kind == "auction") {
+            com.hyubs.skonnection.feature.FormLabel("시작가 (원)", required = true)
+            OutlinedTextField(value = price, onValueChange = { s -> price = s.filter { it.isDigit() } }, placeholder = { Text("예: 3000") }, singleLine = true, keyboardOptions = numKeyboard, modifier = Modifier.fillMaxWidth())
+            com.hyubs.skonnection.feature.FormLabel("입찰 단위 (원)")
+            OutlinedTextField(value = step, onValueChange = { s -> step = s.filter { it.isDigit() } }, singleLine = true, keyboardOptions = numKeyboard, modifier = Modifier.fillMaxWidth())
+        }
+        com.hyubs.skonnection.feature.FormLabel("설명")
+        OutlinedTextField(value = desc, onValueChange = { desc = it }, placeholder = { Text("상태·특징을 적어주세요") }, modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp))
+    }
 }
 
 @Composable

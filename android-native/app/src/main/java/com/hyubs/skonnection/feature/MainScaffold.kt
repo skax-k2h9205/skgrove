@@ -64,10 +64,13 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
     var composeHumor by remember { mutableStateOf(false) }
     var composeGathering by remember { mutableStateOf(false) }
     var composeMarket by remember { mutableStateOf(false) }
+    // 작성 폼이 뜨면 자체 상단바를 가지므로 바깥 크롬(탭바·하단네비·챗 FAB)을 숨겨 전체화면으로.
+    val composingAny = composeHumor || composeGathering || composeMarket
 
     Scaffold(
         topBar = {
             when {
+                composingAny -> {}
                 showChat -> TopAppBar(
                     title = { Text("AI 상담") },
                     navigationIcon = {
@@ -107,7 +110,7 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
             }
         },
         bottomBar = {
-            if (!inSection && !showChat) {
+            if (!inSection && !showChat && !composingAny) {
                 NavigationBar {
                     TABS.forEachIndexed { i, t ->
                         NavigationBarItem(
@@ -121,7 +124,7 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
             }
         },
         floatingActionButton = {
-            if (!inSection && !showChat) {
+            if (!inSection && !showChat && !composingAny) {
                 FloatingActionButton(onClick = { showChat = true }) {
                     Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = "AI 상담")
                 }
