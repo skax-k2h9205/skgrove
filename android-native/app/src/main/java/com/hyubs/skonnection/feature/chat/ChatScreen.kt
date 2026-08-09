@@ -23,6 +23,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -119,11 +120,16 @@ fun ChatScreen(container: AppContainer, modifier: Modifier = Modifier) {
                 )
             }
             items(state.messages) { m -> Bubble(assistant = m.role == "assistant", text = m.content) }
+            // 빈 입력창만 보면 무엇을 물어야 할지 몰라 그냥 닫는다. 눌러서 바로 보내지게 둔다.
+            if (state.messages.isEmpty() && !state.sending) {
+                item { Starters(state.mode.starters) { vm.send(it) } }
+            }
             if (state.sending) {
                 item {
-                    Row(Modifier.padding(8.dp)) {
+                    Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.padding(4.dp), strokeWidth = 2.dp)
                         Text("생각 중…", modifier = Modifier.padding(start = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(onClick = vm::cancel) { Text("그만 받기") }
                     }
                 }
             }
@@ -142,6 +148,29 @@ fun ChatScreen(container: AppContainer, modifier: Modifier = Modifier) {
                 enabled = input.isNotBlank() && !state.sending,
             ) {
                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "보내기", tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+/** 첫 화면의 예시 질문. 누르면 그대로 보내진다. */
+@Composable
+private fun Starters(questions: List<String>, onPick: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text(
+            "이런 걸 물어볼 수 있어요",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 6.dp),
+        )
+        for (q in questions) {
+            OutlinedButton(
+                onClick = { onPick(q) },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+            ) {
+                Text(q, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null,
+                     tint = MaterialTheme.colorScheme.primary)
             }
         }
     }

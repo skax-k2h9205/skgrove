@@ -14,9 +14,35 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-enum class ChatMode(val api: String, val label: String, val greeting: String) {
-    COUNSEL("counsel", "마음 상담", "안녕하세요. 요즘 어떤 점이 힘드신가요? 편하게 이야기해 주세요."),
-    RULE("rule", "팀지식", "팀 운영·예산·근태·규칙 등 궁금한 점을 물어보세요."),
+enum class ChatMode(
+    val api: String,
+    val label: String,
+    val greeting: String,
+    /**
+     * 첫 화면의 예시 질문. 빈 입력창만 보면 무엇을 물어야 할지 몰라 그냥 닫는다.
+     * 문구로 적어두는 것보다 눌러서 바로 보내지는 편이 실제로 쓰인다(웹·iOS와 같은 문구).
+     */
+    val starters: List<String>,
+) {
+    COUNSEL(
+        "counsel", "마음 상담", "안녕하세요. 요즘 어떤 점이 힘드신가요? 편하게 이야기해 주세요.",
+        listOf(
+            "요즘 일이 너무 많아서 지쳐요",
+            "동료와 의견이 자꾸 부딪혀요",
+            "피드백을 어떻게 전할지 모르겠어요",
+            "회의에서 말을 못 꺼내겠어요",
+        ),
+    ),
+    RULE(
+        "rule", "팀지식", "팀 운영·예산·근태·규칙 등 궁금한 점을 물어보세요.",
+        listOf(
+            "전표 승인 기한이 언제인가요?",
+            "의욕관리비 한도가 얼마예요?",
+            "하이닉스 상시 출입증은 어떻게 받나요?",
+            "연차는 며칠 전에 올려야 하나요?",
+            "사내 AI 도구는 어디까지 써도 되나요?",
+        ),
+    ),
 }
 
 data class ChatUiState(
@@ -46,6 +72,8 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
 
     // 대화는 화면이 아니라 서버에 산다 — 앱을 닫았다 열어도, 웹에서 이어 봐도 남아 있다.
     private val sessionId = newSessionId()
+    // 답이 20~40초 걸린다. 잘못 보냈을 때 되돌릴 길이 없으면 그냥 기다리는 수밖에 없다.
+    private var inFlight: kotlinx.coroutines.Job? = null
     private var saved: List<CounselMessage> = emptyList()
     private val author: String get() = container.currentUser?.email.orEmpty()
 
@@ -124,6 +152,16 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         _state.value = _state.value.copy(partner = profile)
     }
 
+    /**
+     * 받는 중인 답을 그만 기다린다. 보낸 질문은 대화에 그대로 남는다 —
+     * 다시 보내고 싶으면 예시처럼 눌러 이어가면 된다.
+     */
+    fun cancel() {
+        inFlight?.cancel()
+        inFlight = null
+        _state.value = _state.value.copy(sending = false)
+    }
+
     fun send(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() || _state.value.sending) return
@@ -137,7 +175,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         // 방금 쓴 질문과 겹치는 접수·안건만 고른다. 대화 전체가 아니라 이번 질문 기준이다.
         val cases = if (counsel) SimilarCases.find(trimmed, issues, agendas) else null
 
-        viewModelScope.launch {
+        inFlight = viewModelScope.launch {
             val result = container.chatRepository.send(
                 _state.value.mode.api, history, selfBrief, partnerBrief, cases,
             )
