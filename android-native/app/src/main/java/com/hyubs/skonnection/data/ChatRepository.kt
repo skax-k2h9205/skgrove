@@ -30,13 +30,24 @@ data class ProfileBrief(
     val disc: String = "",
 )
 
-// self·partner 는 기본값 null 이고 encodeDefaults 가 꺼져 있어, 없으면 아예 보내지 않는다.
+/** 팀에서 실제 있었던 유사 사례(대나무숲·안건). 서버가 근거로 인용한다. */
+@Serializable
+data class CaseBrief(
+    val source: String,
+    val id: String,
+    val title: String,
+    val status: String,
+    val snippet: String,
+)
+
+// self·partner·cases 는 기본값 null 이고 encodeDefaults 가 꺼져 있어, 없으면 아예 보내지 않는다.
 @Serializable
 private data class ChatBody(
     val mode: String,
     val messages: List<ChatTurn>,
     val self: ProfileBrief? = null,
     val partner: ProfileBrief? = null,
+    val cases: List<CaseBrief>? = null,
 )
 
 @Serializable
@@ -61,11 +72,12 @@ class ChatRepository(
         messages: List<ChatTurn>,
         self: ProfileBrief? = null,
         partner: ProfileBrief? = null,
+        cases: List<CaseBrief>? = null,
     ): Result<String> = runCatching {
         val resp = http.post("$baseUrl/api/chat") {
             contentType(ContentType.Application.Json)
             header("Accept", "application/json")
-            setBody(json.encodeToString(ChatBody.serializer(), ChatBody(mode, messages, self, partner)))
+            setBody(json.encodeToString(ChatBody.serializer(), ChatBody(mode, messages, self, partner, cases?.ifEmpty { null })))
         }
         val parsed = json.decodeFromString(ChatResponse.serializer(), resp.bodyAsText())
         if (parsed.ok && !parsed.text.isNullOrBlank()) parsed.text

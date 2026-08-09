@@ -5,7 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.hyubs.skonnection.AppContainer
 import com.hyubs.skonnection.core.loadOrNull
 import com.hyubs.skonnection.data.ChatTurn
+import com.hyubs.skonnection.data.Agenda
+import com.hyubs.skonnection.data.Issue
 import com.hyubs.skonnection.data.Profile
+import com.hyubs.skonnection.data.SimilarCases
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -33,7 +36,17 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
     /** 내 성향. 서버가 "나와 상대의 언어를 서로 번역"하는 데 쓴다. */
     private var self: Profile? = null
 
-    init { loadProfiles() }
+    // 유사 사례를 찾을 원본. 질문마다 다시 읽지 않고 화면을 열 때 한 번만 읽는다.
+    private var issues: List<Issue> = emptyList()
+    private var agendas: List<Agenda> = emptyList()
+
+    init { loadProfiles(); loadCasePool() }
+
+    /** 유사 사례 후보. 실패해도 상담은 되어야 하므로 조용히 비워둔다(로그는 남는다). */
+    private fun loadCasePool() = viewModelScope.launch {
+        issues = loadOrNull("issues", _error) { container.issueRepository.loadAll() } ?: emptyList()
+        agendas = loadOrNull("agendas", _error) { container.agendaRepository.loadAll() } ?: emptyList()
+    }
 
     private fun loadProfiles() = viewModelScope.launch {
         val all = loadOrNull("profiles", _error) { container.profileRepository.loadAll() } ?: return@launch
@@ -64,10 +77,12 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         val counsel = _state.value.mode == ChatMode.COUNSEL
         val selfBrief = if (counsel) self?.toBrief() else null
         val partnerBrief = if (counsel) _state.value.partner?.toBrief() else null
+        // 방금 쓴 질문과 겹치는 접수·안건만 고른다. 대화 전체가 아니라 이번 질문 기준이다.
+        val cases = if (counsel) SimilarCases.find(trimmed, issues, agendas) else null
 
         viewModelScope.launch {
             val result = container.chatRepository.send(
-                _state.value.mode.api, history, selfBrief, partnerBrief,
+                _state.value.mode.api, history, selfBrief, partnerBrief, cases,
             )
             val reply = result.getOrElse { "죄송해요, 답변을 가져오지 못했어요. 잠시 후 다시 시도해 주세요." }
             _state.value = _state.value.copy(
