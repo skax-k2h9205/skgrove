@@ -44,6 +44,74 @@ class IssuesViewModel(private val c: AppContainer) : ViewModel() {
     }
 }
 
+/**
+ * 리더 관리함 — 접수를 답변·1:1 제안·안건화·보류/종료로 처리한다(웹 LeaderInbox / iOS LeaderView 이식).
+ *
+ * 접수 화면(IssuesViewModel)과 달리 여기서는 목록을 읽기만 하지 않고 상태를 바꾼다.
+ * 처리 결과는 낙관적으로 먼저 반영하고, 서버 실패 시 refresh로 되돌린다.
+ */
+class LeaderViewModel(private val c: AppContainer) : ViewModel() {
+    private val _items = MutableStateFlow<List<Issue>>(emptyList()); val items = _items.asStateFlow()
+    private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()
+    private val _filter = MutableStateFlow<String?>(null); val filter = _filter.asStateFlow()
+    /** 방금 안건으로 올린 접수 안내. 한 번 보여주고 지운다. */
+    private val _promoted = MutableStateFlow<String?>(null); val promoted = _promoted.asStateFlow()
+    private var accounts: List<Account> = emptyList()
+
+    init { refresh() }
+
+    private fun refresh() = viewModelScope.launch {
+        _items.value = runCatching { c.issueRepository.loadAll() }.getOrDefault(emptyList())
+        if (accounts.isEmpty()) {
+            accounts = runCatching { c.accountRepository.loadAll() }.getOrDefault(emptyList())
+        }
+        _loading.value = false
+    }
+
+    fun setFilter(status: String?) { _filter.value = status }
+    fun clearPromoted() { _promoted.value = null }
+
+    /**
+     * 투표 대상 인원. 파트 한정 안건은 해당 파트 + '전체' 소속(팀리더)만 센다(웹 eligibleCountFor).
+     * 계정을 못 읽었으면 0 — 지어낸 모수로 정족수를 계산하지 않는다.
+     */
+    fun eligibleCountFor(part: String): Int = accounts.count {
+        it.status == "활성" && (part == "전체" || it.part == part || it.part == "전체")
+    }
+
+    fun reply(issue: Issue, text: String) = act(issue) { c.issueRepository.reply(issue, text) }
+    fun proposeOneOnOne(issue: Issue, text: String) = act(issue) { c.issueRepository.proposeOneOnOne(issue, text) }
+    fun hold(issue: Issue, reason: String) = act(issue) { c.issueRepository.decide(issue.id, "보류", reason) }
+    fun close(issue: Issue, reason: String) = act(issue) { c.issueRepository.decide(issue.id, "종료", reason) }
+
+    /** 접수를 안건으로 올리고 접수 상태를 '안건화'로 옮긴다. 둘 중 하나만 성공하면 목록을 다시 읽어 맞춘다. */
+    fun promote(issue: Issue, title: String, description: String, part: String, deadline: String, onDone: () -> Unit) {
+        viewModelScope.launch {
+            val ok = runCatching {
+                c.agendaRepository.createFromIssue(
+                    issue, title.trim(), description.trim(), part,
+                    deadline.ifBlank { defaultDeadline() }, eligibleCountFor(part),
+                )
+                c.issueRepository.mark(issue.id, "안건화")
+            }.isSuccess
+            if (ok) _promoted.value = "\"${title.trim()}\" 안건으로 올렸어요 — 안건·투표 화면에서 볼 수 있어요."
+            refresh()
+            onDone()
+        }
+    }
+
+    /** 처리 후 목록을 다시 읽는다. 답변 이력은 서버에서 이어 붙이므로 낙관적 조작보다 재조회가 안전하다. */
+    private fun act(issue: Issue, block: suspend () -> Unit) = viewModelScope.launch {
+        runCatching { block() }
+        refresh()
+    }
+
+    companion object {
+        /** 사람이 마감일을 정하지 않으면 7일. 기한 없이 방치되는 안건을 막는다(웹 DEFAULT_VOTING_DAYS). */
+        fun defaultDeadline(): String = java.time.LocalDate.now().plusDays(7).toString()
+    }
+}
+
 class AgendaViewModel(private val c: AppContainer) : ViewModel() {
     private val _items = MutableStateFlow<List<Agenda>>(emptyList()); val items = _items.asStateFlow()
     private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()

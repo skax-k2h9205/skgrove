@@ -23,6 +23,29 @@ private data class NewIssue(
     @SerialName("created_at") val createdAt: String,
 )
 
+/**
+ * 리더 처리 PATCH 바디.
+ *
+ * 액션마다 클래스를 따로 두는 이유: SupabaseClient의 Json이 encodeDefaults=true라
+ * "전부 nullable인 큰 patch 클래스" 하나로 만들면 안 보낸 필드까지 null로 직렬화돼
+ * 컬럼을 지워버린다(답변 한 번에 1:1 메모가 사라진다). 보낼 것만 담는다.
+ */
+@Serializable
+private data class ReplyPatch(@SerialName("leader_reply") val leaderReply: String, val status: String)
+
+@Serializable
+private data class OneOnOnePatch(@SerialName("one_on_one_note") val oneOnOneNote: String, val status: String)
+
+@Serializable
+private data class DecisionPatch(val status: String, @SerialName("status_reason") val statusReason: String)
+
+@Serializable
+private data class StatusPatch(val status: String)
+
+/** 처리기록은 덮어쓰지 않고 빈 줄로 구분해 이어 붙인다(웹 LeaderInbox.appendEntry). */
+private fun appendEntry(existing: String, addition: String) =
+    if (existing.isBlank()) addition else "$existing\n\n$addition"
+
 class IssueRepository(private val supabase: SupabaseClient) {
     suspend fun loadAll(): List<Issue> =
         supabase.select("issues", "select=*&order=created_at.desc", ListSerializer(IssueRow.serializer()))
@@ -50,6 +73,33 @@ class IssueRepository(private val supabase: SupabaseClient) {
             NewIssue.serializer(),
         )
     }
+
+    /** 리더 답변. 기존 답변 뒤에 이어 붙이고 상태를 '답변완료'로 옮긴다(웹 LeaderInbox saveAction). */
+    suspend fun reply(issue: Issue, entry: String) = supabase.patch(
+        "issues", issue.id,
+        ReplyPatch(appendEntry(issue.leaderReply, entry), "답변완료"),
+        ReplyPatch.serializer(),
+    )
+
+    /** 1:1 제안 메모. 기존 메모에 이어 붙이고 상태를 '1on1 제안'으로. */
+    suspend fun proposeOneOnOne(issue: Issue, entry: String) = supabase.patch(
+        "issues", issue.id,
+        OneOnOnePatch(appendEntry(issue.oneOnOneNote, entry), "1on1 제안"),
+        OneOnOnePatch.serializer(),
+    )
+
+    /**
+     * 보류·종료. 사유는 반드시 함께 남긴다(웹 issueRules.statusNeedsReason).
+     * 용기 내어 쓴 글이 이유 없이 닫히면 그 사람은 다시 쓰지 않는다.
+     */
+    suspend fun decide(id: String, status: String, reason: String) = supabase.patch(
+        "issues", id, DecisionPatch(status, reason), DecisionPatch.serializer(),
+    )
+
+    /** 사유 없이 옮겨도 되는 상태 전환(검토중·안건화). */
+    suspend fun mark(id: String, status: String) = supabase.patch(
+        "issues", id, StatusPatch(status), StatusPatch.serializer(),
+    )
 }
 
 @Serializable
@@ -67,6 +117,24 @@ private data class NewBallot(
 
 @Serializable
 private data class VotePatch(val approve: Int, val reject: Int)
+
+@Serializable
+private data class NewAgenda(
+    val id: String,
+    val title: String,
+    val description: String,
+    val category: String,
+    val source: String,
+    val part: String,
+    val author: String,
+    val approve: Int = 0,
+    val reject: Int = 0,
+    val status: String = "투표중",
+    // 날짜 컬럼에 빈 문자열을 넣으면 Postgres가 거부한다. 없으면 null로 보낸다(웹 agendaToRow).
+    val deadline: String?,
+    @SerialName("eligible_count") val eligibleCount: Int,
+    @SerialName("created_at") val createdAt: String,
+)
 
 class AgendaRepository(private val supabase: SupabaseClient) {
     suspend fun loadAll(): List<Agenda> =
@@ -90,6 +158,31 @@ class AgendaRepository(private val supabase: SupabaseClient) {
             NewBallot(agendaId, voterKey, java.time.Instant.now().toString()),
             NewBallot.serializer(),
         )
+    }
+
+    /**
+     * 대나무숲 접수를 안건으로 올린다(웹 promoteToAgenda 이식).
+     *
+     * 접수 원문을 그대로 싣지 않고 리더가 정제한 title/description만 저장한다.
+     * '리더만 보기'로 들어온 건은 작성자도 익명으로 못박는다 — 안건은 팀 전체가 본다.
+     */
+    suspend fun createFromIssue(
+        issue: Issue, title: String, description: String, part: String,
+        deadline: String, eligibleCount: Int,
+    ): String {
+        val id = "AGD-" + System.currentTimeMillis().toString(36).uppercase()
+        supabase.insert(
+            "agendas",
+            NewAgenda(
+                id = id, title = title, description = description, category = issue.category,
+                source = "대나무숲 ${issue.id}", part = part,
+                author = if (issue.isLeaderOnly) "익명" else issue.identity,
+                deadline = deadline.ifBlank { null }, eligibleCount = eligibleCount,
+                createdAt = java.time.Instant.now().toString(),
+            ),
+            NewAgenda.serializer(),
+        )
+        return id
     }
 }
 

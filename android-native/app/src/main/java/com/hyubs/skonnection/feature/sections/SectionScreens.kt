@@ -28,7 +28,8 @@ import com.hyubs.skonnection.feature.LoadingBox
 @Composable
 fun SectionHost(container: AppContainer, section: String, currentEmail: String?, modifier: Modifier = Modifier) {
     when (section) {
-        "대나무숲 접수", "리더 관리함" -> IssuesSection(container, modifier)
+        "대나무숲 접수" -> IssuesSection(container, modifier)
+        "리더 관리함" -> LeaderSection(container, modifier)
         "안건 · 투표" -> AgendaSection(container, modifier)
         "액션아이템" -> ActionsSection(container, modifier)
         "알림 · 메시지" -> NotificationsSection(container, currentEmail, modifier)
