@@ -42,3 +42,8 @@ coverage/
 # 실명·사번·이메일이 담긴 dev 시드 스크립트. 절대 커밋 금지(로컬 전용).
 scripts/seed-real-profiles.mjs
 scripts/set-account-photos.mjs
+
+# 발표자료 작업물. 프로덕 화면 캡처라 팀원 실명·얼굴 사진이 그대로 들어 있다.
+# 이 저장소는 public 이므로 절대 커밋하지 않는다.
+.playwright-mcp/
+SKonnection-발표자료.*
