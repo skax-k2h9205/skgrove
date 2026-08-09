@@ -8,7 +8,7 @@
   - AI 미설정(VITE_CHAT_ENDPOINT 없음)이면 위젯은 뜨되 안내만 — 앱은 안 깨진다.
 */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize2, Minimize2, Send, X } from 'lucide-react';
+import { Maximize2, Minimize2, Send, Square, X } from 'lucide-react';
 import {
   briefOf,
   streamChat,
@@ -88,7 +88,11 @@ export function ChatWidget({ currentUser, profiles, issues, agendas }: ChatWidge
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
+  const [copied, setCopied] = useState<string | null>(null);
+
   const sessionId = useRef(newId('CS')).current;
+  // 진행 중인 요청. 취소하거나 위젯을 닫을 때 끊는다.
+  const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -120,27 +124,44 @@ export function ChatWidget({ currentUser, profiles, issues, agendas }: ChatWidge
 
   const thread = messages.filter((m) => m.mode === mode);
 
-  const send = async () => {
+  /**
+   * 새 질문을 보내거나(retry:false), 마지막 질문을 다시 청한다(retry:true).
+   * 다시 시도가 첫 전송과 같은 경로를 타야 "왜 이번만 다르지"가 생기지 않는다.
+   *
+   * 재시도 여부는 인자로 **명시**한다. 입력창이 비었는지로 추측하면, 에러가 뜬 채로
+   * 뭔가 입력해 두고 [다시 시도]를 누른 사람이 엉뚱한 걸 보내게 된다.
+   */
+  const send = async ({ retry = false }: { retry?: boolean } = {}) => {
+    if (streaming) return;
     const content = input.trim();
-    if (!content || streaming) return;
-    setInput('');
+    const retrying = retry;
+    if (!content && !retrying) return;
     setError(null);
 
     const usePartner = mode === 'counsel' && partner ? partner : undefined;
-    const userMsg: CounselMessage = {
-      id: newId('CM'),
-      sessionId,
-      author: currentUser.email,
-      mode,
-      role: 'user',
-      content,
-      partnerName: usePartner,
-      createdAt: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    void insertCounselMessage(userMsg);
+    let sent = thread;
+    let lastAsked = thread.filter((m) => m.role === 'user').at(-1)?.content ?? '';
 
-    const turns: ChatTurn[] = [...thread, userMsg].map((m) => ({ role: m.role, content: m.content }));
+    if (!retrying) {
+      setInput('');
+      const userMsg: CounselMessage = {
+        id: newId('CM'),
+        sessionId,
+        author: currentUser.email,
+        mode,
+        role: 'user',
+        content,
+        partnerName: usePartner,
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+      void insertCounselMessage(userMsg);
+      sent = [...thread, userMsg];
+      lastAsked = content;
+    }
+    if (!lastAsked) return;
+
+    const turns: ChatTurn[] = sent.map((m) => ({ role: m.role, content: m.content }));
     const request: ChatRequest =
       mode === 'counsel'
         ? {
@@ -148,17 +169,24 @@ export function ChatWidget({ currentUser, profiles, issues, agendas }: ChatWidge
             messages: turns,
             self: briefOf(selfProfile),
             partner: briefOf(profiles.find((p) => p.name === partner)),
-            cases: findSimilarCases(content, issues, agendas),
+            cases: findSimilarCases(lastAsked, issues, agendas),
           }
         : { mode, messages: turns };
 
+    const controller = new AbortController();
+    abortRef.current = controller;
     setStreaming(true);
     setDraft('');
     let acc = '';
-    const result = await streamChat(request, (token) => {
-      acc += token;
-      setDraft(acc);
-    });
+    const result = await streamChat(
+      request,
+      (token) => {
+        acc += token;
+        setDraft(acc);
+      },
+      controller.signal,
+    );
+    abortRef.current = null;
     setStreaming(false);
     setDraft('');
 
@@ -175,6 +203,8 @@ export function ChatWidget({ currentUser, profiles, issues, agendas }: ChatWidge
       };
       setMessages((prev) => [...prev, botMsg]);
       void insertCounselMessage(botMsg);
+    } else if (result.reason === 'aborted') {
+      // 내가 멈춘 것을 실패로 알리지 않는다. 질문은 대화에 남아 다시 시도로 이어갈 수 있다.
     } else if (result.reason === 'disabled') {
       setError('AI가 아직 연결되지 않았어요. 관리자가 챗봇 서버(VITE_CHAT_ENDPOINT)를 설정하면 답할 수 있어요.');
     } else {
@@ -256,6 +286,21 @@ export function ChatWidget({ currentUser, profiles, issues, agendas }: ChatWidge
           <div key={m.id} className={m.role === 'user' ? 'chat-msg me' : 'chat-msg bot'}>
             <div className="chat-bubble">
               {m.role === 'assistant' ? <Markdownish text={m.content} /> : m.content}
+              {/* 상담 답변은 길고, 메모나 메시지로 옮겨 적고 싶어진다. */}
+              {m.role === 'assistant' && (
+                <button
+                  type="button"
+                  className="chat-copy"
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(m.content).then(() => {
+                      setCopied(m.id);
+                      window.setTimeout(() => setCopied(null), 1500);
+                    });
+                  }}
+                >
+                  {copied === m.id ? '복사했어요' : '복사'}
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -274,7 +319,15 @@ export function ChatWidget({ currentUser, profiles, issues, agendas }: ChatWidge
             </div>
           </div>
         )}
-        {error && <p className="chat-error">{error}</p>}
+        {/* 지금까지는 문구만 남아서 질문을 손으로 또 쳐야 했다. 질문은 이미 위에 있다. */}
+        {error && (
+          <p className="chat-error">
+            {error}
+            <button type="button" onClick={() => void send({ retry: true })} disabled={streaming}>
+              다시 시도
+            </button>
+          </p>
+        )}
       </div>
 
       {mode === 'counsel' && (
@@ -300,9 +353,16 @@ export function ChatWidget({ currentUser, profiles, issues, agendas }: ChatWidge
           placeholder={PLACEHOLDER[mode]}
           rows={1}
         />
-        <button type="button" onClick={() => void send()} disabled={streaming || !input.trim()} aria-label="보내기">
-          <Send size={18} />
-        </button>
+        {streaming ? (
+          // 답이 20~40초 걸린다. 잘못 보냈을 때 되돌릴 길이 없으면 그냥 기다리는 수밖에 없다.
+          <button type="button" onClick={() => abortRef.current?.abort()} aria-label="그만 받기">
+            <Square size={16} />
+          </button>
+        ) : (
+          <button type="button" onClick={() => void send()} disabled={!input.trim()} aria-label="보내기">
+            <Send size={18} />
+          </button>
+        )}
       </div>
     </section>
   );

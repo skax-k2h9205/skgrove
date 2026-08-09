@@ -71,6 +71,7 @@ export type ChatRequest = {
   knowledge?: string; // 룰 모드 지식(프론트가 번들해 실어 보냄)
 };
 
+// reason:'aborted' 는 사용자가 취소한 것이다. 실패가 아니므로 화면에 에러를 띄우면 안 된다.
 export type ChatResult = { ok: boolean; reason?: string };
 
 /**
@@ -78,7 +79,11 @@ export type ChatResult = { ok: boolean; reason?: string };
  * 프록시 이벤트 규약: `data: {"token":"..."}` 반복 → `data: {"done":true}` | `data: {"error":"..."}`.
  * 성공(ok:true)이면 onToken 으로 흘려보낸 조각을 이어붙인 것이 최종 답이다.
  */
-export async function streamChat(req: ChatRequest, onToken: (t: string) => void): Promise<ChatResult> {
+export async function streamChat(
+  req: ChatRequest,
+  onToken: (t: string) => void,
+  signal?: AbortSignal,
+): Promise<ChatResult> {
   if (!ENDPOINT) return { ok: false, reason: 'disabled' };
   // 룰 모드면 지식 문서를 실어 보낸다(서버리스 함수가 파일을 못 읽어도 동작).
   const payload: ChatRequest =
@@ -88,6 +93,7 @@ export async function streamChat(req: ChatRequest, onToken: (t: string) => void)
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal,
     });
     if (!res.ok || !res.body) return { ok: false, reason: `http ${res.status}` };
 
@@ -131,6 +137,10 @@ export async function streamChat(req: ChatRequest, onToken: (t: string) => void)
     }
     return failed ? { ok: false, reason: failed } : { ok: true };
   } catch (error) {
+    // 취소는 실패가 아니다. 호출부가 에러 문구를 띄우지 않도록 따로 알린다.
+    if (signal?.aborted || (error as { name?: string })?.name === 'AbortError') {
+      return { ok: false, reason: 'aborted' };
+    }
     return { ok: false, reason: String(error) };
   }
 }

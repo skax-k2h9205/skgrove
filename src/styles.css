@@ -12447,9 +12447,47 @@ button.notif-row {
 }
 
 .chat-error {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
   font-size: var(--text-meta);
   color: var(--color-danger);
   margin: 0;
+}
+.chat-error button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-primary);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* 답변 복사. 평소에는 눈에 띄지 않다가 말풍선에 다가가면 보인다 —
+   대화를 읽는 동안 버튼이 계속 따라다니면 글이 안 읽힌다. */
+.chat-copy {
+  display: block;
+  margin-top: var(--space-2);
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: var(--text-micro);
+  color: var(--color-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.chat-msg.bot:hover .chat-copy,
+.chat-copy:focus-visible {
+  opacity: 1;
+}
+/* 손가락에는 hover 가 없다. 터치 기기에서는 항상 보인다. */
+@media (hover: none) {
+  .chat-copy {
+    opacity: 1;
+  }
 }
 
 /* 갈등 상대 선택 */
