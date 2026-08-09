@@ -71,8 +71,9 @@ struct GatheringsView: View {
     }
 }
 
-/// 모임 상세 — 확정/대기 로스터 + 신청/취소, 대기 안내, 주최자 커피뽑기·취소.
-private struct GatheringDetailSheet: View {
+/// 모임 상세 — 확정/대기 로스터 + 신청/취소, 대기 안내, 주최자 커피 내기 게임·취소.
+/// 홈의 '커피 내기' 스토리에서도 바로 열기 때문에 모듈 내부에 공개한다.
+struct GatheringDetailSheet: View {
     let gatheringId: String
     @EnvironmentObject private var store: GatheringStore
     @EnvironmentObject private var session: SessionStore

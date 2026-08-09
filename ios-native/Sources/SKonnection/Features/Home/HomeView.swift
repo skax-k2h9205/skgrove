@@ -12,6 +12,9 @@ struct HomeView: View {
     @EnvironmentObject private var agendas: AgendaStore
     @EnvironmentObject private var actions: ActionStore
 
+    @State private var showIntake = false
+    @State private var openCoffeeId: CoffeeTarget?
+
     /// 각 도메인에서 몇 개씩 뽑아 라운드로빈으로 섞은 통합 피드.
     private var feed: [HomeFeedItem] {
         let h = humor.posts.prefix(8).map {
@@ -76,22 +79,48 @@ struct HomeView: View {
         }
     }
 
+    /// 스토리 줄. 인스타 스토리처럼 생겼으면 눌려야 한다 —
+    /// 예전에는 그림만 있어서 눌러도 아무 일이 없었다.
     private var storyRow: some View {
         HStack(alignment: .top, spacing: Theme.Space.x4) {
-            StoryCircle(icon: "plus", label: "말하기", ringed: false)
-            StoryCircle(icon: "bolt.fill", label: "커피 내기", ringed: true)
+            StoryCircle(icon: "plus", label: "말하기", ringed: false) {
+                showIntake = true
+            }
+            StoryCircle(icon: "bolt.fill", label: "커피 내기", ringed: true) {
+                // 열려 있는 커피 모임이 있으면 그 상세로 바로 — 없으면 모임 탭으로.
+                if let id = liveCoffeeGatheringId { openCoffeeId = id } else { onOpen(2) }
+            }
             Spacer(minLength: 0)
         }
+        .sheet(isPresented: $showIntake) { IntakeView() }
+        .sheet(item: $openCoffeeId) { GatheringDetailSheet(gatheringId: $0.id) }
+    }
+
+    /// 취소되지 않고 아직 커피 담당이 안 정해진 커피 모임 중 가장 최근 것.
+    private var liveCoffeeGatheringId: CoffeeTarget? {
+        gatherings.gatherings
+            .filter { $0.kind == .coffee && !$0.canceled && $0.coffeePick.isEmpty }
+            .first
+            .map { CoffeeTarget(id: $0.id) }
     }
 }
+
+/// sheet(item:) 에 넘기기 위한 Identifiable 래퍼.
+struct CoffeeTarget: Identifiable { let id: String }
 
 /// 인스타 스토리식 원형 버튼. ringed 면 그라데이션 링을 두른다.
 private struct StoryCircle: View {
     let icon: String
     let label: String
     let ringed: Bool
+    let action: () -> Void
 
     var body: some View {
+        Button { Haptics.selection(); action() } label: { circle }
+            .buttonStyle(.plain)
+    }
+
+    private var circle: some View {
         VStack(spacing: Theme.Space.x1) {
             ZStack {
                 if ringed {
