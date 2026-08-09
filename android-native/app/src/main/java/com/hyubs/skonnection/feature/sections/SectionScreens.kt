@@ -20,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hyubs.skonnection.AppContainer
+import com.hyubs.skonnection.data.Account
+import com.hyubs.skonnection.data.sortedForManagement
 import com.hyubs.skonnection.feature.EmptyBox
 import com.hyubs.skonnection.feature.FeedCard
 import com.hyubs.skonnection.feature.LoadingBox
@@ -244,14 +246,32 @@ private fun AccountsSection(c: AppContainer, modifier: Modifier) {
         loading && items.isEmpty() -> LoadingBox(modifier)
         items.isEmpty() -> EmptyBox("계정이 없어요.", modifier)
         else -> {
-            // 리더가 위로 오도록 정렬한다. 이름순만으로는 누가 권한을 가졌는지 훑기 어렵다.
-            val sorted = androidx.compose.runtime.remember(items) {
-                items.sortedWith(compareBy({ if (it.role.contains("리더")) 0 else 1 }, { it.name }))
-            }
+            val sorted = androidx.compose.runtime.remember(items) { items.sortedForManagement() }
             val active = androidx.compose.runtime.remember(items) { items.count { it.status == "활성" } }
+            val pending = androidx.compose.runtime.remember(items) { items.count { it.status == "승인 대기" } }
+            var editing by remember { mutableStateOf<Account?>(null) }
+
             LazyColumn(modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)) {
-                item { InfoBanner("계정 ${items.size}명 · 활성 ${active}명") }
-                items(sorted, key = { it.id }) { AccountCard(it) }
+                item {
+                    InfoBanner(
+                        buildString {
+                            append("계정 ${items.size}명 · 활성 ${active}명")
+                            if (pending > 0) append(" · 승인 대기 ${pending}명")
+                            append(if (vm.canEdit) " — 카드를 눌러 권한·상태를 바꿉니다." else " — 권한 변경은 리더만 할 수 있어요.")
+                        },
+                    )
+                }
+                items(sorted, key = { it.id }) { a ->
+                    AccountCard(a, onClick = if (vm.canEdit) ({ editing = a }) else null)
+                }
+            }
+
+            editing?.let { target ->
+                AccountEditForm(
+                    account = target,
+                    onClose = { editing = null },
+                    onSave = { updated -> vm.save(updated) { editing = null } },
+                )
             }
         }
     }
@@ -274,7 +294,16 @@ private fun NotificationsSection(c: AppContainer, email: String?, modifier: Modi
                         else "새로 온 알림은 없어요 👍 · 전체 ${items.size}건",
                     )
                 }
-                items(items, key = { it.id }) { NotificationCard(it) }
+                if (unread > 0) {
+                    item {
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { vm.markAllRead() },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        ) { androidx.compose.material3.Text("모두 읽음 ($unread)") }
+                    }
+                }
+                // 알림을 누르면 읽음 처리한다. 읽음 여부를 바꾸는 별도 버튼을 두면 손이 한 번 더 간다.
+                items(items, key = { it.id }) { n -> NotificationCard(n, onClick = { vm.markRead(n) }) }
             }
         }
     }

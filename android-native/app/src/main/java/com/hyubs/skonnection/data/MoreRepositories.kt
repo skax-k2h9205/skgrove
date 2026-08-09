@@ -214,6 +214,9 @@ class ActionRepository(private val supabase: SupabaseClient) {
     suspend fun delete(id: String) = supabase.delete("action_items", "id=eq.$id")
 }
 
+@Serializable
+private data class ReadPatch(val read: Boolean)
+
 class NotificationRepository(private val supabase: SupabaseClient) {
     suspend fun loadFor(recipientName: String): List<AppNotification> =
         supabase.select(
@@ -221,4 +224,15 @@ class NotificationRepository(private val supabase: SupabaseClient) {
             "select=*&recipient_name=eq.$recipientName&order=created_at.desc",
             ListSerializer(NotificationRow.serializer()),
         ).map { it.toNotification() }
+
+    suspend fun markRead(id: String) =
+        supabase.patch("notifications", id, ReadPatch(true), ReadPatch.serializer())
+
+    /**
+     * 받은 알림을 모두 읽음으로. 안 읽은 것만 골라 보내지 않고 수신자 전체를 덮는다 —
+     * 이미 읽은 건을 다시 true로 써도 결과가 같고, 목록과 서버가 어긋날 여지가 없다.
+     */
+    suspend fun markAllRead(recipientName: String) = supabase.patchWhere(
+        "notifications", "recipient_name=eq.$recipientName", ReadPatch(true), ReadPatch.serializer(),
+    )
 }

@@ -224,9 +224,12 @@ fun InfoBanner(text: String) {
 
 /** 계정 카드 — 아바타 + 이름/이메일 + 권한·파트. 비활성 계정은 흐리게 둬 목록에서 구분된다. */
 @Composable
-fun AccountCard(account: com.hyubs.skonnection.data.Account) {
+fun AccountCard(account: com.hyubs.skonnection.data.Account, onClick: (() -> Unit)? = null) {
     val inactive = account.status != "활성"
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)) {
+    Card(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+    ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.alpha(if (inactive) 0.45f else 1f)) {
                 MiniAvatar(account.name.ifBlank { account.email }, size = 40)
@@ -255,8 +258,11 @@ fun AccountCard(account: com.hyubs.skonnection.data.Account) {
 
 /** 알림 카드 — 안 읽은 건은 좌측 색 띠로 표시한다. 배지만 쓰면 목록에서 훑히지 않는다. */
 @Composable
-fun NotificationCard(n: com.hyubs.skonnection.data.AppNotification) {
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)) {
+fun NotificationCard(n: com.hyubs.skonnection.data.AppNotification, onClick: (() -> Unit)? = null) {
+    Card(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+    ) {
         Row(Modifier.height(IntrinsicSize.Min)) {
             Box(
                 Modifier.width(4.dp).fillMaxHeight()

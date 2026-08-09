@@ -52,6 +52,10 @@ class AppContainer(context: Context) {
     val isAdmin: Boolean
         get() = currentUser?.email?.equals("admin@sk.com", ignoreCase = true) == true
 
+    /** 리더(팀리더·파트리더). 계정 권한 변경처럼 팀 전체에 영향을 주는 조작을 여기서 막는다. */
+    val isLeader: Boolean
+        get() = currentUser?.role?.contains("리더") == true
+
     suspend fun refreshCurrentUser(email: String?): Account? {
         if (email == null) { currentUser = null; return null }
         currentUser = runCatching {

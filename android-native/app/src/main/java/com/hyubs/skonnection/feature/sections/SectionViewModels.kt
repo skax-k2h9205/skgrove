@@ -216,21 +216,60 @@ class MetricsViewModel(private val c: AppContainer) : ViewModel() {
 class AccountsViewModel(private val c: AppContainer) : ViewModel() {
     private val _items = MutableStateFlow<List<Account>>(emptyList()); val items = _items.asStateFlow()
     private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()
-    init { viewModelScope.launch { _items.value = runCatching { c.accountRepository.loadAll() }.getOrDefault(emptyList()); _loading.value = false } }
+    /** 권한·상태 변경은 팀 전체에 영향을 준다. 리더가 아니면 카드는 읽기 전용으로 둔다. */
+    val canEdit: Boolean get() = c.isLeader
+
+    init { refresh() }
+
+    private fun refresh() = viewModelScope.launch {
+        _items.value = runCatching { c.accountRepository.loadAll() }.getOrDefault(emptyList())
+        _loading.value = false
+    }
+
+    /**
+     * 계정 변경 저장. 화면에 먼저 반영하고 서버에 보낸 뒤, 실패하면 다시 읽어 되돌린다.
+     * 권한이 없으면 아무것도 하지 않는다 — 화면에서 막더라도 여기서 한 번 더 막는다.
+     */
+    fun save(updated: Account, onDone: () -> Unit) {
+        if (!canEdit) return
+        _items.value = _items.value.map { if (it.id == updated.id) updated else it }
+        viewModelScope.launch {
+            runCatching { c.accountRepository.update(updated) }.onFailure { refresh() }
+            onDone()
+        }
+    }
 }
 
 class NotificationsViewModel(private val c: AppContainer, private val email: String?) : ViewModel() {
     private val _items = MutableStateFlow<List<AppNotification>>(emptyList()); val items = _items.asStateFlow()
     private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()
+    /** 알림은 수신자 '이름'으로 걸려 있다. 읽음 처리에도 같은 이름이 필요해 들고 있는다. */
+    private var recipientName: String? = null
+
     init {
         viewModelScope.launch {
             // 세션은 이메일만 보관 → accounts 에서 현재 사용자 이름을 찾아 수신 알림을 부른다.
-            val name = runCatching {
+            recipientName = runCatching {
                 c.accountRepository.loadAll().firstOrNull { it.email.equals(email, ignoreCase = true) }?.name
             }.getOrNull()
+            val name = recipientName
             _items.value = if (name == null) emptyList()
             else runCatching { c.notificationRepository.loadFor(name) }.getOrDefault(emptyList())
             _loading.value = false
         }
+    }
+
+    /** 알림 하나를 읽음으로. 이미 읽은 건은 서버를 다시 부르지 않는다. */
+    fun markRead(item: AppNotification) {
+        if (item.read) return
+        _items.value = _items.value.map { if (it.id == item.id) it.copy(read = true) else it }
+        viewModelScope.launch { runCatching { c.notificationRepository.markRead(item.id) } }
+    }
+
+    fun markAllRead() {
+        val name = recipientName ?: return
+        if (_items.value.none { !it.read }) return
+        _items.value = _items.value.map { it.copy(read = true) }
+        viewModelScope.launch { runCatching { c.notificationRepository.markAllRead(name) } }
     }
 }

@@ -80,6 +80,15 @@ class SupabaseClient(
         }
     }
 
+    /** 임의 필터로 부분 수정(예: filter = "recipient_name=eq.홍길동"). 여러 행을 한 번에 고칠 때. */
+    suspend fun <T> patchWhere(table: String, filter: String, fields: T, serializer: SerializationStrategy<T>) {
+        http.patch(restUrl(table, filter)) {
+            applyHeaders()
+            header("Prefer", "return=minimal")
+            setBody(json.encodeToString(serializer, fields))
+        }
+    }
+
     /** 임의 필터로 삭제(예: filter = "id=eq.X"). */
     suspend fun delete(table: String, filter: String) {
         http.delete(restUrl(table, filter)) {
