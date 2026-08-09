@@ -31,17 +31,21 @@ data class CounselMessage(
 )
 
 class CounselRepository(private val supabase: SupabaseClient) {
-    private companion object {
-        const val TABLE = "counsel_messages"
+    companion object {
+        private const val TABLE = "counsel_messages"
 
         /**
          * 밀리초까지 남긴다. 같은 초에 질문과 답이 겹치면 정렬이 뒤집혀
          * 질문 아래에 답이 아니라 답 아래에 질문이 붙는다.
+         * 서버에서 `created_at.asc` 로 정렬하므로 문자열 정렬이 곧 시간 정렬이어야 한다.
          */
-        val ISO: SimpleDateFormat =
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+        private val ISO: SimpleDateFormat
+            get() = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
                 timeZone = TimeZone.getTimeZone("UTC")
             }
+
+        /** 테스트에서 형식을 값으로 못박기 위해 노출한다. SimpleDateFormat 은 스레드 안전하지 않아 매번 새로 만든다. */
+        val ISO_FOR_TEST: SimpleDateFormat get() = ISO
     }
 
     fun now(): String = ISO.format(Date())
