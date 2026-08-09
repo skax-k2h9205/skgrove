@@ -18,6 +18,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -128,11 +129,28 @@ private fun Bubble(assistant: Boolean, text: String) {
                 .background(if (assistant) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
-            Text(
-                text,
-                color = if (assistant) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            val ink = if (assistant) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary
+            if (!assistant) {
+                // 내가 쓴 말은 서식이 아니라 쓴 그대로여야 한다.
+                Text(text, color = ink, style = MaterialTheme.typography.bodyMedium)
+            } else {
+                for (block in ChatMarkdown.parse(text)) {
+                    when (block) {
+                        is ChatMarkdown.Block.Paragraph ->
+                            Text(block.text, color = ink, style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(bottom = 6.dp))
+                        is ChatMarkdown.Block.ListItem ->
+                            // 기호 자리를 고정폭으로 잡아 둘째 줄이 글머리 아래로 들어가지 않게 한다.
+                            Row(Modifier.padding(bottom = 4.dp)) {
+                                Text(block.marker, color = ink, style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.widthIn(min = 18.dp))
+                                Text(block.text, color = ink, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        ChatMarkdown.Block.Rule ->
+                            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = ink.copy(alpha = 0.25f))
+                    }
+                }
+            }
         }
     }
     Spacer(Modifier.padding(2.dp))
