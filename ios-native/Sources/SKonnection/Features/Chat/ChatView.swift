@@ -18,6 +18,8 @@ struct ChatView: View {
     @State private var sending = false
     @State private var error: String?
     @State private var confirmClear = false
+    // 답이 20~40초 걸린다. 잘못 보냈을 때 되돌릴 길이 없으면 그냥 기다리는 수밖에 없다.
+    @State private var inFlight: Task<Void, Never>?
 
     private static let counselGreeting = "안녕하세요, 팀 마음상담이에요. 요즘 어떤 일로 마음이 무거운가요? 누구와의 일이라면 아래에서 이름을 골라 주면 서로의 성향을 함께 살펴볼게요."
     private static let ruleGreeting = "팀 운영·예산·근태·AI 도구·KPI 규칙이나 출입·보안 절차가 궁금하면 물어보세요. 규정을 근거로 답해 드릴게요."
@@ -119,8 +121,14 @@ struct ChatView: View {
                     // 눌러서 바로 보내지는 예시를 깔아 첫 질문의 문턱을 없앤다.
                     if turns.count <= 1, !sending { starters }
                     if sending {
-                        HStack { ProgressView(); Text("생각 중…").font(.footnote).foregroundStyle(Theme.Palette.muted) }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(spacing: Theme.Space.x2) {
+                            ProgressView()
+                            Text("생각 중…").font(.footnote).foregroundStyle(Theme.Palette.muted)
+                            // 보낸 질문은 대화에 남는다 — 그만 받아도 "다시 시도"로 이어갈 수 있다.
+                            Button("그만 받기") { cancel() }
+                                .font(.footnote.weight(.semibold))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     // 답을 못 받으면 지금까지는 빨간 글씨만 남고, 다시 물으려면 질문을
                     // 손으로 또 쳐야 했다. 보낸 말은 이미 위에 있으니 그대로 다시 보낸다.
@@ -260,17 +268,31 @@ struct ChatView: View {
         let cases = isCounselMode ? similarCases(lastUser) : nil
         let currentMode = mode
         let who = author
-        Task {
+        inFlight = Task {
             do {
                 let reply = try await ChatService.reply(to: sent, mode: currentMode,
                                                         selfBrief: selfBrief, partner: partnerBrief, cases: cases)
+                // 답이 도착하는 순간에 취소를 눌렀을 수 있다. 그만 받겠다고 한 답을 대화에 남기지 않는다.
+                guard !Task.isCancelled else { return }
                 counsel.append(author: who, mode: currentMode, role: "assistant", content: reply,
                                partnerName: partnerBrief?.name)
+            } catch is CancellationError {
+                // 내가 멈춘 것을 실패로 알리지 않는다.
             } catch {
-                self.error = "답변을 받지 못했어요 — \(error.localizedDescription)"
+                if !Task.isCancelled {
+                    self.error = "답변을 받지 못했어요 — \(error.localizedDescription)"
+                }
             }
+            inFlight = nil
             sending = false
         }
+    }
+
+    /// 받는 중인 답을 그만 기다린다.
+    private func cancel() {
+        inFlight?.cancel()
+        inFlight = nil
+        sending = false
     }
 
     /// 이름으로 성향 브리프 구성(민감정보 제외).
