@@ -44,19 +44,17 @@ create policy "Allow prototype account updates"
   using (true)
   with check (true);
 
+-- 빈 프로젝트를 처음 세울 때 쓰는 부트스트랩 계정 세 개.
+-- **do nothing 이어야 한다.** do update 였을 때, 이미 돌아가는 프로덕션에
+-- 이 파일을 다시 실행하면 세 사람의 역할·파트·상태가 여기 적힌 옛 값으로
+-- 되돌아갔다(김수정 님은 '승인 대기'로 바뀌어 로그인이 막히는 값이었다).
+-- 스키마 파일은 언제 다시 돌려도 안전해야 한다.
 insert into public.accounts (id, name, email, role, part, status, joined_at)
 values
   ('USR-ADMIN', '이선민', 'sunmin.l@sk.com', '팀리더', '전체', '활성', '2026-07-24'),
   ('USR-02', '김승현', 'k2h9205@sk.com', '파트리더', 'ITS혁신파트', '활성', '2026-07-24'),
   ('USR-03', '김수정', 'crystalk@sk.com', '팀원', '혁신도구파트', '승인 대기', '2026-07-24')
-on conflict (id) do update set
-  name = excluded.name,
-  email = excluded.email,
-  role = excluded.role,
-  part = excluded.part,
-  status = excluded.status,
-  joined_at = excluded.joined_at,
-  updated_at = now();
+on conflict (id) do nothing;
 
 create table if not exists public.issues (
   id text primary key,
