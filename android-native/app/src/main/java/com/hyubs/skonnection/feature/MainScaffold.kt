@@ -64,6 +64,10 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
     var composeHumor by remember { mutableStateOf(false) }
     var composeGathering by remember { mutableStateOf(false) }
     var composeMarket by remember { mutableStateOf(false) }
+    // 섹션(대나무숲·액션아이템)의 등록 상태. 상단바가 MainScaffold 소유라 상태도 여기서 든다.
+    var composeSection by remember { mutableStateOf(false) }
+    // 다른 섹션으로 옮기면 등록 폼을 접는다. 안 그러면 대나무숲에서 열어둔 폼이 다음 섹션까지 따라온다.
+    androidx.compose.runtime.LaunchedEffect(openSection) { composeSection = false }
     // 작성 폼이 뜨면 자체 상단바를 가지므로 바깥 크롬(탭바·하단네비·챗 FAB)을 숨겨 전체화면으로.
     val composingAny = composeHumor || composeGathering || composeMarket
 
@@ -82,8 +86,20 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
                 inSection -> TopAppBar(
                     title = { Text(openSection!!) },
                     navigationIcon = {
-                        IconButton(onClick = { openSection = null }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
+                        // 뒤로 + 등록을 타이틀 왼쪽에 나란히 둔다. 유머·모임·장터 탭이 이미
+                        // 타이틀 좌측 +로 등록을 받으므로, 섹션도 같은 자리에서 같은 몸짓이 되게 한다.
+                        androidx.compose.foundation.layout.Row {
+                            IconButton(onClick = { openSection = null }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
+                            }
+                            if (com.hyubs.skonnection.feature.sections.sectionSupportsCompose(openSection!!)) {
+                                IconButton(onClick = { composeSection = true }) {
+                                    Icon(
+                                        Icons.Filled.Add,
+                                        contentDescription = if (openSection == "대나무숲 접수") "접수하기" else "액션 추가",
+                                    )
+                                }
+                            }
                         }
                     },
                 )
@@ -136,7 +152,14 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
         if (showChat) {
             com.hyubs.skonnection.feature.chat.ChatScreen(container, contentModifier)
         } else if (inSection) {
-            SectionHost(container, openSection!!, currentEmail, contentModifier)
+            SectionHost(
+                container = container,
+                section = openSection!!,
+                currentEmail = currentEmail,
+                composing = composeSection,
+                onComposingChange = { composeSection = it },
+                modifier = contentModifier,
+            )
         } else {
             when (tab) {
                 0 -> com.hyubs.skonnection.feature.home.HomeGridContent(

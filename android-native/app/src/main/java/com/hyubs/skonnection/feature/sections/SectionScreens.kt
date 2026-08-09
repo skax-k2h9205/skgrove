@@ -34,19 +34,37 @@ import com.hyubs.skonnection.feature.LoadingBox
  * 배경은 여기서 한 번만 깐다 — 섹션마다 따로 칠하면 열 개가 조금씩 다른 흰색이 된다.
  */
 @Composable
-fun SectionHost(container: AppContainer, section: String, currentEmail: String?, modifier: Modifier = Modifier) {
+fun SectionHost(
+    container: AppContainer,
+    section: String,
+    currentEmail: String?,
+    composing: Boolean = false,
+    onComposingChange: (Boolean) -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
     val page = modifier.fillMaxSize()
         .background(androidx.compose.material3.MaterialTheme.colorScheme.background)
-    SectionBody(container, section, currentEmail, page)
+    SectionBody(container, section, currentEmail, composing, onComposingChange, page)
 }
 
+/** 등록(작성)이 있는 섹션. 상단 + 버튼을 띄울지 판단하는 데 쓴다. */
+fun sectionSupportsCompose(section: String): Boolean =
+    section == "대나무숲 접수" || section == "액션아이템"
+
 @Composable
-private fun SectionBody(container: AppContainer, section: String, currentEmail: String?, modifier: Modifier) {
+private fun SectionBody(
+    container: AppContainer,
+    section: String,
+    currentEmail: String?,
+    composing: Boolean,
+    onComposingChange: (Boolean) -> Unit,
+    modifier: Modifier,
+) {
     when (section) {
-        "대나무숲 접수" -> IssuesSection(container, modifier)
+        "대나무숲 접수" -> IssuesSection(container, composing, onComposingChange, modifier)
         "리더 관리함" -> LeaderSection(container, modifier)
         "안건 · 투표" -> AgendaSection(container, modifier)
-        "액션아이템" -> ActionsSection(container, modifier)
+        "액션아이템" -> ActionsSection(container, composing, onComposingChange, modifier)
         "알림 · 메시지" -> NotificationsSection(container, currentEmail, modifier)
         "계정 관리" -> AccountsSection(container, modifier)
         "동료 성향" -> ProfilesSection(container, modifier)
@@ -58,12 +76,16 @@ private fun SectionBody(container: AppContainer, section: String, currentEmail: 
 }
 
 @Composable
-private fun IssuesSection(c: AppContainer, modifier: Modifier) {
+private fun IssuesSection(
+    c: AppContainer,
+    composing: Boolean,
+    onComposingChange: (Boolean) -> Unit,
+    modifier: Modifier,
+) {
     val vm = remember { IssuesViewModel(c) }
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
-    var composing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
     SectionScaffold(onRefresh = vm::retry, modifier = modifier) {
       androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
@@ -80,20 +102,14 @@ private fun IssuesSection(c: AppContainer, modifier: Modifier) {
                 }
             }
         }
-        androidx.compose.material3.ExtendedFloatingActionButton(
-            onClick = { composing = true },
-            icon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Add, contentDescription = null) },
-            text = { androidx.compose.material3.Text("접수하기") },
-            modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(16.dp),
-        )
       }
     }
 
     if (composing) {
         IssueComposeDialog(
-            onDismiss = { composing = false },
+            onDismiss = { onComposingChange(false) },
             onSubmit = { t, cat, tgt, urg, body, exp, vis, anon ->
-                vm.submit(t, cat, tgt, urg, body, exp, vis, anon) { composing = false }
+                vm.submit(t, cat, tgt, urg, body, exp, vis, anon) { onComposingChange(false) }
             },
         )
     }
@@ -200,12 +216,16 @@ private fun AgendaSection(c: AppContainer, modifier: Modifier) {
 }
 
 @Composable
-private fun ActionsSection(c: AppContainer, modifier: Modifier) {
+private fun ActionsSection(
+    c: AppContainer,
+    composing: Boolean,
+    onComposingChange: (Boolean) -> Unit,
+    modifier: Modifier,
+) {
     val vm = remember { ActionsViewModel(c) }
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
-    var composing by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<com.hyubs.skonnection.data.ActionItem?>(null) }
 
     SectionScaffold(onRefresh = vm::retry, modifier = modifier) {
@@ -225,12 +245,6 @@ private fun ActionsSection(c: AppContainer, modifier: Modifier) {
                 }
             }
         }
-        androidx.compose.material3.ExtendedFloatingActionButton(
-            onClick = { composing = true },
-            icon = { androidx.compose.material3.Icon(Icons.Filled.Add, contentDescription = null) },
-            text = { androidx.compose.material3.Text("액션 추가") },
-            modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(16.dp),
-        )
       }
     }
 
@@ -240,8 +254,8 @@ private fun ActionsSection(c: AppContainer, modifier: Modifier) {
         var due by remember { mutableStateOf("") }
         com.hyubs.skonnection.feature.FullScreenForm(
             title = "액션아이템 추가", submitLabel = "추가", canSubmit = title.isNotBlank(),
-            onSubmit = { if (title.isNotBlank()) vm.create(title, owner, due) { composing = false } },
-            onClose = { composing = false },
+            onSubmit = { if (title.isNotBlank()) vm.create(title, owner, due) { onComposingChange(false) } },
+            onClose = { onComposingChange(false) },
         ) {
             com.hyubs.skonnection.feature.FormLabel("할 일", required = true)
             androidx.compose.material3.OutlinedTextField(title, { title = it }, placeholder = { androidx.compose.material3.Text("무엇을 해야 하나요?") }, singleLine = true, modifier = Modifier.fillMaxWidth())
