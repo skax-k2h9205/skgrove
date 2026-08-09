@@ -99,7 +99,7 @@ struct HomeView: View {
     /// 취소되지 않고 아직 커피 담당이 안 정해진 커피 모임 중 가장 최근 것.
     private var liveCoffeeGatheringId: CoffeeTarget? {
         gatherings.gatherings
-            .filter { $0.kind == .coffee && !$0.canceled && $0.coffeePick.isEmpty }
+            .filter { gatherings.hasCoffeeDraw($0) && !$0.canceled && $0.coffeePick.isEmpty }
             .first
             .map { CoffeeTarget(id: $0.id) }
     }

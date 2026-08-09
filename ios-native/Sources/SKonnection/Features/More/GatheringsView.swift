@@ -161,7 +161,7 @@ struct GatheringDetailSheet: View {
                     .font(.caption).foregroundStyle(Theme.Palette.muted)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-        } else if g.kind == .coffee, g.coffeePick.isEmpty, store.status(g) == .open {
+        } else if store.hasCoffeeDraw(g), g.coffeePick.isEmpty, store.status(g) == .open {
             Text("신청 마감 뒤에 커피 내기를 돌립니다 — 그때까지 참여자를 받아요.")
                 .font(.caption).foregroundStyle(Theme.Palette.muted)
                 .frame(maxWidth: .infinity, alignment: .leading)

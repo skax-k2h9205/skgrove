@@ -140,8 +140,15 @@ final class GatheringStore: ObservableObject {
     ///
     /// **신청 마감 전에는 열리지 않는다.** 명단이 아직 늘어나는 중에 돌리면
     /// 뒤늦게 신청한 사람이 이유 없이 빠지기 때문이다(참여자는 마감될 때까지 받는다).
+    /// 커피 내기가 걸린 모임인가.
+    ///
+    /// **kind 만 보면 안 된다.** 웹에서 "번개 + 커피뽑기"로 열면 kind 는 flash 이고
+    /// coffee_draw 만 true 다 — 실제 운영 데이터의 커피 모임 3건이 전부 그 모양이었고,
+    /// 그래서 게임 버튼이 한 번도 뜨지 않았다(2026-08 시연 준비 중 발견).
+    func hasCoffeeDraw(_ g: Gathering) -> Bool { g.kind == .coffee || g.coffeeDraw }
+
     func canDrawCoffee(_ g: Gathering) -> Bool {
-        g.kind == .coffee && !g.canceled && g.coffeePick.isEmpty
+        hasCoffeeDraw(g) && !g.canceled && g.coffeePick.isEmpty
             && coffeeCandidates(g).count >= 2
             && status(g) != .open
     }
