@@ -794,3 +794,16 @@ alter table public.profiles add column if not exists disc_type text;
 alter table public.profiles add column if not exists disc_secondary text;
 alter table public.profiles add column if not exists disc_scores jsonb;
 alter table public.profiles add column if not exists collab_guide text;
+
+-- 내 캐릭터 컬럼 (profiles). 모두 nullable — 캐릭터가 없어도 프로필은 그대로 성립한다.
+-- 사람이 아니라 사물을 묻는 값들이다. 나이·외모는 일부러 저장하지 않는다.
+alter table public.profiles add column if not exists avatar_kind text;    -- 동물/사물/사람
+alter table public.profiles add column if not exists desk_item text;      -- 자리에 늘 있는 것
+alter table public.profiles add column if not exists into_lately text;    -- 요즘 빠져 있는 것
+alter table public.profiles add column if not exists energy_time text;    -- 아침/낮/밤
+alter table public.profiles add column if not exists character_url text;  -- 생성된 캐릭터 이미지 URL
+
+-- 캐릭터 이미지 버킷. 모임 포스터(gathering-images)와 같은 방식(공개 읽기).
+insert into storage.buckets (id, name, public)
+values ('profile-characters', 'profile-characters', true)
+on conflict (id) do nothing;

@@ -11,10 +11,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Avatar } from '../../components/Avatar';
 import { PanelHeader } from '../../components/PanelHeader';
 import { profiles as initialProfiles } from '../../data/mockData';
-import { loadProfiles, saveProfileForUser } from '../../profileStore';
+import { loadProfiles, saveProfileForUser, uploadCharacterImage } from '../../profileStore';
+import { requestCharacterImage } from '../../characterImage';
 import { Assessment } from './AssessmentFlow';
 import { DISC_GUIDE, DISC_LABEL } from './assessment';
 import { Markdownish } from '../chat/Markdownish';
+import { AVATAR_KINDS } from '../../types';
 import type { CurrentUser, Profile } from '../../types';
 
 type ProfileDraft = Omit<Profile, 'color'>;
@@ -106,6 +108,8 @@ export function Profiles({ mode, currentUser, onProfilesChange }: ProfilesProps)
   const [partFilter, setPartFilter] = useState('전체');
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [characterBusy, setCharacterBusy] = useState(false);
+  const [characterNote, setCharacterNote] = useState('');
   const [showAssessment, setShowAssessment] = useState(false);
   const [editingCollab, setEditingCollab] = useState(false);
   const [collabDraft, setCollabDraft] = useState('');
@@ -167,20 +171,10 @@ export function Profiles({ mode, currentUser, onProfilesChange }: ProfilesProps)
       const nextMine = loadedProfiles.find((profile) => profile.name === currentUser.name) ?? loadedProfiles[0];
       if (nextMine) {
         setSelectedName(nextMine.name);
-        setDraft({
-          name: nextMine.name,
-          part: nextMine.part,
-          role: nextMine.role,
-          englishName: nextMine.englishName,
-          birthYear: nextMine.birthYear,
-          birthday: nextMine.birthday,
-          character: nextMine.character,
-          trait: nextMine.trait,
-          style: nextMine.style,
-          collaboration: nextMine.collaboration,
-          feedback: nextMine.feedback,
-          guide: nextMine.guide,
-        });
+        // 스프레드로 통째로 옮긴다. 필드를 하나씩 옮겨 담으면 새 값(성향 진단·캐릭터)이
+        // 생길 때마다 조용히 빠져서, 편집만 해도 그 값이 지워진다.
+        const { color: _color, ...rest } = nextMine;
+        setDraft(rest);
       }
     });
 
@@ -193,22 +187,35 @@ export function Profiles({ mode, currentUser, onProfilesChange }: ProfilesProps)
     setDraft((current) => ({ ...current, [field]: value }));
   };
 
+  /**
+   * 캐릭터 그림 생성. 실패는 조용히 넘기지 않고 한 줄로 알린다 —
+   * 버튼을 눌렀는데 아무 일도 안 일어나면 사용자는 고장으로 읽는다.
+   */
+  const makeCharacter = async () => {
+    if (!draft.avatarKind || characterBusy) return;
+    setCharacterBusy(true);
+    setCharacterNote('');
+    try {
+      const file = await requestCharacterImage({ ...draft, color: myProfile?.color ?? 'blue' } as Profile);
+      if (!file) {
+        setCharacterNote('지금은 그림을 만들지 못했어요. 잠시 뒤 다시 눌러보세요.');
+        return;
+      }
+      const url = await uploadCharacterImage(currentUser.email, file);
+      if (!url) {
+        setCharacterNote('그림은 만들었는데 저장에 실패했어요. 다시 시도해 주세요.');
+        return;
+      }
+      updateDraft('characterUrl', url);
+    } finally {
+      setCharacterBusy(false);
+    }
+  };
+
   const startEdit = () => {
     if (myProfile) {
-      setDraft({
-        name: myProfile.name,
-        part: myProfile.part,
-        role: myProfile.role,
-        englishName: myProfile.englishName,
-        birthYear: myProfile.birthYear,
-        birthday: myProfile.birthday,
-        character: myProfile.character,
-        trait: myProfile.trait,
-        style: myProfile.style,
-        collaboration: myProfile.collaboration,
-        feedback: myProfile.feedback,
-        guide: myProfile.guide,
-      });
+      const { color: _color, ...rest } = myProfile;
+      setDraft(rest);
     }
     setIsEditing(true);
   };
@@ -270,7 +277,13 @@ export function Profiles({ mode, currentUser, onProfilesChange }: ProfilesProps)
             쌓여 신원에만 166px 을 썼다. 라벨은 화면 제목이 '마이페이지'라 군더더기다.
           */}
           <div className="my-profile-head">
-            <div className={`avatar ${cardProfile.color}`}>{cardProfile.name.slice(0, 1)}</div>
+            {/* 캐릭터가 있으면 그림으로, 없으면 지금처럼 이니셜로 — 캐릭터는 선택이다. */}
+            {cardProfile.characterUrl ? (
+              <img className={`avatar avatar-character ${cardProfile.color}`}
+                   src={cardProfile.characterUrl} alt={`${cardProfile.name} 캐릭터`} />
+            ) : (
+              <div className={`avatar ${cardProfile.color}`}>{cardProfile.name.slice(0, 1)}</div>
+            )}
             <div className="my-profile-id">
               <span>{cardProfile.part}</span>
               <h2>{cardProfile.name}</h2>
@@ -401,6 +414,82 @@ export function Profiles({ mode, currentUser, onProfilesChange }: ProfilesProps)
             동료에게 남길 한 줄 가이드
             <input value={draft.guide} onChange={(event) => updateDraft('guide', event.target.value)} />
           </label>
+
+          {/*
+            내 캐릭터. 사람이 아니라 **사물**을 묻는다 — 자리에 늘 있는 것, 요즘 빠져 있는 것.
+            외모·나이는 받지 않는다: 그림 품질은 거의 안 오르는데 팀에서 민감해진다.
+            모습을 동물로 고르게 하는 것도 같은 이유다. 실물을 닮게 그리면 "나 이렇게 안
+            생겼는데"가 나오고, 그 한마디가 기능 자체를 안 쓰게 만든다. 동물이면 틀릴 수 없다.
+          */}
+          <fieldset className="survey-question">
+            <legend>내 캐릭터 (선택)</legend>
+            <p className="profile-character-hint">
+              안 만들어도 됩니다. 만들면 동료 목록과 내 카드에 그림으로 보여요.
+            </p>
+            <div className="survey-choice-grid profile-avatar-grid">
+              {AVATAR_KINDS.map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  className={draft.avatarKind === kind ? 'selected' : ''}
+                  onClick={() => updateDraft('avatarKind', kind)}
+                >
+                  <strong>{kind}</strong>
+                </button>
+              ))}
+            </div>
+            <div className="profile-mini-fields">
+              <label>
+                내 자리에 늘 있는 것
+                <input
+                  value={draft.deskItem ?? ''}
+                  placeholder="예: 텀블러, 선인장"
+                  onChange={(event) => updateDraft('deskItem', event.target.value)}
+                />
+              </label>
+              <label>
+                요즘 빠져 있는 것
+                <input
+                  value={draft.intoLately ?? ''}
+                  placeholder="예: 클라이밍"
+                  onChange={(event) => updateDraft('intoLately', event.target.value)}
+                />
+              </label>
+            </div>
+            <div className="survey-choice-grid">
+              {(['아침', '낮', '밤'] as const).map((time) => (
+                <button
+                  key={time}
+                  type="button"
+                  className={draft.energyTime === time ? 'selected' : ''}
+                  onClick={() => updateDraft('energyTime', time)}
+                >
+                  <strong>{time}에 에너지가 좋아요</strong>
+                  <span>그림의 빛과 협업 시간대 참고에 쓰여요</span>
+                </button>
+              ))}
+            </div>
+            <div className="profile-character-actions">
+              {draft.characterUrl && (
+                <img className="profile-character-preview" src={draft.characterUrl} alt="내 캐릭터" />
+              )}
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={!draft.avatarKind || characterBusy}
+                onClick={makeCharacter}
+              >
+                <Sparkles size={16} />
+                {characterBusy ? '그리는 중…' : draft.characterUrl ? '다시 만들기' : '캐릭터 만들기'}
+              </button>
+              {draft.characterUrl && !characterBusy && (
+                <button type="button" className="secondary-button" onClick={() => updateDraft('characterUrl', '')}>
+                  지우기
+                </button>
+              )}
+            </div>
+            {characterNote && <p className="profile-character-hint">{characterNote}</p>}
+          </fieldset>
           <div className="profile-form-actions">
             <button className="secondary-button" onClick={() => setIsEditing(false)}>
               닫기

@@ -34,6 +34,16 @@ type HumorInput = {
   body?: string;
 };
 
+/** 프로필 캐릭터 입력. 나이·외모는 일부러 받지 않는다(민감하고 그림에도 도움이 안 된다). */
+type ProfileInput = {
+  avatarKind?: string;   // 어떤 모습으로 그릴지(동물/사물/사람)
+  color?: string;        // 프로필 색 — 주조색이 된다
+  trait?: string;        // 일하는 성향 → 자세·분위기
+  deskItem?: string;     // 자리에 늘 있는 것 → 소품
+  intoLately?: string;   // 요즘 빠져 있는 것 → 소품·배경
+  energyTime?: string;   // 에너지 좋은 때 → 조명
+};
+
 type ChatPart = { type: string; text?: string; image_url?: { url: string } };
 type ChatMessage = { role: string; content: string | ChatPart[] };
 type Models = { text: string; image: string; vision: string };
@@ -163,6 +173,54 @@ const HUMOR_FRAME = [
 /** 유머: 화풍(고정) + 장면 묘사(가변) + 장면 제약(고정). */
 function buildHumorPrompt(subject: string): string {
   return `${STYLE} A single funny everyday scene: ${subject}. ${HUMOR_FRAME}`;
+}
+
+const CHARACTER_FRAME = [
+  'Square 1:1 portrait of ONE character alone, centered, filling most of the frame.',
+  'Full bleed edge to edge, no border, no white margin, plain simple background.',
+  'Friendly and warm, gentle expression. Cute mascot sticker energy.',
+  'No letters, no numbers, no logos anywhere. Every surface blank and unmarked.',
+  // 사람 형태를 고를 수도 있지만, 실존 인물을 닮게 그리면 안 된다 — 닮음 논란을 원천 차단한다.
+  'Do NOT depict any real, identifiable person. Simplified stylized features only.',
+].join(' ');
+
+/** 프로필 캐릭터: 화풍(고정) + 그 사람다움(가변) + 캐릭터 제약(고정). */
+function buildCharacterPrompt(subject: string): string {
+  return `${STYLE} A single friendly character: ${subject}. ${CHARACTER_FRAME}`;
+}
+
+/**
+ * 프로필 값들을 캐릭터 한 문장으로 옮긴다.
+ *
+ * 성향(맥락형/실행형 등)은 자세·분위기로, 자리 물건과 요즘 빠진 것은 소품으로,
+ * 에너지 시간대는 조명으로 간다. 나이·외모는 넘기지 않는다 — 그림 품질은 거의
+ * 안 오르는데 팀에서 민감해지는 정보다.
+ */
+function askCharacterSubject(apiKey: string, textModel: string, profile: ProfileInput): Promise<string> {
+  const facts = [
+    profile.avatarKind ? `모습: ${profile.avatarKind}` : '',
+    profile.color ? `주조색: ${profile.color}` : '',
+    profile.trait ? `일하는 성향: ${profile.trait}` : '',
+    profile.deskItem ? `자리에 늘 있는 것: ${profile.deskItem}` : '',
+    profile.intoLately ? `요즘 빠져 있는 것: ${profile.intoLately}` : '',
+    profile.energyTime ? `에너지가 좋은 때: ${profile.energyTime}` : '',
+  ].filter(Boolean).join('\n');
+
+  return chat(
+    apiKey,
+    textModel,
+    [
+      {
+        role: 'system',
+        content:
+          'Turn this Korean profile into ONE English sentence, 12-25 words, describing a single ' +
+          'cute mascot character to draw. Name the creature or figure, one or two props it holds ' +
+          'or sits beside, its posture/mood, and the lighting. Use the given main color as the ' +
+          'dominant color. Do not mention age, body shape, or any real person. Reply with the sentence only.',
+      },
+      { role: 'user', content: facts },
+    ],
+  );
 }
 
 function askHumorSubject(apiKey: string, textModel: string, humor: HumorInput): Promise<string> {
@@ -336,9 +394,12 @@ export async function POST(request: Request): Promise<Response> {
   // 키 미주입 → 휴면. 프론트는 로컬 포스터로 폴백한다.
   if (!apiKey) return Response.json({ ok: false, reason: 'OPENROUTER_API_KEY not configured' });
 
-  let payload: { gathering?: GatheringInput; item?: ItemInput; humor?: HumorInput };
+  type Payload = {
+    gathering?: GatheringInput; item?: ItemInput; humor?: HumorInput; profile?: ProfileInput;
+  };
+  let payload: Payload;
   try {
-    payload = (await request.json()) as { gathering?: GatheringInput; item?: ItemInput; humor?: HumorInput };
+    payload = (await request.json()) as Payload;
   } catch {
     return new Response('Bad Request', { status: 400 });
   }
@@ -371,6 +432,14 @@ export async function POST(request: Request): Promise<Response> {
     const subject = usableSubject(translated) ? translated : 'Coworkers laughing together at something silly.';
     basePrompt = buildHumorPrompt(subject);
     label = humor.body.slice(0, 20);
+  } else if (payload.profile?.avatarKind) {
+    const profile = payload.profile;
+    const translated = await askCharacterSubject(apiKey, models.text, profile).catch(() => '');
+    const subject = usableSubject(translated)
+      ? translated
+      : 'A friendly round mascot sitting calmly with a warm mug beside it.';
+    basePrompt = buildCharacterPrompt(subject);
+    label = `캐릭터 ${profile.avatarKind}`;
   } else {
     return Response.json({ ok: false, reason: 'no subject' });
   }

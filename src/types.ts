@@ -187,7 +187,23 @@ export type Profile = {
   discSecondary?: DiscKey;
   discScores?: DiscScores;
   collabGuide?: string; // "나와 일하는 법" — AI로 뽑아 붙여넣은 자유서술
+  // 내 캐릭터(선택). 그림을 만들기 위한 최소 입력 — 사람이 아니라 사물을 묻는다.
+  // 나이·외모는 일부러 받지 않는다: 그림 품질은 거의 안 오르는데 팀에서 민감해진다.
+  avatarKind?: string;   // 어떤 모습으로 그릴지(동물/사물/사람) — 가장 큰 시각 차별점
+  deskItem?: string;     // 내 자리에 늘 있는 것 → 소품
+  intoLately?: string;   // 요즘 빠져 있는 것 → 소품·배경
+  energyTime?: EnergyTime; // 에너지가 좋은 때 → 조명
+  characterUrl?: string; // 생성된 캐릭터 이미지(Storage 공개 URL). 없으면 이니셜로 폴백.
 };
+
+/** 캐릭터 조명과 협업 참고를 겸한다 — 순수 취향만 묻지 않아 질문에 명분이 생긴다. */
+export type EnergyTime = '아침' | '낮' | '밤';
+
+/** 캐릭터 모습 선택지. 사람 얼굴을 그리지 않아도 되게 해서 '닮았다/아니다' 논란을 없앤다. */
+export const AVATAR_KINDS = [
+  '고양이', '강아지', '수달', '펭귄', '곰', '토끼',
+  '여우', '올빼미', '거북이', '고래', '다람쥐', '사람',
+] as const;
 
 // MBTI 4축. 값은 첫 글자(E/S/T/J) 쪽 비중 0~100. 50 미만이면 반대 글자(I/N/F/P).
 export type MbtiScores = { EI: number; SN: number; TF: number; JP: number };
