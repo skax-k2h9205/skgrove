@@ -212,8 +212,11 @@ export async function uploadGatheringImage(gatheringId: string, file: File) {
   });
 
   if (error) {
-    console.warn('Supabase gathering image upload failed. Browser preview is still available.', error);
-    return { imageUrl: URL.createObjectURL(file), storagePath: '' };
+    console.warn('Supabase gathering image upload failed. The gathering is saved without a photo.', error);
+    // 업로드가 실패했는데 objectURL 을 돌려주면 그 값이 그대로 DB 에 저장된다.
+    // blob: 은 만든 탭에서만 열리는 주소라, 다른 사람에게는 영영 깨진 이미지가 된다.
+    // 저장할 값이 없을 때는 없다고 말한다 — 화면은 이미지 없이도 성립한다.
+    return { imageUrl: '', storagePath: '' };
   }
 
   const { data } = supabase.storage.from(POSTER_BUCKET).getPublicUrl(storagePath);

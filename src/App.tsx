@@ -1026,7 +1026,8 @@ export function App() {
     let enriched = base;
     if (imageFile) {
       const { imageUrl } = await uploadGatheringImage(id, imageFile);
-      enriched = { ...base, imageUrl };
+      // 업로드 실패 시 imageUrl 은 빈 값이다. 그대로 넣으면 저장은 되지만 그림은 영영 없다.
+      enriched = imageUrl ? { ...base, imageUrl } : base;
     } else {
       const { poster } = await makePoster(base);
       enriched = { ...base, poster };
@@ -1064,7 +1065,7 @@ export function App() {
           const generated = await requestGatheringImage(enriched);
           if (!generated) return;
           const { imageUrl } = await uploadGatheringImage(id, generated);
-          patchGathering(id, { imageUrl });
+          if (imageUrl) patchGathering(id, { imageUrl });
         } finally {
           // 성공이든 실패든 표시는 걷는다. 실패했는데 모래시계가 남으면
           // 영영 그리는 중인 것처럼 보인다.
@@ -1213,7 +1214,7 @@ export function App() {
     let enriched = base;
     if (imageFile) {
       const { imageUrl } = await uploadMarketImage(id, imageFile);
-      enriched = { ...base, imageUrl };
+      enriched = imageUrl ? { ...base, imageUrl } : base;
     } else {
       enriched = { ...base, poster: localItemPoster(base) };
     }
@@ -1232,7 +1233,7 @@ export function App() {
           const generated = await requestMarketImage(enriched);
           if (!generated) return;
           const { imageUrl } = await uploadMarketImage(id, generated);
-          patchMarketItem(id, { imageUrl });
+          if (imageUrl) patchMarketItem(id, { imageUrl });
         } finally {
           // 성공이든 실패든 표시는 걷는다 — 모임과 같은 판단. 실패했는데 모래시계가
           // 남으면 영영 그리는 중인 것처럼 보인다.
@@ -1258,7 +1259,8 @@ export function App() {
     let next: MarketItem = { ...item, ...rest };
     if (imageFile) {
       const { imageUrl } = await uploadMarketImage(item.id, imageFile);
-      next = { ...next, imageUrl, poster: undefined };
+      // 업로드가 실패하면 기존 사진·포스터를 그대로 둔다. 빈 값으로 덮어쓰면 있던 그림이 사라진다.
+      if (imageUrl) next = { ...next, imageUrl, poster: undefined };
     } else if (!item.imageUrl) {
       next = { ...next, poster: localItemPoster(next) };
     }
