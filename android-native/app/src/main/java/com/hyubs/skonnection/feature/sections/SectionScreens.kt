@@ -243,14 +243,15 @@ private fun AccountsSection(c: AppContainer, modifier: Modifier) {
     when {
         loading && items.isEmpty() -> LoadingBox(modifier)
         items.isEmpty() -> EmptyBox("계정이 없어요.", modifier)
-        else -> LazyColumn(modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
-            items(items, key = { it.id }) { a ->
-                FeedCard(
-                    title = a.name.ifBlank { a.email },
-                    pill = a.role,
-                    subtitle = a.email,
-                    meta = "${a.part} · ${a.status}",
-                )
+        else -> {
+            // 리더가 위로 오도록 정렬한다. 이름순만으로는 누가 권한을 가졌는지 훑기 어렵다.
+            val sorted = androidx.compose.runtime.remember(items) {
+                items.sortedWith(compareBy({ if (it.role.contains("리더")) 0 else 1 }, { it.name }))
+            }
+            val active = androidx.compose.runtime.remember(items) { items.count { it.status == "활성" } }
+            LazyColumn(modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)) {
+                item { InfoBanner("계정 ${items.size}명 · 활성 ${active}명") }
+                items(sorted, key = { it.id }) { AccountCard(it) }
             }
         }
     }
@@ -263,16 +264,17 @@ private fun NotificationsSection(c: AppContainer, email: String?, modifier: Modi
     val loading by vm.loading.collectAsStateWithLifecycle()
     when {
         loading && items.isEmpty() -> LoadingBox(modifier)
-        items.isEmpty() -> EmptyBox("받은 알림이 없어요.", modifier)
-        else -> LazyColumn(modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
-            items(items, key = { it.id }) { n ->
-                FeedCard(
-                    title = n.title.ifBlank { n.kind },
-                    pill = if (!n.read) "새 알림" else null,
-                    subtitle = if (n.from.isNotBlank()) "from ${n.from}" else null,
-                    body = n.body.ifBlank { null },
-                    meta = n.createdAt.take(16).replace("T", " ").ifBlank { null },
-                )
+        items.isEmpty() -> EmptyBox("받은 알림이 없어요. 챙길 일이 생기면 여기에 모아드릴게요.", modifier)
+        else -> {
+            val unread = androidx.compose.runtime.remember(items) { items.count { !it.read } }
+            LazyColumn(modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)) {
+                item {
+                    InfoBanner(
+                        if (unread > 0) "안 읽은 알림 ${unread}건 · 전체 ${items.size}건"
+                        else "새로 온 알림은 없어요 👍 · 전체 ${items.size}건",
+                    )
+                }
+                items(items, key = { it.id }) { NotificationCard(it) }
             }
         }
     }

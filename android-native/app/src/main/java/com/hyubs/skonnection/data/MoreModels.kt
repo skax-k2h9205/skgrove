@@ -148,7 +148,24 @@ data class NotificationRow(
 data class AppNotification(
     val id: String, val kind: String, val recipient: String, val from: String,
     val title: String, val body: String, val createdAt: String, val read: Boolean,
-)
+) {
+    /**
+     * 알림 종류 라벨. DB에는 'deadline' 같은 영문 키가 들어 있어 그대로 쓰면 한글 화면에 영어가 섞인다.
+     * 웹 NotificationCenter.KIND_LABEL과 같은 표. 모르는 키는 원값을 그대로 두어 새 종류가 사라지지 않게 한다.
+     */
+    val kindLabel: String get() = when (kind) {
+        "issue" -> "의견"
+        "agenda" -> "안건"
+        "deadline" -> "마감"
+        "action" -> "액션"
+        "tea" -> "티미팅"
+        "humor" -> "유머"
+        "message" -> "메시지"
+        "gathering" -> "모임"
+        "market" -> "이음장터"
+        else -> kind
+    }
+}
 
 fun NotificationRow.toNotification() = AppNotification(
     id = id, kind = kind, recipient = recipientName, from = fromName ?: "",

@@ -6,11 +6,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -202,6 +206,119 @@ private fun deadlineLabel(deadline: String): String? {
         days < 0 -> "마감 지남"
         days == 0L -> "오늘 마감"
         else -> "마감 D-$days"
+    }
+}
+
+/** 섹션 상단 요약 배너 — 목록에 들어가기 전에 규모를 먼저 알려준다. */
+@Composable
+fun InfoBanner(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = Blue,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
+            .clip(RoundedCornerShape(12.dp)).background(Blue.copy(alpha = 0.10f))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    )
+}
+
+/** 계정 카드 — 아바타 + 이름/이메일 + 권한·파트. 비활성 계정은 흐리게 둬 목록에서 구분된다. */
+@Composable
+fun AccountCard(account: com.hyubs.skonnection.data.Account) {
+    val inactive = account.status != "활성"
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.alpha(if (inactive) 0.45f else 1f)) {
+                MiniAvatar(account.name.ifBlank { account.email }, size = 40)
+            }
+            Column(Modifier.weight(1f).padding(start = 12.dp).alpha(if (inactive) 0.55f else 1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(account.name.ifBlank { "(이름 없음)" }, style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold)
+                    if (account.connectioner) {
+                        Text("커넥셔너", style = MaterialTheme.typography.labelSmall, color = Purple,
+                            fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 6.dp))
+                    }
+                }
+                Text(account.email, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline)
+                Text(account.part, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline)
+            }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                StatusBadge(account.role, if (account.role.contains("리더")) Purple else Gray)
+                if (inactive) StatusBadge(account.status, Gray)
+            }
+        }
+    }
+}
+
+/** 알림 카드 — 안 읽은 건은 좌측 색 띠로 표시한다. 배지만 쓰면 목록에서 훑히지 않는다. */
+@Composable
+fun NotificationCard(n: com.hyubs.skonnection.data.AppNotification) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)) {
+        Row(Modifier.height(IntrinsicSize.Min)) {
+            Box(
+                Modifier.width(4.dp).fillMaxHeight()
+                    .background(if (n.read) Color.Transparent else Blue),
+            )
+            Column(Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (n.kind.isNotBlank()) {
+                        Text(n.kindLabel, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    relativeTime(n.createdAt)?.let {
+                        Text(it, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline)
+                    }
+                }
+                Text(n.title.ifBlank { n.kind.ifBlank { "(제목 없음)" } },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = if (n.read) FontWeight.SemiBold else FontWeight.Bold,
+                    modifier = Modifier.padding(top = 2.dp))
+                if (n.body.isNotBlank()) {
+                    Text(n.body, style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp))
+                }
+                if (n.from.isNotBlank()) {
+                    Text("from ${n.from}", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 6.dp))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 알림 시각을 "3시간 전"처럼 읽어준다. 알림은 언제 왔는지가 절대 시각보다 먼저 필요하다.
+ *
+ * created_at은 두 형식이 섞여 온다 — 웹이 넣은 날짜(2026-08-08)와 앱이 넣은 ISO 타임스탬프.
+ * 날짜만 있는 값에 시·분을 지어내지 않고 일 단위로만 읽는다. 둘 다 아니면 null.
+ */
+private fun relativeTime(raw: String): String? {
+    val instant = runCatching { java.time.Instant.parse(raw) }.getOrNull()
+    if (instant != null) {
+        val minutes = java.time.Duration.between(instant, java.time.Instant.now()).toMinutes()
+        return when {
+            minutes < 0 -> null
+            minutes < 1 -> "방금"
+            minutes < 60 -> "${minutes}분 전"
+            minutes < 60 * 24 -> "${minutes / 60}시간 전"
+            minutes < 60 * 24 * 7 -> "${minutes / (60 * 24)}일 전"
+            else -> raw.take(10)
+        }
+    }
+    val date = runCatching { java.time.LocalDate.parse(raw.take(10)) }.getOrNull() ?: return null
+    val days = java.time.temporal.ChronoUnit.DAYS.between(date, java.time.LocalDate.now())
+    return when {
+        days < 0 -> null
+        days == 0L -> "오늘"
+        days == 1L -> "어제"
+        days < 7 -> "${days}일 전"
+        else -> raw.take(10)
     }
 }
 
