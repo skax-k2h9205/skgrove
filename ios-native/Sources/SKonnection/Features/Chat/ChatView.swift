@@ -9,20 +9,35 @@ struct ChatView: View {
     @EnvironmentObject private var issues: IssueStore
     @EnvironmentObject private var agendas: AgendaStore
 
+    /// 대화는 화면이 아니라 저장소에 산다 — 닫았다 열어도, 웹에서 이어 봐도 남아 있다.
+    @StateObject private var counsel = CounselStore()
+
     @State private var mode = "counsel"        // counsel | rule
     @State private var partner = ""            // 갈등 상대 이름(상담 모드)
-    @State private var counselTurns: [ChatTurn] = [
-        .init(role: .assistant, content: "안녕하세요, 팀 마음상담이에요. 요즘 어떤 일로 마음이 무거운가요? 누구와의 일이라면 아래에서 이름을 골라 주면 서로의 성향을 함께 살펴볼게요.")
-    ]
-    @State private var ruleTurns: [ChatTurn] = [
-        .init(role: .assistant, content: "팀 운영·예산·근태·AI 도구·KPI 규칙이나 출입·보안 절차가 궁금하면 물어보세요. 규정을 근거로 답해 드릴게요.")
-    ]
     @State private var draft = ""
     @State private var sending = false
     @State private var error: String?
+    @State private var confirmClear = false
+
+    private static let counselGreeting = "안녕하세요, 팀 마음상담이에요. 요즘 어떤 일로 마음이 무거운가요? 누구와의 일이라면 아래에서 이름을 골라 주면 서로의 성향을 함께 살펴볼게요."
+    private static let ruleGreeting = "팀 운영·예산·근태·AI 도구·KPI 규칙이나 출입·보안 절차가 궁금하면 물어보세요. 규정을 근거로 답해 드릴게요."
 
     private var isCounsel: Bool { mode == "counsel" }
-    private var turns: [ChatTurn] { isCounsel ? counselTurns : ruleTurns }
+    private var author: String { session.currentUser?.email ?? "" }
+
+    /// 저장된 기록 앞에 인사말을 붙인다. 인사말은 저장하지 않는다 —
+    /// 저장하면 대화를 지운 뒤에도 남아서 "지워지지 않았다"로 읽힌다.
+    private var turns: [ChatTurn] {
+        let text: String = isCounsel ? Self.counselGreeting : Self.ruleGreeting
+        var result: [ChatTurn] = [ChatTurn(role: .assistant, content: text)]
+        for m in counsel.thread(mode: mode) {
+            let role: ChatTurn.Role = (m.role == "assistant") ? .assistant : .user
+            result.append(ChatTurn(role: role, content: m.content))
+        }
+        return result
+    }
+    /// 서버에 보낼 이력. 인사말은 우리가 만든 문구라 모델에게 줄 이유가 없다.
+    private var history: [ChatTurn] { Array(turns.dropFirst()) }
     private var partnerNames: [String] {
         profiles.profiles.map(\.name).filter { $0 != session.currentUser?.name && !$0.isEmpty }
     }
@@ -38,7 +53,24 @@ struct ChatView: View {
             .background(Theme.Palette.sunken)
             .navigationTitle("팀 마음상담")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button("이 대화 지우기", systemImage: "trash", role: .destructive) {
+                            confirmClear = true
+                        }
+                        .disabled(counsel.thread(mode: mode).isEmpty)
+                    } label: { Image(systemName: "ellipsis.circle") }
+                }
+            }
+            .task(id: author) { await counsel.load(author: author) }
+            .confirmationDialog("이 대화를 지울까요?", isPresented: $confirmClear, titleVisibility: .visible) {
+                Button("지우기", role: .destructive) { counsel.clear(author: author, mode: mode) }
+                Button("그대로 두기", role: .cancel) {}
+            } message: {
+                Text("\(isCounsel ? "상담" : "룰 확인") 기록이 이 기기와 웹에서 모두 사라집니다. 되돌릴 수 없어요.")
+            }
         }
     }
 
@@ -205,36 +237,35 @@ struct ChatView: View {
         !sending && !draft.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    private func append(_ turn: ChatTurn) {
-        if isCounsel { counselTurns.append(turn) } else { ruleTurns.append(turn) }
-    }
-
     private func send() {
         let text = draft.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
-        append(.init(role: .user, content: text))
+        counsel.append(author: author, mode: mode, role: "user", content: text,
+                       partnerName: isCounsel && !partner.isEmpty ? partner : nil)
         draft = ""
         requestReply()
     }
 
-    /// 지금까지의 대화로 답을 청한다. 마지막 질문은 이미 turns 에 들어 있으므로
+    /// 지금까지의 대화로 답을 청한다. 마지막 질문은 이미 저장돼 있으므로
     /// 처음 보낼 때와 다시 시도할 때가 같은 경로다.
     private func requestReply() {
         guard !sending else { return }
-        guard let lastUser = turns.last(where: { $0.role == .user })?.content else { return }
+        guard let lastUser = history.last(where: { $0.role == .user })?.content else { return }
         error = nil
         sending = true
-        let history = turns
-        let counsel = isCounsel
-        let selfBrief = counsel ? brief(forName: session.currentUser?.name) : nil
-        let partnerBrief = counsel && !partner.isEmpty ? brief(forName: partner) : nil
-        let cases = counsel ? similarCases(lastUser) : nil
+        let sent = history
+        let isCounselMode = isCounsel
+        let selfBrief = isCounselMode ? brief(forName: session.currentUser?.name) : nil
+        let partnerBrief = isCounselMode && !partner.isEmpty ? brief(forName: partner) : nil
+        let cases = isCounselMode ? similarCases(lastUser) : nil
+        let currentMode = mode
+        let who = author
         Task {
             do {
-                let reply = try await ChatService.reply(to: history, mode: counsel ? "counsel" : "rule",
+                let reply = try await ChatService.reply(to: sent, mode: currentMode,
                                                         selfBrief: selfBrief, partner: partnerBrief, cases: cases)
-                if counsel { counselTurns.append(.init(role: .assistant, content: reply)) }
-                else { ruleTurns.append(.init(role: .assistant, content: reply)) }
+                counsel.append(author: who, mode: currentMode, role: "assistant", content: reply,
+                               partnerName: partnerBrief?.name)
             } catch {
                 self.error = "답변을 받지 못했어요 — \(error.localizedDescription)"
             }
