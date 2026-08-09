@@ -14,6 +14,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -64,12 +68,28 @@ fun ChatScreen(container: AppContainer, modifier: Modifier = Modifier) {
             }
         }
 
+        // 상담 상대 — 성향을 함께 보내야 "상대의 언어로 번역"이 되므로, 상담 모드에서만 고른다.
+        if (state.mode == ChatMode.COUNSEL) {
+            PartnerPicker(
+                partners = state.partners,
+                selected = state.partner,
+                onSelect = vm::selectPartner,
+            )
+        }
+
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         ) {
-            item { Bubble(assistant = true, text = state.mode.greeting) }
+            item {
+                Bubble(
+                    assistant = true,
+                    text = state.partner?.let {
+                        "${it.name}님과의 일을 상담하시는군요. 어떤 점이 힘드셨는지 편하게 이야기해 주세요."
+                    } ?: state.mode.greeting,
+                )
+            }
             items(state.messages) { m -> Bubble(assistant = m.role == "assistant", text = m.content) }
             if (state.sending) {
                 item {
@@ -116,4 +136,65 @@ private fun Bubble(assistant: Boolean, text: String) {
         }
     }
     Spacer(Modifier.padding(2.dp))
+}
+
+/**
+ * 상담 상대 고르기.
+ *
+ * 상대를 고르면 그 사람의 성향(MBTI·협업 스타일)이 상담에 함께 실린다. 안 고르면 일반 상담이다.
+ * 동료 성향이 아직 하나도 없으면 고를 것이 없으므로 줄 자체를 띄우지 않는다.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun PartnerPicker(
+    partners: List<com.hyubs.skonnection.data.Profile>,
+    selected: com.hyubs.skonnection.data.Profile?,
+    onSelect: (com.hyubs.skonnection.data.Profile?) -> Unit,
+) {
+    if (partners.isEmpty()) return
+    var open by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = open,
+        onExpandedChange = { open = it },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+    ) {
+        OutlinedTextField(
+            value = selected?.let { "${it.name} · ${it.part}" } ?: "상대 없음 (일반 상담)",
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("상담 상대") },
+            supportingText = {
+                Text(
+                    selected?.let { "${it.temperamentLabel}${if (it.mbti.isNotBlank()) " · ${it.mbti}" else ""} 성향을 함께 전달해요" }
+                        ?: "상대를 고르면 그 사람의 성향까지 반영해 조언해요",
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
+            modifier = Modifier.fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+        )
+        ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text("상대 없음 (일반 상담)") },
+                onClick = { onSelect(null); open = false },
+            )
+            partners.forEach { p ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(p.name, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                listOf(p.part, p.temperamentLabel).filter { it.isNotBlank() }.joinToString(" · "),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                    onClick = { onSelect(p); open = false },
+                )
+            }
+        }
+    }
 }

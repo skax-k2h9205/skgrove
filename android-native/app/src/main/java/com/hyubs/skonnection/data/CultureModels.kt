@@ -49,6 +49,12 @@ data class Profile(
 
     /** 협업 힌트로 쓸 한 줄. 협업 가이드가 없으면 성격·특징에서 대신 고른다. */
     val guide: String get() = listOf(collaboration, character, trait, style).firstOrNull { it.isNotBlank() } ?: ""
+
+    /** 마음상담에 실어 보낼 성향 요약. */
+    fun toBrief() = ProfileBrief(
+        name = name, part = part, role = role, character = character, trait = trait,
+        style = style, collaboration = collaboration, mbti = mbti, disc = disc,
+    )
 }
 
 fun ProfileRow.toProfile() = Profile(
