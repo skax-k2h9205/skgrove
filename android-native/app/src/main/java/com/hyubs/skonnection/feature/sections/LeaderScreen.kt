@@ -47,10 +47,11 @@ import com.hyubs.skonnection.feature.ErrorBox
 import com.hyubs.skonnection.feature.FormLabel
 import com.hyubs.skonnection.feature.FullScreenForm
 import com.hyubs.skonnection.feature.LoadingBox
+import com.hyubs.skonnection.ui.theme.Sk
 
-private val Blue = Color(0xFF2563EB)
-private val Green = Color(0xFF059669)
-private val Red = Color(0xFFDC2626)
+private val Blue = Sk.Cta
+private val Green = Sk.Success
+private val Red = Sk.Danger
 
 /** 필터 칩. '전체'는 null. */
 private val FILTERS = listOf<Pair<String, String?>>(
@@ -98,7 +99,8 @@ fun LeaderSection(c: AppContainer, modifier: Modifier = Modifier) {
         error?.let { ErrorBox(it, vm::retry, modifier); return }
     }
 
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
+    SectionScaffold(onRefresh = vm::retry, modifier = modifier) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
         item { SummaryBanner(items.size, waiting) }
         if (oldest != null && oldest >= RESPONSE_DUE_DAYS) {
             item { OverdueBanner(oldest) }
@@ -126,7 +128,7 @@ fun LeaderSection(c: AppContainer, modifier: Modifier = Modifier) {
                 Text(
                     "해당 상태의 접수가 없어요. 다른 상태를 골라보세요.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(32.dp),
                 )
             }
@@ -140,6 +142,7 @@ fun LeaderSection(c: AppContainer, modifier: Modifier = Modifier) {
                 )
             }
         }
+    }
     }
 
     actionTarget?.let { (issue, action) ->
@@ -225,7 +228,7 @@ private fun LeaderIssueCard(
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${issue.category} · ${issue.identity}", style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline, modifier = Modifier.weight(1f))
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
                 StatusBadge(issue.status)
             }
             Text(issue.title.ifBlank { "(제목 없음)" }, style = MaterialTheme.typography.titleMedium,
@@ -240,7 +243,7 @@ private fun LeaderIssueCard(
             if (issue.leaderReply.isNotBlank()) NoteLine("답변", issue.leaderReply, Green)
             if (issue.oneOnOneNote.isNotBlank()) NoteLine("1:1 제안", issue.oneOnOneNote, Blue)
             if (issue.reason.isNotBlank()) {
-                NoteLine(if (issue.status == "종료") "종료 사유" else "보류 사유", issue.reason, MaterialTheme.colorScheme.outline)
+                NoteLine(if (issue.status == "종료") "종료 사유" else "보류 사유", issue.reason, MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
@@ -248,7 +251,7 @@ private fun LeaderIssueCard(
                     Text(
                         listOf(issue.id, issue.urgency, issue.createdAt.take(10))
                             .filter { it.isNotBlank() }.joinToString(" · "),
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     if (overdueDays != null) {
                         Text("응답 지연 ${overdueDays}일", style = MaterialTheme.typography.labelSmall,
@@ -324,7 +327,7 @@ private fun LeaderActionForm(
         Text(issue.title.ifBlank { "(제목 없음)" }, style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold)
         Text(action.prompt, style = MaterialTheme.typography.bodySmall,
-            color = if (action.destructive) Red else MaterialTheme.colorScheme.outline)
+            color = if (action.destructive) Red else MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedTextField(
             value = text, onValueChange = { text = it },
             placeholder = { Text(action.label) },
@@ -357,7 +360,7 @@ private fun PromoteForm(
     ) {
         Text(
             "접수 원문은 그대로 공개되지 않아요. 아래 내용만 안건으로 올라갑니다.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline,
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         FormLabel("안건 제목", required = true)
         OutlinedTextField(title, { title = it }, singleLine = true, modifier = Modifier.fillMaxWidth())

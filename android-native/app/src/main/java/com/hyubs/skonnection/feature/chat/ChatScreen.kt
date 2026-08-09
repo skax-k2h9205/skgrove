@@ -75,7 +75,7 @@ fun ChatScreen(container: AppContainer, modifier: Modifier = Modifier) {
                 item {
                     Row(Modifier.padding(8.dp)) {
                         CircularProgressIndicator(Modifier.padding(4.dp), strokeWidth = 2.dp)
-                        Text("생각 중…", modifier = Modifier.padding(start = 8.dp), color = MaterialTheme.colorScheme.outline)
+                        Text("생각 중…", modifier = Modifier.padding(start = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

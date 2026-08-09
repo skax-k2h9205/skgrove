@@ -77,7 +77,7 @@ fun InstaPostCard(
             Column(Modifier.weight(1f)) {
                 Text(author, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 if (!subtitle.isNullOrBlank()) {
-                    Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (onOverflow != null) {
@@ -142,7 +142,7 @@ fun InstaPostCard(
             Text(
                 "댓글 ${comments}개 모두 보기",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.clickable { onComment() }.padding(horizontal = 14.dp, vertical = 2.dp),
             )
         }

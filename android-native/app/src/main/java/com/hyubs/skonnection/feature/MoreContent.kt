@@ -1,5 +1,6 @@
 package com.hyubs.skonnection.feature
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,10 +31,14 @@ fun MoreContent(
         "대나무숲 접수", "리더 관리함", "안건 · 투표", "액션아이템", "캔미팅 · 티미팅",
         "팀 추억", "파트지수 · 리포트", "동료 성향", "알림 · 메시지", "계정 관리",
     )
-    LazyColumn(modifier.fillMaxSize()) {
+    // 마지막 항목(로그아웃)이 하단 네비게이션에 잘리지 않도록 여백을 준다.
+    LazyColumn(
+        modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp),
+    ) {
         item {
             Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                Text("계정", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+                Text("계정", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(currentEmail ?: "-", style = MaterialTheme.typography.titleMedium)
             }
             HorizontalDivider()

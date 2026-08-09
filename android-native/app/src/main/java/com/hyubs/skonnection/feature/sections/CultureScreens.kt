@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -39,11 +38,14 @@ import com.hyubs.skonnection.data.TeaSession
 import com.hyubs.skonnection.data.TeamMemory
 import com.hyubs.skonnection.data.Temperament
 import com.hyubs.skonnection.feature.EmptyBox
+import com.hyubs.skonnection.feature.SkCard
+import com.hyubs.skonnection.ui.theme.Sk
 import com.hyubs.skonnection.feature.ErrorBox
 import com.hyubs.skonnection.feature.LoadingBox
 
-private val Blue = Color(0xFF2563EB)
-private val Green = Color(0xFF059669)
+// 브랜드 토큰만 쓴다(웹 styles.css → iOS Theme.Palette 동일 값).
+private val Blue = Sk.Cta
+private val Green = Sk.Success
 
 // ── 파트지수 · 리포트 ──────────────────────────────────────────────
 
@@ -56,7 +58,8 @@ fun MetricsSection(c: AppContainer, modifier: Modifier = Modifier) {
     if (loading) { LoadingBox(modifier); return }
     // 지표는 세 소스를 다 읽어야 비율이 맞다. 하나라도 실패하면 틀린 숫자 대신 실패를 말한다.
     error?.let { ErrorBox(it, vm::retry, modifier); return }
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
+    SectionScaffold(onRefresh = vm::retry, modifier = modifier) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
         item {
             Surface(
                 color = MaterialTheme.colorScheme.primary,
@@ -83,12 +86,13 @@ fun MetricsSection(c: AppContainer, modifier: Modifier = Modifier) {
             )
         }
     }
+    }
 }
 
 /** 지표 카드 — 숫자만 크게 두지 않고 막대를 함께 둬서 "얼마나 찼는지"가 먼저 읽히게 한다. */
 @Composable
 private fun StatCard(title: String, percent: Int, desc: String) {
-    Card(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+    SkCard(Modifier.padding(top = 10.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleSmall,
@@ -98,7 +102,7 @@ private fun StatCard(title: String, percent: Int, desc: String) {
             }
             Bar(percent / 100f, MaterialTheme.colorScheme.primary, Modifier.padding(top = 10.dp))
             Text(desc, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 8.dp))
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }
@@ -140,7 +144,8 @@ fun ProfilesSection(c: AppContainer, modifier: Modifier = Modifier) {
         }
     }
 
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
+    SectionScaffold(onRefresh = vm::retry, modifier = modifier) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
         item { TemperamentCard(items) }
         item {
             OutlinedTextField(
@@ -153,12 +158,13 @@ fun ProfilesSection(c: AppContainer, modifier: Modifier = Modifier) {
         if (matched.isEmpty()) {
             item {
                 Text("찾는 동료가 없어요.", style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(24.dp))
             }
         } else {
             items(matched, key = { it.key }) { ProfileRowCard(it) }
         }
+    }
     }
 }
 
@@ -168,11 +174,11 @@ private fun TemperamentCard(profiles: List<Profile>) {
     val written = profiles.count { it.mbti.isNotBlank() }
     val counts = Temperament.entries.map { t -> t to profiles.count { it.temperament == t } }
     val max = (counts.maxOfOrNull { it.second } ?: 1).coerceAtLeast(1)
-    Card(Modifier.fillMaxWidth()) {
+    SkCard {
         Column(Modifier.padding(16.dp)) {
             Text("팀 성향 분포", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             Text("작성한 ${written}명의 MBTI를 4대 기질로 묶었어요.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             counts.forEach { (t, count) ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -180,7 +186,7 @@ private fun TemperamentCard(profiles: List<Profile>) {
                 ) {
                     Column(Modifier.width(96.dp)) {
                         Text(t.label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                        Text(t.hint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                        Text(t.hint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     // 0명은 채우지 않는다. 얇은 자국을 남기면 "한 명은 있다"로 잘못 읽힌다.
                     Bar(if (count == 0) 0f else count.toFloat() / max, Blue, Modifier.weight(1f).padding(horizontal = 10.dp))
@@ -193,7 +199,7 @@ private fun TemperamentCard(profiles: List<Profile>) {
 
 @Composable
 private fun ProfileRowCard(p: Profile) {
-    Card(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+    SkCard(Modifier.padding(top = 10.dp)) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MiniAvatar(p.name, size = 40)
@@ -201,7 +207,7 @@ private fun ProfileRowCard(p: Profile) {
                     Text(p.name.ifBlank { "(이름 없음)" }, style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold)
                     Text(listOf(p.part, p.temperamentLabel).filter { it.isNotBlank() }.joinToString(" · "),
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (p.mbti.isNotBlank()) StatusBadge(p.mbti, Blue)
@@ -225,27 +231,29 @@ fun MemoriesSection(c: AppContainer, modifier: Modifier = Modifier) {
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
-    when {
-        loading && items.isEmpty() -> LoadingBox(modifier)
-        error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry, modifier)
-        items.isEmpty() -> EmptyBox("기록된 팀 추억이 없어요.", modifier)
-        else -> LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
+    SectionScaffold(onRefresh = vm::retry, modifier = modifier) {
+      when {
+        loading && items.isEmpty() -> LoadingBox()
+        error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry)
+        items.isEmpty() -> EmptyBox("기록된 팀 추억이 없어요.")
+        else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
             items(items, key = { it.id }) { MemoryCard(it) }
         }
+      }
     }
 }
 
 /** 추억 카드 — 날짜를 좌측 칩으로 세워 시간 순서가 스크롤에서 먼저 잡히게 한다. */
 @Composable
 private fun MemoryCard(m: TeamMemory) {
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+    SkCard(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
         Row(Modifier.padding(16.dp)) {
             DateChip(m.eventDate)
             Column(Modifier.weight(1f).padding(start = 14.dp)) {
                 Text(m.title.ifBlank { "(제목 없음)" }, style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold)
                 Text(listOf(m.host, m.place).filter { it.isNotBlank() }.joinToString(" · "),
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (m.summary.isNotBlank()) {
                     Text(m.summary, style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -291,11 +299,12 @@ fun MeetingsSection(c: AppContainer, modifier: Modifier = Modifier) {
     // 두 종류를 한 목록에 이어 붙이면 어느 쪽을 보는 중인지 흐려진다. 탭으로 나눈다.
     var tab by remember { mutableStateOf(0) }
 
-    when {
-        loading && can.isEmpty() && tea.isEmpty() -> LoadingBox(modifier)
-        error != null && can.isEmpty() && tea.isEmpty() -> ErrorBox(error!!, vm::retry, modifier)
-        can.isEmpty() && tea.isEmpty() -> EmptyBox("등록된 미팅이 없어요.", modifier)
-        else -> LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
+    SectionScaffold(onRefresh = vm::retry, modifier = modifier) {
+      when {
+        loading && can.isEmpty() && tea.isEmpty() -> LoadingBox()
+        error != null && can.isEmpty() && tea.isEmpty() -> ErrorBox(error!!, vm::retry)
+        can.isEmpty() && tea.isEmpty() -> EmptyBox("등록된 미팅이 없어요.")
+        else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
             item {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
@@ -313,6 +322,7 @@ fun MeetingsSection(c: AppContainer, modifier: Modifier = Modifier) {
                 items(tea, key = { "tea-${it.id}" }) { TeaCard(it) }
             }
         }
+      }
     }
 }
 
@@ -340,11 +350,11 @@ private fun TeaCard(s: TeaSession) {
 
 @Composable
 private fun MeetingCard(title: String, badge: String, meta: String, body: String, heldAt: String) {
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+    SkCard(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(meta, style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline, modifier = Modifier.weight(1f))
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
                 if (badge.isNotBlank()) StatusBadge(badge)
             }
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
@@ -356,7 +366,7 @@ private fun MeetingCard(title: String, badge: String, meta: String, body: String
             }
             if (heldAt.isNotBlank()) {
                 Text(heldAt.take(16).replace("T", " "), style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 10.dp))
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
             }
         }
     }
@@ -364,6 +374,6 @@ private fun MeetingCard(title: String, badge: String, meta: String, body: String
 
 @Composable
 private fun SectionNote(text: String) {
-    Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline,
+    Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.fillMaxWidth().padding(32.dp))
 }

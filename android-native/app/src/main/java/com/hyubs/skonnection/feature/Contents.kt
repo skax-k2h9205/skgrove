@@ -236,7 +236,7 @@ private fun GatheringDetailView(
                     Text(g.title.ifBlank { "(제목 없음)" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     Text(g.kind, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }
-                Text("${g.host} · ${g.part}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 4.dp))
+                Text("${g.host} · ${g.part}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
                 val meta = buildString {
                     if (g.startAt.isNotBlank()) append(g.startAt.take(16).replace("T", " "))
                     if (g.place.isNotBlank()) { if (isNotEmpty()) append(" · "); append(g.place) }
@@ -281,9 +281,9 @@ private fun GatheringCard(
                         modifier = Modifier.clickable { onDelete() }.padding(4.dp))
                 }
             }
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 2.dp))
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
             if (!body.isNullOrBlank()) Text(body, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp))
-            if (meta != null) Text(meta, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 8.dp))
+            if (meta != null) Text(meta, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
                 val cap = if (capacity != null && capacity > 0) "/$capacity" else ""
                 Text("신청 $count$cap 명", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 12.dp))
@@ -420,7 +420,7 @@ private fun MarketDetailView(
                         Text(m.title.ifBlank { "(제목 없음)" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                         Text(if (giveaway) "나눔" else "경매", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     }
-                    Text(m.seller, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 4.dp))
+                    Text(m.seller, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
                     if (m.description.isNotBlank()) Text(m.description, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 12.dp))
                     Text(priceLine, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
                     if (m.canceled) {
@@ -466,9 +466,9 @@ private fun MarketCard(
                         modifier = Modifier.clickable { onDelete() }.padding(4.dp))
                 }
             }
-            Text(seller, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 2.dp))
+            Text(seller, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
             if (!body.isNullOrBlank()) Text(body, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp))
-            Text(priceLine, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 8.dp))
+            Text(priceLine, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
             if (!giveaway && !canceled) {
                 androidx.compose.material3.Button(onClick = onBid, modifier = Modifier.padding(top = 10.dp)) { Text("입찰하기") }
             } else if (canceled) {
@@ -603,7 +603,7 @@ private fun HumorDetailView(
             if (loading && comments.isEmpty()) {
                 item { LoadingBox(Modifier.padding(24.dp)) }
             } else if (comments.isEmpty()) {
-                item { Text("첫 댓글을 남겨보세요.", color = MaterialTheme.colorScheme.outline,
+                item { Text("첫 댓글을 남겨보세요.", color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             } else {
                 items(comments, key = { it.id }) { c ->
@@ -611,7 +611,7 @@ private fun HumorDetailView(
                         Text(c.author, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                         Text(c.body, style = MaterialTheme.typography.bodyMedium)
                         if (c.createdAt.isNotBlank()) Text(c.createdAt.take(10),
-                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

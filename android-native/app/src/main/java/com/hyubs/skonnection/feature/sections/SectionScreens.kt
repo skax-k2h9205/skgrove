@@ -1,5 +1,6 @@
 package com.hyubs.skonnection.feature.sections
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -27,9 +28,20 @@ import com.hyubs.skonnection.feature.ErrorBox
 import com.hyubs.skonnection.feature.FeedCard
 import com.hyubs.skonnection.feature.LoadingBox
 
-/** 더보기 허브에서 고른 섹션을 렌더. 미구현 섹션은 안내 문구. */
+/**
+ * 더보기 허브에서 고른 섹션을 렌더. 미구현 섹션은 안내 문구.
+ *
+ * 배경은 여기서 한 번만 깐다 — 섹션마다 따로 칠하면 열 개가 조금씩 다른 흰색이 된다.
+ */
 @Composable
 fun SectionHost(container: AppContainer, section: String, currentEmail: String?, modifier: Modifier = Modifier) {
+    val page = modifier.fillMaxSize()
+        .background(androidx.compose.material3.MaterialTheme.colorScheme.background)
+    SectionBody(container, section, currentEmail, page)
+}
+
+@Composable
+private fun SectionBody(container: AppContainer, section: String, currentEmail: String?, modifier: Modifier) {
     when (section) {
         "대나무숲 접수" -> IssuesSection(container, modifier)
         "리더 관리함" -> LeaderSection(container, modifier)
@@ -53,7 +65,8 @@ private fun IssuesSection(c: AppContainer, modifier: Modifier) {
     val error by vm.error.collectAsStateWithLifecycle()
     var composing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
-    androidx.compose.foundation.layout.Box(modifier.fillMaxSize()) {
+    SectionScaffold(onRefresh = vm::retry, modifier = modifier) {
+      androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         when {
             loading && items.isEmpty() -> LoadingBox()
             error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry)
@@ -73,6 +86,7 @@ private fun IssuesSection(c: AppContainer, modifier: Modifier) {
             text = { androidx.compose.material3.Text("접수하기") },
             modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(16.dp),
         )
+      }
     }
 
     if (composing) {
@@ -145,7 +159,7 @@ private fun IssueComposeDialog(
 @Composable
 private fun ChipRow(label: String, options: List<String>, selected: String, onSelect: (String) -> Unit) {
     androidx.compose.foundation.layout.Column(Modifier.padding(top = 8.dp)) {
-        androidx.compose.material3.Text(label, style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.outline)
+        androidx.compose.material3.Text(label, style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
             options.forEach { opt ->
                 androidx.compose.material3.FilterChip(
@@ -165,11 +179,12 @@ private fun AgendaSection(c: AppContainer, modifier: Modifier) {
     val loading by vm.loading.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
     val votedIds by vm.votedIds.collectAsStateWithLifecycle()
-    when {
-        loading && items.isEmpty() -> LoadingBox(modifier)
-        error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry, modifier)
-        items.isEmpty() -> EmptyBox("등록된 안건이 없어요.", modifier)
-        else -> LazyColumn(modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
+    SectionScaffold(onRefresh = vm::retry, modifier = modifier) {
+      when {
+        loading && items.isEmpty() -> LoadingBox()
+        error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry)
+        items.isEmpty() -> EmptyBox("등록된 안건이 없어요.")
+        else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
             items(items, key = { it.id }) { a ->
                 AgendaCard(
                     title = a.title, status = a.status, category = a.category, part = a.part,
@@ -180,6 +195,7 @@ private fun AgendaSection(c: AppContainer, modifier: Modifier) {
                 )
             }
         }
+      }
     }
 }
 
@@ -192,7 +208,8 @@ private fun ActionsSection(c: AppContainer, modifier: Modifier) {
     var composing by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<com.hyubs.skonnection.data.ActionItem?>(null) }
 
-    androidx.compose.foundation.layout.Box(modifier.fillMaxSize()) {
+    SectionScaffold(onRefresh = vm::retry, modifier = modifier) {
+      androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         when {
             loading && items.isEmpty() -> LoadingBox()
             error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry)
@@ -214,6 +231,7 @@ private fun ActionsSection(c: AppContainer, modifier: Modifier) {
             text = { androidx.compose.material3.Text("액션 추가") },
             modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(16.dp),
         )
+      }
     }
 
     if (composing) {
@@ -250,10 +268,11 @@ private fun AccountsSection(c: AppContainer, modifier: Modifier) {
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
-    when {
-        loading && items.isEmpty() -> LoadingBox(modifier)
-        error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry, modifier)
-        items.isEmpty() -> EmptyBox("계정이 없어요.", modifier)
+    SectionScaffold(onRefresh = vm::retry, modifier = modifier) {
+      when {
+        loading && items.isEmpty() -> LoadingBox()
+        error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry)
+        items.isEmpty() -> EmptyBox("계정이 없어요.")
         else -> {
             val sorted = androidx.compose.runtime.remember(items) { items.sortedForManagement() }
             val active = androidx.compose.runtime.remember(items) { items.count { it.status == "활성" } }
@@ -283,6 +302,7 @@ private fun AccountsSection(c: AppContainer, modifier: Modifier) {
                 )
             }
         }
+      }
     }
 }
 
@@ -292,10 +312,11 @@ private fun NotificationsSection(c: AppContainer, email: String?, modifier: Modi
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
-    when {
-        loading && items.isEmpty() -> LoadingBox(modifier)
-        error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry, modifier)
-        items.isEmpty() -> EmptyBox("받은 알림이 없어요. 챙길 일이 생기면 여기에 모아드릴게요.", modifier)
+    SectionScaffold(onRefresh = vm::retry, modifier = modifier) {
+      when {
+        loading && items.isEmpty() -> LoadingBox()
+        error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry)
+        items.isEmpty() -> EmptyBox("받은 알림이 없어요. 챙길 일이 생기면 여기에 모아드릴게요.")
         else -> {
             val unread = androidx.compose.runtime.remember(items) { items.count { !it.read } }
             LazyColumn(modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)) {
@@ -317,5 +338,6 @@ private fun NotificationsSection(c: AppContainer, email: String?, modifier: Modi
                 items(items, key = { it.id }) { n -> NotificationCard(n, onClick = { vm.markRead(n) }) }
             }
         }
+      }
     }
 }

@@ -96,7 +96,7 @@ fun FormLabel(text: String, required: Boolean = false) {
     Text(
         buildString { append(text); if (required) append(" *") },
         style = MaterialTheme.typography.labelLarge,
-        color = if (required) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+        color = if (required) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.fillMaxWidth(),
     )
 }

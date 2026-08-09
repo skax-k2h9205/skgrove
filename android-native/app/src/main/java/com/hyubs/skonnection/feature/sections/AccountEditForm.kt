@@ -54,7 +54,7 @@ fun AccountEditForm(account: Account, onClose: () -> Unit, onSave: (Account) -> 
         onClose = onClose,
     ) {
         Text(account.email, style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline)
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         FormLabel("권한")
         ChipGroup(userRoles, role) { picked ->
@@ -65,7 +65,7 @@ fun AccountEditForm(account: Account, onClose: () -> Unit, onSave: (Account) -> 
         FormLabel("소속 파트")
         if (role == "팀리더") {
             Text("팀리더는 전체 파트를 담당합니다.", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline)
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             ChipGroup(teamParts, part) { part = it }
         }

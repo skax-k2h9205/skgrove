@@ -18,7 +18,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -30,15 +29,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hyubs.skonnection.feature.SkCard
+import com.hyubs.skonnection.ui.theme.Sk
 
-// ── 색 팔레트 ─────────────────────────────────────────────
-private val Blue = Color(0xFF2563EB)
-private val Green = Color(0xFF059669)
-private val Amber = Color(0xFFD97706)
-private val Red = Color(0xFFDC2626)
-private val Purple = Color(0xFF7C3AED)
-private val Cyan = Color(0xFF0891B2)
-private val Gray = Color(0xFF6B7280)
+// ── 색 ─────────────────────────────────────────────────────
+// 화면마다 다른 파랑을 쓰면 세 플랫폼이 한 몸으로 보이지 않는다. 브랜드 토큰만 쓴다.
+private val Blue = Sk.Cta
+private val Green = Sk.Success
+private val Amber = Sk.Amber
+private val Red = Sk.Danger
+private val Purple = Sk.Purple
+private val Cyan = Sk.Cyan
+private val Gray = Sk.Gray
 
 fun statusColor(status: String): Color = when (status) {
     "투표중", "진행중", "안건화", "1on1 제안" -> Blue
@@ -110,13 +112,13 @@ fun PollBar(label: String, votes: Int, pct: Int, leading: Boolean, color: Color)
 /** 접수/리더관리함 카드 — 아바타 + 제목 + 상태/긴급도 배지 + 분류·대상 + 본문 미리보기. */
 @Composable
 fun IssueCard(title: String, status: String, urgency: String, category: String, target: String, submitter: String, body: String) {
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+    SkCard(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MiniAvatar(submitter)
                 Column(Modifier.padding(start = 10.dp).weight(1f)) {
                     Text(submitter.ifBlank { "익명" }, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                    Text("$category · $target", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    Text("$category · $target", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (status.isNotBlank()) StatusBadge(status)
             }
@@ -144,11 +146,11 @@ fun AgendaCard(
     val rejectRate = if (total > 0) 100 - rate else 0
     val quorumProgress = if (quorum > 0) (total.toFloat() / quorum).coerceIn(0f, 1f) else 1f
     val remaining = (quorum - total).coerceAtLeast(0)
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+    SkCard(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(listOf(category, part).filter { it.isNotBlank() }.joinToString(" · "),
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f))
                 StatusBadge(status)
             }
@@ -170,7 +172,7 @@ fun AgendaCard(
                 }
                 Text(if (remaining > 0) "성립까지 ${remaining}표" else "정족수 충족",
                     style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
-                    color = if (remaining > 0) MaterialTheme.colorScheme.outline else Green,
+                    color = if (remaining > 0) MaterialTheme.colorScheme.onSurfaceVariant else Green,
                     modifier = Modifier.padding(start = 10.dp))
             }
             Text(
@@ -179,7 +181,7 @@ fun AgendaCard(
                     if (eligible > 0) append(" · 대상 ${eligible}명")
                     deadlineLabel(deadline)?.let { append(" · $it") }
                 },
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp),
             )
             if (open && !voted) {
@@ -226,10 +228,7 @@ fun InfoBanner(text: String) {
 @Composable
 fun AccountCard(account: com.hyubs.skonnection.data.Account, onClick: (() -> Unit)? = null) {
     val inactive = account.status != "활성"
-    Card(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-    ) {
+    SkCard(Modifier.padding(horizontal = 16.dp, vertical = 5.dp), onClick = onClick) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.alpha(if (inactive) 0.45f else 1f)) {
                 MiniAvatar(account.name.ifBlank { account.email }, size = 40)
@@ -244,9 +243,9 @@ fun AccountCard(account: com.hyubs.skonnection.data.Account, onClick: (() -> Uni
                     }
                 }
                 Text(account.email, style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(account.part, style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 StatusBadge(account.role, if (account.role.contains("리더")) Purple else Gray)
@@ -259,10 +258,7 @@ fun AccountCard(account: com.hyubs.skonnection.data.Account, onClick: (() -> Uni
 /** 알림 카드 — 안 읽은 건은 좌측 색 띠로 표시한다. 배지만 쓰면 목록에서 훑히지 않는다. */
 @Composable
 fun NotificationCard(n: com.hyubs.skonnection.data.AppNotification, onClick: (() -> Unit)? = null) {
-    Card(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-    ) {
+    SkCard(Modifier.padding(horizontal = 16.dp, vertical = 5.dp), onClick = onClick) {
         Row(Modifier.height(IntrinsicSize.Min)) {
             Box(
                 Modifier.width(4.dp).fillMaxHeight()
@@ -272,12 +268,12 @@ fun NotificationCard(n: com.hyubs.skonnection.data.AppNotification, onClick: (()
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (n.kind.isNotBlank()) {
                         Text(n.kindLabel, style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Spacer(Modifier.weight(1f))
                     relativeTime(n.createdAt)?.let {
                         Text(it, style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Text(n.title.ifBlank { n.kind.ifBlank { "(제목 없음)" } },
@@ -291,7 +287,7 @@ fun NotificationCard(n: com.hyubs.skonnection.data.AppNotification, onClick: (()
                 }
                 if (n.from.isNotBlank()) {
                     Text("from ${n.from}", style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 6.dp))
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
                 }
             }
         }
@@ -331,7 +327,7 @@ private fun relativeTime(raw: String): String? {
 /** 액션 카드 — 담당자 아바타 + 제목 + 상태 + 목표일(지연 빨강). */
 @Composable
 fun ActionCard(title: String, status: String, owner: String, due: String, sourceLabel: String, overdue: Boolean, onDelete: (() -> Unit)? = null) {
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+    SkCard(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MiniAvatar(owner.ifBlank { "미" }, size = 28)
@@ -352,12 +348,12 @@ fun ActionCard(title: String, status: String, owner: String, due: String, source
                     Text(
                         (if (overdue) "⚠ 목표일 " else "목표일 ") + due.take(10),
                         style = MaterialTheme.typography.labelMedium,
-                        color = if (overdue) Red else MaterialTheme.colorScheme.outline,
+                        color = if (overdue) Red else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = if (overdue) FontWeight.Bold else FontWeight.Normal,
                     )
                 }
                 if (sourceLabel.isNotBlank()) {
-                    Text("  ·  $sourceLabel", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+                    Text("  ·  $sourceLabel", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

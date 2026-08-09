@@ -134,7 +134,7 @@ fun HomeGridTile(tile: HomeTile, onClick: () -> Unit) {
                     maxLines = 3, modifier = Modifier.padding(top = 6.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 if (tile.meta.isNotBlank()) {
-                    Text(tile.meta, fontSize = 10.sp, color = MaterialTheme.colorScheme.outline,
+                    Text(tile.meta, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp))
                 }
             }
