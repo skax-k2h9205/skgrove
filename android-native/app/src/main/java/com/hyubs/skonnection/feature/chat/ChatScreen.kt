@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -27,6 +28,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.runtime.Composable
@@ -66,6 +68,31 @@ fun ChatScreen(container: AppContainer, modifier: Modifier = Modifier) {
                     onClick = { vm.switchMode(m) },
                     shape = SegmentedButtonDefaults.itemShape(i, ChatMode.entries.size),
                 ) { Text(m.label) }
+            }
+        }
+
+        // 대화가 서버에 남기 시작했으니 지우는 길도 같이 둔다. 상담은 개인적인 이야기다.
+        if (state.messages.isNotEmpty()) {
+            var confirm by remember { mutableStateOf(false) }
+            TextButton(
+                onClick = { confirm = true },
+                modifier = Modifier.align(Alignment.End).padding(horizontal = 8.dp),
+            ) { Text("이 대화 지우기", style = MaterialTheme.typography.labelMedium) }
+
+            if (confirm) {
+                AlertDialog(
+                    onDismissRequest = { confirm = false },
+                    title = { Text("이 대화를 지울까요?") },
+                    text = {
+                        Text("${state.mode.label} 기록이 이 기기와 웹에서 모두 사라집니다. 되돌릴 수 없어요.")
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { vm.clearThread(); confirm = false }) { Text("지우기") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { confirm = false }) { Text("그대로 두기") }
+                    },
+                )
             }
         }
 

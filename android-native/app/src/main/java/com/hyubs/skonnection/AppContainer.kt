@@ -5,6 +5,7 @@ import com.hyubs.skonnection.core.SessionStore
 import com.hyubs.skonnection.data.AccountRepository
 import com.hyubs.skonnection.data.ActionRepository
 import com.hyubs.skonnection.data.ChatRepository
+import com.hyubs.skonnection.data.CounselRepository
 import com.hyubs.skonnection.data.AgendaRepository
 import com.hyubs.skonnection.data.GatheringRepository
 import com.hyubs.skonnection.data.HumorRepository
@@ -38,6 +39,7 @@ class AppContainer(context: Context) {
     val memoryRepository = MemoryRepository(supabase)
     val meetingRepository = MeetingRepository(supabase)
     val chatRepository = ChatRepository(httpClient)
+    val counselRepository = CounselRepository(supabase)
     val sessionStore = SessionStore(context.applicationContext)
 
     /**
