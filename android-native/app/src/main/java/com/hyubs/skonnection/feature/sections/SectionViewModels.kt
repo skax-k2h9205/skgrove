@@ -3,6 +3,7 @@ package com.hyubs.skonnection.feature.sections
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hyubs.skonnection.AppContainer
+import com.hyubs.skonnection.core.loadOrNull
 import com.hyubs.skonnection.data.Account
 import com.hyubs.skonnection.data.ActionItem
 import com.hyubs.skonnection.data.Agenda
@@ -16,10 +17,13 @@ import kotlinx.coroutines.launch
 class IssuesViewModel(private val c: AppContainer) : ViewModel() {
     private val _items = MutableStateFlow<List<Issue>>(emptyList()); val items = _items.asStateFlow()
     private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()
-    init { refresh() }
+    private val _error = MutableStateFlow<String?>(null); val error = _error.asStateFlow()
+    init { retry() }
+    fun retry() = refresh()
     private fun refresh() = viewModelScope.launch {
         _loading.value = true
-        _items.value = runCatching { c.issueRepository.loadAll() }.getOrDefault(emptyList())
+        _error.value = null
+        loadOrNull("issues", _error) { c.issueRepository.loadAll() }?.let { _items.value = it }
         _loading.value = false
     }
 
@@ -56,14 +60,19 @@ class LeaderViewModel(private val c: AppContainer) : ViewModel() {
     private val _filter = MutableStateFlow<String?>(null); val filter = _filter.asStateFlow()
     /** 방금 안건으로 올린 접수 안내. 한 번 보여주고 지운다. */
     private val _promoted = MutableStateFlow<String?>(null); val promoted = _promoted.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null); val error = _error.asStateFlow()
     private var accounts: List<Account> = emptyList()
 
     init { refresh() }
 
+    fun retry() = refresh()
+
     private fun refresh() = viewModelScope.launch {
-        _items.value = runCatching { c.issueRepository.loadAll() }.getOrDefault(emptyList())
+        _error.value = null
+        loadOrNull("issues", _error) { c.issueRepository.loadAll() }?.let { _items.value = it }
         if (accounts.isEmpty()) {
-            accounts = runCatching { c.accountRepository.loadAll() }.getOrDefault(emptyList())
+            // 계정은 안건화 시 투표 대상 수를 세는 데만 쓴다. 실패해도 목록은 계속 보여준다.
+            accounts = loadOrNull("accounts", _error) { c.accountRepository.loadAll() } ?: emptyList()
         }
         _loading.value = false
     }
@@ -116,19 +125,24 @@ class AgendaViewModel(private val c: AppContainer) : ViewModel() {
     private val _items = MutableStateFlow<List<Agenda>>(emptyList()); val items = _items.asStateFlow()
     private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()
     private val _votedIds = MutableStateFlow<Set<String>>(emptySet()); val votedIds = _votedIds.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null); val error = _error.asStateFlow()
 
     init { refresh() }
 
+    fun retry() = refresh()
+
     private fun refresh() = viewModelScope.launch {
         _loading.value = true
-        _items.value = runCatching { c.agendaRepository.loadAll() }.getOrDefault(emptyList())
+        _error.value = null
+        loadOrNull("agendas", _error) { c.agendaRepository.loadAll() }?.let { _items.value = it }
         recomputeVoted()
         _loading.value = false
     }
 
     private suspend fun recomputeVoted() {
         val email = c.currentUser?.email ?: return
-        val keys = runCatching { c.agendaRepository.loadBallotKeys() }.getOrDefault(emptySet())
+        // 투표용지 조회 실패는 화면을 막지 않는다(중복 투표 표시만 못 할 뿐). 로그는 남긴다.
+        val keys = loadOrNull("agenda_ballots", _error) { c.agendaRepository.loadBallotKeys() } ?: emptySet()
         _votedIds.value = _items.value
             .filter { keys.contains(it.id to com.hyubs.skonnection.core.VoterKey.make(email, it.id)) }
             .map { it.id }.toSet()
@@ -156,10 +170,14 @@ class AgendaViewModel(private val c: AppContainer) : ViewModel() {
 class ActionsViewModel(private val c: AppContainer) : ViewModel() {
     private val _items = MutableStateFlow<List<ActionItem>>(emptyList()); val items = _items.asStateFlow()
     private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null); val error = _error.asStateFlow()
     val isAdmin: Boolean get() = c.isAdmin
     init { refresh() }
+    fun retry() = refresh()
     private fun refresh() = viewModelScope.launch {
-        _items.value = runCatching { c.actionRepository.loadAll() }.getOrDefault(emptyList()); _loading.value = false
+        _error.value = null
+        loadOrNull("action_items", _error) { c.actionRepository.loadAll() }?.let { _items.value = it }
+        _loading.value = false
     }
     fun create(title: String, owner: String, due: String, onDone: () -> Unit) = viewModelScope.launch {
         runCatching { c.actionRepository.create(title.trim(), owner.trim().ifBlank { "미정" }, due) }
@@ -186,12 +204,18 @@ data class Metrics(
 class MetricsViewModel(private val c: AppContainer) : ViewModel() {
     private val _metrics = MutableStateFlow(Metrics()); val metrics = _metrics.asStateFlow()
     private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null); val error = _error.asStateFlow()
 
-    init {
-        viewModelScope.launch {
-            val issues = runCatching { c.issueRepository.loadAll() }.getOrDefault(emptyList())
-            val agendas = runCatching { c.agendaRepository.loadAll() }.getOrDefault(emptyList())
-            val actions = runCatching { c.actionRepository.loadAll() }.getOrDefault(emptyList())
+    init { retry() }
+
+    fun retry() = viewModelScope.launch {
+        run {
+            _loading.value = true
+            _error.value = null
+            // 셋 중 하나라도 못 읽으면 비율이 실제와 달라진다. 지표는 틀린 값보다 못 불러왔다고 말하는 게 낫다.
+            val issues = loadOrNull("issues", _error) { c.issueRepository.loadAll() } ?: return@run
+            val agendas = loadOrNull("agendas", _error) { c.agendaRepository.loadAll() } ?: return@run
+            val actions = loadOrNull("action_items", _error) { c.actionRepository.loadAll() } ?: return@run
 
             val reflected = setOf("답변완료", "1on1 제안", "액션아이템", "안건화", "종료")
             val reflectionRate = pct(issues.count { it.status in reflected }, issues.size)
@@ -206,8 +230,8 @@ class MetricsViewModel(private val c: AppContainer) : ViewModel() {
                 reflectionRate, agendaPassRate, actionDoneRate, health,
                 issues.size, agendas.size, actions.size, overdue,
             )
-            _loading.value = false
         }
+        _loading.value = false
     }
 
     private fun pct(part: Int, total: Int) = if (total == 0) 0 else (part * 100.0 / total).toInt()
@@ -216,13 +240,17 @@ class MetricsViewModel(private val c: AppContainer) : ViewModel() {
 class AccountsViewModel(private val c: AppContainer) : ViewModel() {
     private val _items = MutableStateFlow<List<Account>>(emptyList()); val items = _items.asStateFlow()
     private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null); val error = _error.asStateFlow()
     /** 권한·상태 변경은 팀 전체에 영향을 준다. 리더가 아니면 카드는 읽기 전용으로 둔다. */
     val canEdit: Boolean get() = c.isLeader
 
     init { refresh() }
 
+    fun retry() = refresh()
+
     private fun refresh() = viewModelScope.launch {
-        _items.value = runCatching { c.accountRepository.loadAll() }.getOrDefault(emptyList())
+        _error.value = null
+        loadOrNull("accounts", _error) { c.accountRepository.loadAll() }?.let { _items.value = it }
         _loading.value = false
     }
 
@@ -244,19 +272,22 @@ class NotificationsViewModel(private val c: AppContainer, private val email: Str
     private val _items = MutableStateFlow<List<AppNotification>>(emptyList()); val items = _items.asStateFlow()
     private val _loading = MutableStateFlow(true); val loading = _loading.asStateFlow()
     /** 알림은 수신자 '이름'으로 걸려 있다. 읽음 처리에도 같은 이름이 필요해 들고 있는다. */
+    private val _error = MutableStateFlow<String?>(null); val error = _error.asStateFlow()
     private var recipientName: String? = null
 
-    init {
-        viewModelScope.launch {
-            // 세션은 이메일만 보관 → accounts 에서 현재 사용자 이름을 찾아 수신 알림을 부른다.
-            recipientName = runCatching {
-                c.accountRepository.loadAll().firstOrNull { it.email.equals(email, ignoreCase = true) }?.name
-            }.getOrNull()
-            val name = recipientName
-            _items.value = if (name == null) emptyList()
-            else runCatching { c.notificationRepository.loadFor(name) }.getOrDefault(emptyList())
-            _loading.value = false
+    init { retry() }
+
+    fun retry() = viewModelScope.launch {
+        _loading.value = true
+        _error.value = null
+        // 세션은 이메일만 보관 → accounts 에서 현재 사용자 이름을 찾아 수신 알림을 부른다.
+        recipientName = loadOrNull("accounts", _error) { c.accountRepository.loadAll() }
+            ?.firstOrNull { it.email.equals(email, ignoreCase = true) }?.name
+        recipientName?.let { name ->
+            loadOrNull("notifications", _error) { c.notificationRepository.loadFor(name) }
+                ?.let { _items.value = it }
         }
+        _loading.value = false
     }
 
     /** 알림 하나를 읽음으로. 이미 읽은 건은 서버를 다시 부르지 않는다. */

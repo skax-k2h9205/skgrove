@@ -23,6 +23,7 @@ import com.hyubs.skonnection.AppContainer
 import com.hyubs.skonnection.data.Account
 import com.hyubs.skonnection.data.sortedForManagement
 import com.hyubs.skonnection.feature.EmptyBox
+import com.hyubs.skonnection.feature.ErrorBox
 import com.hyubs.skonnection.feature.FeedCard
 import com.hyubs.skonnection.feature.LoadingBox
 
@@ -49,11 +50,13 @@ private fun IssuesSection(c: AppContainer, modifier: Modifier) {
     val vm = remember { IssuesViewModel(c) }
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
     var composing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
     androidx.compose.foundation.layout.Box(modifier.fillMaxSize()) {
         when {
             loading && items.isEmpty() -> LoadingBox()
+            error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry)
             items.isEmpty() -> EmptyBox("접수된 내용이 없어요. 첫 의견을 남겨보세요.")
             else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = 88.dp)) {
                 items(items, key = { it.id }) { i ->
@@ -160,9 +163,11 @@ private fun AgendaSection(c: AppContainer, modifier: Modifier) {
     val vm = remember { AgendaViewModel(c) }
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
     val votedIds by vm.votedIds.collectAsStateWithLifecycle()
     when {
         loading && items.isEmpty() -> LoadingBox(modifier)
+        error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry, modifier)
         items.isEmpty() -> EmptyBox("등록된 안건이 없어요.", modifier)
         else -> LazyColumn(modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
             items(items, key = { it.id }) { a ->
@@ -183,12 +188,14 @@ private fun ActionsSection(c: AppContainer, modifier: Modifier) {
     val vm = remember { ActionsViewModel(c) }
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
     var composing by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<com.hyubs.skonnection.data.ActionItem?>(null) }
 
     androidx.compose.foundation.layout.Box(modifier.fillMaxSize()) {
         when {
             loading && items.isEmpty() -> LoadingBox()
+            error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry)
             items.isEmpty() -> EmptyBox("액션아이템이 없어요. 새 액션을 추가해보세요.")
             else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = 88.dp)) {
                 val today = java.time.LocalDate.now().toString()
@@ -242,8 +249,10 @@ private fun AccountsSection(c: AppContainer, modifier: Modifier) {
     val vm = remember { AccountsViewModel(c) }
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
     when {
         loading && items.isEmpty() -> LoadingBox(modifier)
+        error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry, modifier)
         items.isEmpty() -> EmptyBox("계정이 없어요.", modifier)
         else -> {
             val sorted = androidx.compose.runtime.remember(items) { items.sortedForManagement() }
@@ -282,8 +291,10 @@ private fun NotificationsSection(c: AppContainer, email: String?, modifier: Modi
     val vm = remember(email) { NotificationsViewModel(c, email) }
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
     when {
         loading && items.isEmpty() -> LoadingBox(modifier)
+        error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry, modifier)
         items.isEmpty() -> EmptyBox("받은 알림이 없어요. 챙길 일이 생기면 여기에 모아드릴게요.", modifier)
         else -> {
             val unread = androidx.compose.runtime.remember(items) { items.count { !it.read } }

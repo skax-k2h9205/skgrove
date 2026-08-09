@@ -29,6 +29,24 @@ fun EmptyBox(text: String, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * 로드 실패 화면. 빈 목록과 반드시 구분해서 보여준다 —
+ * "없어요"로 보이면 사용자는 다시 시도할 생각을 하지 않고, 개발자는 버그를 못 찾는다.
+ */
+@Composable
+fun ErrorBox(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(message, style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error)
+            androidx.compose.material3.TextButton(
+                onClick = onRetry,
+                modifier = Modifier.padding(top = 8.dp),
+            ) { Text("다시 시도") }
+        }
+    }
+}
+
 /** 공용 콘텐츠 카드 — 제목/작성자 + 본문 + 하단 메타 라인. */
 @Composable
 fun FeedCard(

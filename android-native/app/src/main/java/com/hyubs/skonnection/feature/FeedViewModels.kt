@@ -3,6 +3,7 @@ package com.hyubs.skonnection.feature
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hyubs.skonnection.AppContainer
+import com.hyubs.skonnection.core.loadOrNull
 import com.hyubs.skonnection.data.Gathering
 import com.hyubs.skonnection.data.HumorPost
 import com.hyubs.skonnection.data.MarketItem
@@ -23,13 +24,16 @@ class HumorViewModel(private val container: AppContainer) : ViewModel() {
     private val _loading = MutableStateFlow(true)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
+    private val _error = MutableStateFlow<String?>(null); val error = _error.asStateFlow()
+
     val currentName: String? get() = container.currentUser?.name
     val isAdmin: Boolean get() = container.isAdmin
 
     init { refresh() }
     fun refresh() = viewModelScope.launch {
         _loading.value = true
-        _posts.value = runCatching { container.humorRepository.loadPosts() }.getOrDefault(emptyList())
+        _error.value = null
+        loadOrNull("humor_posts", _error) { container.humorRepository.loadPosts() }?.let { _posts.value = it }
         _loading.value = false
     }
 
@@ -68,11 +72,15 @@ class HumorDetailViewModel(private val container: AppContainer, private val post
     val comments = _comments.asStateFlow()
     private val _loading = MutableStateFlow(true)
     val loading = _loading.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null); val error = _error.asStateFlow()
 
     init { refresh() }
+    fun retry() = refresh()
     private fun refresh() = viewModelScope.launch {
         _loading.value = true
-        _comments.value = runCatching { container.humorRepository.loadComments(postId) }.getOrDefault(emptyList())
+        _error.value = null
+        loadOrNull("humor_comments", _error) { container.humorRepository.loadComments(postId) }
+            ?.let { _comments.value = it }
         _loading.value = false
     }
 
@@ -93,6 +101,7 @@ class GatheringsViewModel(private val container: AppContainer) : ViewModel() {
     val signups: StateFlow<Map<String, List<String>>> = _signups.asStateFlow()
     private val _loading = MutableStateFlow(true)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null); val error = _error.asStateFlow()
 
     val currentName: String? get() = container.currentUser?.name
     val isAdmin: Boolean get() = container.isAdmin
@@ -100,8 +109,9 @@ class GatheringsViewModel(private val container: AppContainer) : ViewModel() {
     init { refresh() }
     fun refresh() = viewModelScope.launch {
         _loading.value = true
-        _items.value = runCatching { container.gatheringRepository.loadAll() }.getOrDefault(emptyList())
-        _signups.value = runCatching { container.gatheringRepository.loadSignups() }.getOrDefault(emptyMap())
+        _error.value = null
+        loadOrNull("gatherings", _error) { container.gatheringRepository.loadAll() }?.let { _items.value = it }
+        loadOrNull("gathering_signups", _error) { container.gatheringRepository.loadSignups() }?.let { _signups.value = it }
         _loading.value = false
     }
 
@@ -141,6 +151,7 @@ class MarketViewModel(private val container: AppContainer) : ViewModel() {
     val topBids: StateFlow<Map<String, com.hyubs.skonnection.data.TopBid>> = _topBids.asStateFlow()
     private val _loading = MutableStateFlow(true)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null); val error = _error.asStateFlow()
 
     val currentName: String? get() = container.currentUser?.name
     val isAdmin: Boolean get() = container.isAdmin
@@ -148,8 +159,9 @@ class MarketViewModel(private val container: AppContainer) : ViewModel() {
     init { refresh() }
     fun refresh() = viewModelScope.launch {
         _loading.value = true
-        _items.value = runCatching { container.marketRepository.loadAll() }.getOrDefault(emptyList())
-        _topBids.value = runCatching { container.marketRepository.loadTopBids() }.getOrDefault(emptyMap())
+        _error.value = null
+        loadOrNull("market_items", _error) { container.marketRepository.loadAll() }?.let { _items.value = it }
+        loadOrNull("market_bids", _error) { container.marketRepository.loadTopBids() }?.let { _topBids.value = it }
         _loading.value = false
     }
 

@@ -160,8 +160,13 @@ fun HomeGridContent(
     val vm = remember { HomeFeedViewModel(container) }
     val tiles by vm.tiles.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
 
     if (loading && tiles.isEmpty()) { LoadingBox(modifier); return }
+    // 홈은 다섯 소스를 섞는다. 전부 못 읽었을 때만 실패로 본다 — 일부만 빠지면 있는 것부터 보여준다.
+    if (tiles.isEmpty()) {
+        error?.let { com.hyubs.skonnection.feature.ErrorBox(it, vm::retry, modifier); return }
+    }
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),

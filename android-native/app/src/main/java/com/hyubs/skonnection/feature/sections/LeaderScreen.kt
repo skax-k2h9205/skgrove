@@ -43,6 +43,7 @@ import com.hyubs.skonnection.data.Issue
 import com.hyubs.skonnection.data.oldestWaitingDays
 import com.hyubs.skonnection.data.RESPONSE_DUE_DAYS
 import com.hyubs.skonnection.feature.EmptyBox
+import com.hyubs.skonnection.feature.ErrorBox
 import com.hyubs.skonnection.feature.FormLabel
 import com.hyubs.skonnection.feature.FullScreenForm
 import com.hyubs.skonnection.feature.LoadingBox
@@ -81,6 +82,7 @@ fun LeaderSection(c: AppContainer, modifier: Modifier = Modifier) {
     val loading by vm.loading.collectAsStateWithLifecycle()
     val filter by vm.filter.collectAsStateWithLifecycle()
     val promoted by vm.promoted.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
 
     // 화면이 살아있는 동안 '오늘'은 고정한다. 매 recomposition마다 다시 물으면 지연 계산이 흔들린다.
     val today = remember { java.time.LocalDate.now() }
@@ -92,6 +94,9 @@ fun LeaderSection(c: AppContainer, modifier: Modifier = Modifier) {
     var promoteTarget by remember { mutableStateOf<Issue?>(null) }
 
     if (loading && items.isEmpty()) { LoadingBox(modifier); return }
+    if (items.isEmpty()) {
+        error?.let { ErrorBox(it, vm::retry, modifier); return }
+    }
 
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
         item { SummaryBanner(items.size, waiting) }

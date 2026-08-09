@@ -39,6 +39,7 @@ import com.hyubs.skonnection.data.TeaSession
 import com.hyubs.skonnection.data.TeamMemory
 import com.hyubs.skonnection.data.Temperament
 import com.hyubs.skonnection.feature.EmptyBox
+import com.hyubs.skonnection.feature.ErrorBox
 import com.hyubs.skonnection.feature.LoadingBox
 
 private val Blue = Color(0xFF2563EB)
@@ -51,7 +52,10 @@ fun MetricsSection(c: AppContainer, modifier: Modifier = Modifier) {
     val vm = remember { MetricsViewModel(c) }
     val m by vm.metrics.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
     if (loading) { LoadingBox(modifier); return }
+    // 지표는 세 소스를 다 읽어야 비율이 맞다. 하나라도 실패하면 틀린 숫자 대신 실패를 말한다.
+    error?.let { ErrorBox(it, vm::retry, modifier); return }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
         item {
             Surface(
@@ -118,10 +122,14 @@ fun ProfilesSection(c: AppContainer, modifier: Modifier = Modifier) {
     val vm = remember { ProfilesViewModel(c) }
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
 
     if (loading && items.isEmpty()) { LoadingBox(modifier); return }
-    if (items.isEmpty()) { EmptyBox("등록된 동료 성향이 없어요.", modifier); return }
+    if (items.isEmpty()) {
+        error?.let { ErrorBox(it, vm::retry, modifier) } ?: EmptyBox("등록된 동료 성향이 없어요.", modifier)
+        return
+    }
 
     val matched = remember(items, query) {
         val q = query.trim()
@@ -216,8 +224,10 @@ fun MemoriesSection(c: AppContainer, modifier: Modifier = Modifier) {
     val vm = remember { MemoriesViewModel(c) }
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
     when {
         loading && items.isEmpty() -> LoadingBox(modifier)
+        error != null && items.isEmpty() -> ErrorBox(error!!, vm::retry, modifier)
         items.isEmpty() -> EmptyBox("기록된 팀 추억이 없어요.", modifier)
         else -> LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
             items(items, key = { it.id }) { MemoryCard(it) }
@@ -277,11 +287,13 @@ fun MeetingsSection(c: AppContainer, modifier: Modifier = Modifier) {
     val can by vm.can.collectAsStateWithLifecycle()
     val tea by vm.tea.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
     // 두 종류를 한 목록에 이어 붙이면 어느 쪽을 보는 중인지 흐려진다. 탭으로 나눈다.
     var tab by remember { mutableStateOf(0) }
 
     when {
         loading && can.isEmpty() && tea.isEmpty() -> LoadingBox(modifier)
+        error != null && can.isEmpty() && tea.isEmpty() -> ErrorBox(error!!, vm::retry, modifier)
         can.isEmpty() && tea.isEmpty() -> EmptyBox("등록된 미팅이 없어요.", modifier)
         else -> LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
             item {

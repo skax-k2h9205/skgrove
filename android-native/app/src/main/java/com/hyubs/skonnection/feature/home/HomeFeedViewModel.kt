@@ -3,6 +3,7 @@ package com.hyubs.skonnection.feature.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hyubs.skonnection.AppContainer
+import com.hyubs.skonnection.core.loadOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -13,16 +14,22 @@ class HomeFeedViewModel(private val container: AppContainer) : ViewModel() {
     val tiles = _tiles.asStateFlow()
     private val _loading = MutableStateFlow(true)
     val loading = _loading.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null)
+    val error = _error.asStateFlow()
 
     init { refresh() }
 
+    fun retry() = refresh()
+
     fun refresh() = viewModelScope.launch {
         _loading.value = true
-        val humor = runCatching { container.humorRepository.loadPosts() }.getOrDefault(emptyList())
-        val gatherings = runCatching { container.gatheringRepository.loadAll() }.getOrDefault(emptyList())
-        val market = runCatching { container.marketRepository.loadAll() }.getOrDefault(emptyList())
-        val agendas = runCatching { container.agendaRepository.loadAll() }.getOrDefault(emptyList())
-        val actions = runCatching { container.actionRepository.loadAll() }.getOrDefault(emptyList())
+        _error.value = null
+        // 홈은 다섯 소스를 섞는다. 하나가 실패해도 나머지는 보여주되, 빠졌다는 사실은 error로 알린다.
+        val humor = loadOrNull("humor_posts", _error) { container.humorRepository.loadPosts() }.orEmpty()
+        val gatherings = loadOrNull("gatherings", _error) { container.gatheringRepository.loadAll() }.orEmpty()
+        val market = loadOrNull("market_items", _error) { container.marketRepository.loadAll() }.orEmpty()
+        val agendas = loadOrNull("agendas", _error) { container.agendaRepository.loadAll() }.orEmpty()
+        val actions = loadOrNull("action_items", _error) { container.actionRepository.loadAll() }.orEmpty()
 
         val h = humor.take(8).map {
             HomeTile("h:${it.id}", "humor", it.body.ifBlank { "(사진)" }, "❤️ ${it.laughs}", it.mediaUrl, it.author, 1)
