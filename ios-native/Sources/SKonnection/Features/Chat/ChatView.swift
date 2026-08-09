@@ -90,9 +90,16 @@ struct ChatView: View {
                         HStack { ProgressView(); Text("생각 중…").font(.footnote).foregroundStyle(Theme.Palette.muted) }
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    // 답을 못 받으면 지금까지는 빨간 글씨만 남고, 다시 물으려면 질문을
+                    // 손으로 또 쳐야 했다. 보낸 말은 이미 위에 있으니 그대로 다시 보낸다.
                     if let error {
-                        Text(error).font(.footnote).foregroundStyle(Theme.Palette.danger)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(spacing: Theme.Space.x2) {
+                            Text(error).font(.footnote).foregroundStyle(Theme.Palette.danger)
+                            Button("다시 시도") { requestReply() }
+                                .font(.footnote.weight(.semibold))
+                                .disabled(sending)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .padding(Theme.Space.x4)
@@ -150,14 +157,29 @@ struct ChatView: View {
         let isUser = turn.role == .user
         return HStack {
             if isUser { Spacer(minLength: 40) }
-            Text(turn.content)
-                .font(.body)
-                .foregroundStyle(isUser ? .white : Theme.Palette.ink)
-                .padding(Theme.Space.x3)
-                .background(isUser ? Theme.Palette.cta : Theme.Palette.surface,
-                           in: RoundedRectangle(cornerRadius: Theme.Radius.lg))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.lg)
-                    .stroke(isUser ? .clear : Theme.Palette.border))
+            Group {
+                if isUser {
+                    // 내가 쓴 말은 서식이 아니라 쓴 그대로여야 한다.
+                    Text(turn.content).font(.body).foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    ChatMarkdownText(text: turn.content, tint: Theme.Palette.ink)
+                        .font(.body).foregroundStyle(Theme.Palette.ink)
+                }
+            }
+            .padding(Theme.Space.x3)
+            .background(isUser ? Theme.Palette.cta : Theme.Palette.surface,
+                        in: RoundedRectangle(cornerRadius: Theme.Radius.lg))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.lg)
+                .stroke(isUser ? .clear : Theme.Palette.border))
+            // 상담 답변은 길고, 나중에 메모나 메시지로 옮겨 적고 싶어진다.
+            .contextMenu {
+                Button {
+                    UIPasteboard.general.string = turn.content
+                    Haptics.selection()
+                } label: { Label("복사", systemImage: "doc.on.doc") }
+            }
             if !isUser { Spacer(minLength: 40) }
         }
     }
@@ -192,13 +214,21 @@ struct ChatView: View {
         guard !text.isEmpty else { return }
         append(.init(role: .user, content: text))
         draft = ""
+        requestReply()
+    }
+
+    /// 지금까지의 대화로 답을 청한다. 마지막 질문은 이미 turns 에 들어 있으므로
+    /// 처음 보낼 때와 다시 시도할 때가 같은 경로다.
+    private func requestReply() {
+        guard !sending else { return }
+        guard let lastUser = turns.last(where: { $0.role == .user })?.content else { return }
         error = nil
         sending = true
         let history = turns
         let counsel = isCounsel
         let selfBrief = counsel ? brief(forName: session.currentUser?.name) : nil
         let partnerBrief = counsel && !partner.isEmpty ? brief(forName: partner) : nil
-        let cases = counsel ? similarCases(text) : nil
+        let cases = counsel ? similarCases(lastUser) : nil
         Task {
             do {
                 let reply = try await ChatService.reply(to: history, mode: counsel ? "counsel" : "rule",
