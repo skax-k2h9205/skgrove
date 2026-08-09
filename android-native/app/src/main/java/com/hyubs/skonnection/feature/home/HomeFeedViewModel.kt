@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hyubs.skonnection.AppContainer
 import com.hyubs.skonnection.core.loadOrNull
+import com.hyubs.skonnection.data.HumorMedia
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -32,7 +33,11 @@ class HomeFeedViewModel(private val container: AppContainer) : ViewModel() {
         val actions = loadOrNull("action_items", _error) { container.actionRepository.loadAll() }.orEmpty()
 
         val h = humor.take(8).map {
-            HomeTile("h:${it.id}", "humor", it.body.ifBlank { "(사진)" }, "❤️ ${it.laughs}", it.mediaUrl, it.author, 1)
+            HomeTile(
+                "h:${it.id}", "humor", it.body.ifBlank { "(사진)" }, "❤️ ${it.laughs}",
+                HumorMedia.thumbnail(it.mediaUrl), it.author, 1,
+                playable = HumorMedia.isPlayable(it.mediaUrl),
+            )
         }
         val m = market.take(6).map {
             HomeTile("m:${it.id}", "market", it.title, if (it.kind == "giveaway") "나눔" else "경매", it.imageUrl, it.seller, 3)

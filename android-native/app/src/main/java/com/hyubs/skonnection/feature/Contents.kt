@@ -115,7 +115,10 @@ fun HumorContent(
         com.hyubs.skonnection.feature.home.DomainTileGrid(
             tiles = posts.map {
                 com.hyubs.skonnection.feature.home.HomeTile(
-                    "h:${it.id}", "humor", it.body.ifBlank { "(사진)" }, "❤️ ${it.laughs}", it.mediaUrl, it.author, 1,
+                    "h:${it.id}", "humor", it.body.ifBlank { "(사진)" }, "❤️ ${it.laughs}",
+                    // 유튜브 링크는 썸네일 주소로 바꿔 넣는다. 원본 링크를 그대로 주면 그림이 없는 회색 타일이 된다.
+                    com.hyubs.skonnection.data.HumorMedia.thumbnail(it.mediaUrl), it.author, 1,
+                    playable = com.hyubs.skonnection.data.HumorMedia.isPlayable(it.mediaUrl),
                 )
             },
             loading = loading,

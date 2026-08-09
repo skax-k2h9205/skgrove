@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.Mood
+import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.Icon
@@ -54,8 +55,14 @@ data class HomeTile(
     val imageUrl: String?,
     val author: String?,
     val tab: Int,              // 탭 이동 대상(유머1·모임2·장터3·더보기는 섹션)
+    /** 유튜브·동영상이면 재생 표시를 얹는다. 정지 썸네일만 두면 사진과 구분이 안 된다. */
+    val playable: Boolean = false,
 )
 
+/**
+ * 타일에 그릴 그림 주소. 유튜브 원본 링크는 썸네일 주소로 바꿔서 넣어야 한다
+ * (HumorMedia.thumbnail). 여기서는 이미 변환된 값이 오는지만 본다.
+ */
 private fun isImageUrl(url: String?): Boolean {
     val u = url?.lowercase() ?: return false
     return u.startsWith("http") &&
@@ -100,6 +107,13 @@ fun HomeGridTile(tile: HomeTile, onClick: () -> Unit) {
                 kindIcon(tile.kind), contentDescription = null, tint = Color.White,
                 modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(15.dp),
             )
+            if (tile.playable) {
+                Icon(
+                    Icons.Filled.PlayCircleFilled, contentDescription = "영상",
+                    tint = Color.White.copy(alpha = 0.92f),
+                    modifier = Modifier.align(Alignment.Center).size(38.dp),
+                )
+            }
             // 하단 그라데이션 + 글쓴이·제목 캡션
             Column(
                 Modifier.fillMaxWidth()
