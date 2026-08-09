@@ -4,12 +4,16 @@
 // 입찰은 통째로 upsert 하지 않고 한 건씩 insert 한다. 배열을 덮어쓰면 두 사람이 같은
 // 순간에 입찰할 때 나중 쓰기가 앞 쓰기를 지워 한 건이 조용히 사라진다.
 // 경매에서 그 버그는 "분명 넣었는데 없다"가 되어 신뢰를 가장 크게 깬다.
+import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { GatheringPoster, MarketBid, MarketItem, MarketKind } from './types';
 
 const ITEMS_KEY = 'skgrove:marketItems';
 const BIDS_KEY = 'skgrove:marketBids';
 const ITEMS_TABLE = 'market_items';
+const ITEM_WRITE_KEYS = ['id', 'kind', 'title', 'description', 'start_price', 'min_step', 'close_at',
+  'extended_to', 'place', 'image_url', 'poster', 'seller', 'created_at', 'canceled',
+  'seller_done', 'buyer_done'];
 const BIDS_TABLE = 'market_bids';
 const IMAGE_BUCKET = 'market-images';
 
@@ -107,6 +111,7 @@ export async function loadMarketItems(): Promise<MarketItem[]> {
     const { data, error } = await supabase.from(ITEMS_TABLE).select('*').order('close_at', { ascending: false });
     if (!error && data) {
       const rows = (data as ItemRow[]).map(itemFromRow);
+      rememberRemote(ITEMS_TABLE, data as unknown as Record<string, unknown>[], ITEM_WRITE_KEYS);
       writeLocal(ITEMS_KEY, rows);
       return rows;
     }
@@ -116,12 +121,7 @@ export async function loadMarketItems(): Promise<MarketItem[]> {
 
 export async function saveMarketItems(items: MarketItem[]) {
   writeLocal(ITEMS_KEY, items);
-  if (!supabase || items.length === 0) return;
-
-  const { error } = await supabase.from(ITEMS_TABLE).upsert(items.map(itemToRow), { onConflict: 'id' });
-  if (error) {
-    console.warn('Supabase market item save failed. Local fallback is still updated.', error);
-  }
+  await syncRows(ITEMS_TABLE, items.map(itemToRow));
 }
 
 export async function deleteMarketItemRecord(id: string) {

@@ -2,12 +2,14 @@
 // 세션은 tea_sessions 테이블, 세션 유형(공용 설정)은 app_config(configStore)에 둔다.
 import { TEA_SESSION_TYPES_KEY, loadConfig, saveConfig } from './configStore';
 import { initialTeaSessions } from './data/mockData';
+import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { TeaSession, TeaSessionStatus, TeamPart } from './types';
 
 const SESSIONS_KEY = 'skgrove:teasessions';
 const SESSION_TYPES_KEY = TEA_SESSION_TYPES_KEY;
 const SESSIONS_TABLE = 'tea_sessions';
+const TEA_WRITE_KEYS = ['id','title','type','presenter','part','description','status','memo','held_at'];
 
 type TeaSessionRow = {
   id: string;
@@ -26,6 +28,7 @@ export async function loadTeaSessions(): Promise<TeaSession[]> {
     const { data, error } = await supabase.from(SESSIONS_TABLE).select('*');
     if (!error && data) {
       const sessions = (data as TeaSessionRow[]).map(sessionFromRow);
+      rememberRemote(SESSIONS_TABLE, data as unknown as Record<string, unknown>[], TEA_WRITE_KEYS);
       window.localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
       // DB 가 비어 있으면 빈 목록이다. 여기서 목업으로 채우면 그 가짜 세션이 다음
       // 저장 때 실제 DB 로 함께 upsert 돼(첫 제안이 목업까지 끌고 들어간다) 데이터가
@@ -35,11 +38,11 @@ export async function loadTeaSessions(): Promise<TeaSession[]> {
   }
   try {
     const saved = window.localStorage.getItem(SESSIONS_KEY);
-    if (!saved) return initialTeaSessions;
+    if (!saved) return supabase ? [] : initialTeaSessions;
     const parsed = JSON.parse(saved) as TeaSession[];
-    return Array.isArray(parsed) ? parsed.map(withDefaults) : initialTeaSessions;
+    return Array.isArray(parsed) ? parsed.map(withDefaults) : (supabase ? [] : initialTeaSessions);
   } catch {
-    return initialTeaSessions;
+    return supabase ? [] : initialTeaSessions;
   }
 }
 
@@ -49,11 +52,7 @@ export async function saveTeaSessions(sessions: TeaSession[]) {
   } catch {
     // 저장 실패는 무시 (메모리 상태는 유지)
   }
-  if (!supabase || sessions.length === 0) return;
-  const { error } = await supabase.from(SESSIONS_TABLE).upsert(sessions.map(sessionToRow), { onConflict: 'id' });
-  if (error) {
-    console.warn('Supabase tea session save failed. Local fallback is still updated.', error);
-  }
+  await syncRows(SESSIONS_TABLE, sessions.map(sessionToRow));
 }
 
 export const DEFAULT_TEA_SESSION_TYPES = ['기술세미나', '여행기', '팀워크샵', '팀내공유사항'];

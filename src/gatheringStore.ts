@@ -5,12 +5,16 @@
 // 통째로 덮어쓰면 두 사람이 같은 순간에 신청할 때 나중 쓰기가 앞 쓰기를 지워
 // 한 명이 조용히 사라진다. 그 버그는 재현도 어렵고 신뢰를 가장 크게 깬다.
 import { normalizeTeamPart } from './auth';
+import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { Gathering, GatheringCost, GatheringKind, GatheringPoster, GatheringSignup, TeamPart } from './types';
 
 const GATHERINGS_KEY = 'skgrove:gatherings';
 const SIGNUPS_KEY = 'skgrove:gatheringSignups';
 const GATHERINGS_TABLE = 'gatherings';
+const GATHERING_WRITE_KEYS = ['id', 'kind', 'title', 'start_at', 'place', 'capacity', 'close_at',
+  'min_people', 'description', 'part', 'cost', 'image_url', 'poster', 'host', 'created_at',
+  'canceled', 'coffee_draw', 'coffee_pick', 'coffee_picked_at', 'coffee_pool'];
 const SIGNUPS_TABLE = 'gathering_signups';
 const POSTER_BUCKET = 'gathering-images';
 
@@ -119,6 +123,7 @@ export async function loadGatherings(): Promise<Gathering[]> {
     const { data, error } = await supabase.from(GATHERINGS_TABLE).select('*').order('start_at', { ascending: false });
     if (!error && data) {
       const rows = (data as GatheringRow[]).map(gatheringFromRow);
+      rememberRemote(GATHERINGS_TABLE, data as unknown as Record<string, unknown>[], GATHERING_WRITE_KEYS);
       writeLocal(GATHERINGS_KEY, rows);
       return rows;
     }
@@ -129,12 +134,7 @@ export async function loadGatherings(): Promise<Gathering[]> {
 
 export async function saveGatherings(items: Gathering[]) {
   writeLocal(GATHERINGS_KEY, items);
-  if (!supabase || items.length === 0) return;
-
-  const { error } = await supabase.from(GATHERINGS_TABLE).upsert(items.map(gatheringToRow), { onConflict: 'id' });
-  if (error) {
-    console.warn('Supabase gathering save failed. Local fallback is still updated.', error);
-  }
+  await syncRows(GATHERINGS_TABLE, items.map(gatheringToRow));
 }
 
 export async function deleteGatheringRecord(id: string) {

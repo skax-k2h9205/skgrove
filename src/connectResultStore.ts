@@ -1,8 +1,10 @@
+import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { ConnectResultMode, SavedDrawResult } from './types';
 
 const CONNECT_RESULT_STORAGE_KEY = 'skgrove:connect-results';
 const CONNECT_RESULT_TABLE = 'connect_results';
+const CONNECT_WRITE_KEYS = ['id','mode','title','created_at','summary','share_text','share_url'];
 
 type ConnectResultRow = {
   id: string;
@@ -24,6 +26,7 @@ export async function loadConnectResults() {
 
     if (!error && data) {
       const results = (data as ConnectResultRow[]).map(resultFromRow);
+      rememberRemote(CONNECT_RESULT_TABLE, data as unknown as Record<string, unknown>[], CONNECT_WRITE_KEYS);
       window.localStorage.setItem(CONNECT_RESULT_STORAGE_KEY, JSON.stringify(results));
       return results;
     }
@@ -40,15 +43,7 @@ export async function loadConnectResults() {
 export async function saveConnectResults(results: SavedDrawResult[]) {
   window.localStorage.setItem(CONNECT_RESULT_STORAGE_KEY, JSON.stringify(results));
 
-  if (!supabase || results.length === 0) return;
-
-  const { error } = await supabase
-    .from(CONNECT_RESULT_TABLE)
-    .upsert(results.map(resultToRow), { onConflict: 'id' });
-
-  if (error) {
-    console.warn('Supabase connect result save failed. Local fallback is still updated.', error);
-  }
+  await syncRows(CONNECT_RESULT_TABLE, results.map(resultToRow));
 }
 
 export async function clearConnectResults() {

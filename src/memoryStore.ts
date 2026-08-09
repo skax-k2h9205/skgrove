@@ -1,8 +1,13 @@
+import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { MemoryAsset, TeamMemory } from './types';
 
 const MEMORY_STORAGE_KEY = 'skgrove:teamMemories';
 const MEMORY_TABLE = 'team_memories';
+const MEMORY_WRITE_KEYS = ['id','title','event_date','place','host','created_by','summary','tags',
+  'drive_folder_id','drive_folder_url','comments','reactions'];
+const ASSET_WRITE_KEYS = ['id','memory_id','type','title','uploader','tone','uploaded_at','reactions',
+  'comments','preview_url','storage_path','drive_file_id','drive_view_url','drive_download_url'];
 const MEMORY_ASSET_TABLE = 'team_memory_assets';
 const MEMORY_BUCKET = 'team-memory-assets';
 
@@ -52,8 +57,11 @@ export async function loadMemories(fallback: TeamMemory[]) {
         assetsByMemory.set(row.memory_id, [asset, ...(assetsByMemory.get(row.memory_id) ?? [])]);
       });
       const memories = (memoryRows as MemoryRow[]).map((row) => memoryFromRow(row, assetsByMemory.get(row.id) ?? []));
+      rememberRemote(MEMORY_TABLE, memoryRows as unknown as Record<string, unknown>[], MEMORY_WRITE_KEYS);
+      rememberRemote(MEMORY_ASSET_TABLE, (assetRows ?? []) as unknown as Record<string, unknown>[], ASSET_WRITE_KEYS);
       window.localStorage.setItem(MEMORY_STORAGE_KEY, JSON.stringify(memories));
-      return memories.length > 0 ? memories : fallback;
+      // 비어 있으면 비어 있는 것이다 — 시드를 돌려주면 저장을 타고 DB 로 되돌아간다.
+      return memories;
     }
   }
 
@@ -70,23 +78,10 @@ export async function loadMemories(fallback: TeamMemory[]) {
 export async function saveMemories(memories: TeamMemory[]) {
   window.localStorage.setItem(MEMORY_STORAGE_KEY, JSON.stringify(memories));
 
-  if (!supabase) return;
-
   const memoryRows = memories.map(memoryToRow);
   const assetRows = memories.flatMap((memory) => memory.assets.map((asset) => assetToRow(memory.id, asset)));
-  const { error: memoryError } = await supabase.from(MEMORY_TABLE).upsert(memoryRows, { onConflict: 'id' });
-
-  if (memoryError) {
-    console.warn('Supabase memory save failed. Local fallback is still updated.', memoryError);
-    return;
-  }
-
-  if (assetRows.length === 0) return;
-
-  const { error: assetError } = await supabase.from(MEMORY_ASSET_TABLE).upsert(assetRows, { onConflict: 'id' });
-  if (assetError) {
-    console.warn('Supabase memory asset save failed. Local fallback is still updated.', assetError);
-  }
+  if (!(await syncRows(MEMORY_TABLE, memoryRows as unknown as Record<string, unknown>[]))) return;
+  await syncRows(MEMORY_ASSET_TABLE, assetRows as unknown as Record<string, unknown>[]);
 }
 
 export async function deleteMemoryRecord(memoryId: number) {

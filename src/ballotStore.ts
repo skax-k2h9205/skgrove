@@ -1,8 +1,11 @@
+import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { AgendaBallot } from './types';
 
 const BALLOT_STORAGE_KEY = 'skgrove:ballots';
 const BALLOT_TABLE = 'agenda_ballots';
+const BALLOT_WRITE_KEYS = ['agenda_id','voter_key','created_at'];
+const ballotId = (r: Record<string, unknown>) => `${r.agenda_id}|${r.voter_key}`;
 
 type BallotRow = {
   agenda_id: string;
@@ -34,6 +37,7 @@ export async function loadBallots() {
 
     if (!error && data) {
       const ballots = data.map(ballotFromRow);
+      rememberRemote(BALLOT_TABLE, data as unknown as Record<string, unknown>[], BALLOT_WRITE_KEYS, ballotId);
       window.localStorage.setItem(BALLOT_STORAGE_KEY, JSON.stringify(ballots));
       return ballots;
     }
@@ -51,18 +55,8 @@ export async function loadBallots() {
 export async function saveBallots(ballots: AgendaBallot[]): Promise<boolean> {
   window.localStorage.setItem(BALLOT_STORAGE_KEY, JSON.stringify(ballots));
 
-  if (!supabase) return true;
-
-  const { error } = await supabase
-    .from(BALLOT_TABLE)
-    .upsert(ballots.map(ballotToRow), { onConflict: 'agenda_id,voter_key' });
-
-  if (error) {
-    console.warn('Supabase ballot save failed. Local fallback is still updated.', error);
-    return false;
-  }
-
-  return true;
+  return syncRows(BALLOT_TABLE, ballots.map(ballotToRow),
+                  { onConflict: 'agenda_id,voter_key', idOf: ballotId });
 }
 
 export function hasVoted(ballots: AgendaBallot[], agendaId: string, voterKey: string) {

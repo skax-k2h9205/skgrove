@@ -1,9 +1,14 @@
+import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { CurrentUser, Profile } from './types';
 
 const PROFILE_STORAGE_KEY = 'skgrove:profiles';
 const PROFILE_USER_KEY_PREFIX = 'skgrove:profile:';
 const PROFILE_TABLE = 'profiles';
+const PROFILE_WRITE_KEYS = ['profile_key','owner_email','name','part','role','english_name','birth_year',
+  'birthday','character','trait','style','collaboration','feedback','guide','color','mbti_type',
+  'mbti_scores','disc_type','disc_secondary','disc_scores','collab_guide'];
+const profileId = (r: Record<string, unknown>) => String(r.profile_key ?? '');
 
 type ProfileRow = {
   profile_key: string;
@@ -35,6 +40,7 @@ export async function loadProfiles(fallback: Profile[], currentUser: CurrentUser
 
     if (!error && data) {
       const loaded = (data as ProfileRow[]).map(profileFromRow);
+      rememberRemote(PROFILE_TABLE, data as unknown as Record<string, unknown>[], PROFILE_WRITE_KEYS, profileId);
       const merged = mergeCurrentUserProfile(loaded.length > 0 ? loaded : fallback, currentUser);
       window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(merged));
       return merged;
@@ -53,15 +59,8 @@ export async function loadProfiles(fallback: Profile[], currentUser: CurrentUser
 export async function saveProfiles(profiles: Profile[]) {
   window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profiles));
 
-  if (!supabase) return;
-
-  const { error } = await supabase.from(PROFILE_TABLE).upsert(profiles.map((profile) => profileToRow(profile)), {
-    onConflict: 'profile_key',
-  });
-
-  if (error) {
-    console.warn('Supabase profile save failed. Local fallback is still updated.', error);
-  }
+  await syncRows(PROFILE_TABLE, profiles.map((profile) => profileToRow(profile)),
+                 { onConflict: 'profile_key', idOf: profileId });
 }
 
 export async function saveProfileForUser(profile: Profile, currentUser: CurrentUser, profiles: Profile[]) {

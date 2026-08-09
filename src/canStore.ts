@@ -1,12 +1,15 @@
 // 캔미팅 영속화 — Supabase(can_sessions/can_opinions) 있으면 DB, 없으면 localStorage.
 // 세션·의견 모두 삭제 기능이 없으므로 upsert만 하고 prune은 두지 않는다(humorStore와 다른 점).
 import { initialCanOpinions, initialCanSessions } from './data/mockData';
+import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { CanFollowUp, CanMethod, CanOpinion, CanResultGroup, CanSession, CanStage, Identity, TeamPart } from './types';
 
 const SESSIONS_KEY = 'skgrove:cansessions';
 const OPINIONS_KEY = 'skgrove:canopinions';
 const SESSIONS_TABLE = 'can_sessions';
+const SESSION_WRITE_KEYS = ['id','topic','team_name','held_at','method','parts','stage','result_summary','result_groups','follow_up'];
+const OPINION_WRITE_KEYS = ['id','session_id','part','step','content','author','author_name','selected'];
 const OPINIONS_TABLE = 'can_opinions';
 
 type CanSessionRow = {
@@ -38,22 +41,18 @@ export async function loadCanSessions(): Promise<CanSession[]> {
     const { data, error } = await supabase.from(SESSIONS_TABLE).select('*').order('held_at', { ascending: false });
     if (!error && data) {
       const sessions = (data as CanSessionRow[]).map(sessionFromRow);
+      rememberRemote(SESSIONS_TABLE, data as unknown as Record<string, unknown>[], SESSION_WRITE_KEYS);
       writeLocal(SESSIONS_KEY, sessions);
-      return sessions.length > 0 ? sessions : initialCanSessions;
+      return sessions;   // 비어 있으면 비어 있는 것이다
     }
   }
-  return readLocal(SESSIONS_KEY, initialCanSessions);
+  return readLocal(SESSIONS_KEY, supabase ? [] : initialCanSessions);
 }
 
 export async function saveCanSessions(sessions: CanSession[]) {
   writeLocal(SESSIONS_KEY, sessions);
 
-  if (!supabase || sessions.length === 0) return;
-
-  const { error } = await supabase.from(SESSIONS_TABLE).upsert(sessions.map(sessionToRow), { onConflict: 'id' });
-  if (error) {
-    console.warn('Supabase can session save failed. Local fallback is still updated.', error);
-  }
+  await syncRows(SESSIONS_TABLE, sessions.map(sessionToRow));
 }
 
 export async function loadCanOpinions(): Promise<CanOpinion[]> {
@@ -61,22 +60,18 @@ export async function loadCanOpinions(): Promise<CanOpinion[]> {
     const { data, error } = await supabase.from(OPINIONS_TABLE).select('*');
     if (!error && data) {
       const opinions = (data as CanOpinionRow[]).map(opinionFromRow);
+      rememberRemote(OPINIONS_TABLE, data as unknown as Record<string, unknown>[], OPINION_WRITE_KEYS);
       writeLocal(OPINIONS_KEY, opinions);
-      return opinions.length > 0 ? opinions : initialCanOpinions;
+      return opinions;
     }
   }
-  return readLocal(OPINIONS_KEY, initialCanOpinions);
+  return readLocal(OPINIONS_KEY, supabase ? [] : initialCanOpinions);
 }
 
 export async function saveCanOpinions(opinions: CanOpinion[]) {
   writeLocal(OPINIONS_KEY, opinions);
 
-  if (!supabase || opinions.length === 0) return;
-
-  const { error } = await supabase.from(OPINIONS_TABLE).upsert(opinions.map(opinionToRow), { onConflict: 'id' });
-  if (error) {
-    console.warn('Supabase can opinion save failed. Local fallback is still updated.', error);
-  }
+  await syncRows(OPINIONS_TABLE, opinions.map(opinionToRow));
 }
 
 // 공용 DB에서는 여러 사람이 동시에 만들 수 있어 목록 길이 기반 id(CAN-S-3)는 충돌한다.

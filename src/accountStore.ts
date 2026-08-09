@@ -1,9 +1,12 @@
 import type { ManagedAccount } from './types';
 import { normalizeTeamPart } from './auth';
+import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 
 const ACCOUNT_STORAGE_KEY = 'skgrove:accounts';
 const ACCOUNT_TABLE = 'accounts';
+const ACCOUNT_WRITE_KEYS = ['id','name','email','role','part','status','joined_at','photo_url',
+  'is_connectioner','slack_email','password_hash'];
 
 const adminAccount: ManagedAccount = {
   id: 'USR-ADMIN',
@@ -81,6 +84,7 @@ export async function loadAccounts() {
 
     if (!error && data) {
       const accounts = ensureAdminAccount(data.map(accountFromRow));
+      rememberRemote(ACCOUNT_TABLE, data as unknown as Record<string, unknown>[], ACCOUNT_WRITE_KEYS);
       // 읽기는 DB를 다시 쓰지 않는다. 예전엔 saveAccounts로 전체 재저장했는데,
       // 옛 번들이 뜬 클라이언트가 photo_url 등을 못 읽은 채 저장하면 공유 데이터가 손상됐다.
       // (계정 사진이 통째로 NULL로 덮어써지던 원인) 로컬 캐시만 갱신한다.
@@ -109,13 +113,7 @@ export async function saveAccounts(accounts: ManagedAccount[]) {
   const nextAccounts = ensureAdminAccount(accounts);
   window.localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(nextAccounts));
 
-  if (!supabase) return;
-
-  const { error } = await supabase.from(ACCOUNT_TABLE).upsert(nextAccounts.map(accountToRow), { onConflict: 'id' });
-
-  if (error) {
-    console.warn('Supabase account save failed. Local fallback is still updated.', error);
-  }
+  await syncRows(ACCOUNT_TABLE, nextAccounts.map(accountToRow));
 }
 
 /** 계정(등록한 사람) 삭제 — admin@sk.com 전용. Supabase accounts 에서 제거한다. */

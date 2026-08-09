@@ -1,6 +1,8 @@
 // 유머게시판 영속화 — Supabase(humor_posts/humor_comments) 있으면 DB, 없으면 localStorage.
-// 삭제가 있으므로 save 시 "upsert + 목록에 없는 행 prune"으로 DB에도 삭제를 반영한다.
+// 저장은 remoteTable.syncRows 로 "내가 바꾼 것만" 쓴다. 예전처럼 배열 전체를 밀어넣고
+// 목록에 없는 행을 prune 하면, 오래된 탭 하나가 남이 지운 데이터를 통째로 되살린다.
 import { initialHumorComments, initialHumorPosts } from './data/mockData';
+import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { HumorComment, HumorPost } from './types';
 
@@ -40,14 +42,21 @@ type HumorCommentRow = {
   created_at?: string | null;
 };
 
-// save 후 현재 id 목록에 없는 DB 행을 제거(삭제 반영). id는 영숫자·하이픈이라 따옴표 불필요.
-async function pruneMissing(table: string, ids: string[]) {
-  if (!supabase) return;
-  const query = supabase.from(table).delete();
-  const { error } = ids.length
-    ? await query.not('id', 'in', `(${ids.join(',')})`)
-    : await query.neq('id', '__none__');
-  if (error) console.warn(`Supabase ${table} prune failed.`, error);
+// 우리가 저장할 때 쓰는 컬럼. 원격 스냅샷을 만들 때 이 컬럼만 비교한다
+// (created_at 기본값 등 우리가 안 건드리는 값 때문에 매번 '바뀐 것'으로 보이지 않게).
+const POST_WRITE_KEYS = ['id', 'author', 'body', 'media_url', 'created_at', 'liked_by'];
+const COMMENT_WRITE_KEYS = ['id', 'post_id', 'author', 'body', 'created_at'];
+
+/** localStorage 캐시만 읽는다. 없으면 빈 배열 — 시드로 떨어지지 않는다. */
+function readLocal<T>(key: string): T[] {
+  try {
+    const saved = window.localStorage.getItem(key);
+    if (!saved) return [];
+    const parsed = JSON.parse(saved) as T[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function loadHumorPosts(): Promise<HumorPost[]> {
@@ -55,18 +64,16 @@ export async function loadHumorPosts(): Promise<HumorPost[]> {
     const { data, error } = await supabase.from(POSTS_TABLE).select('*').order('created_at', { ascending: false });
     if (!error && data) {
       const posts = (data as HumorPostRow[]).map(postFromRow);
+      rememberRemote(POSTS_TABLE, data as unknown as Record<string, unknown>[], POST_WRITE_KEYS);
       window.localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
       return posts;
     }
+    // DB 를 못 읽었다 — 시드로 떨어지면 안 된다. 시드가 저장을 타고 프로덕션에 올라간다.
+    return readLocal(POSTS_KEY);
   }
-  try {
-    const saved = window.localStorage.getItem(POSTS_KEY);
-    if (!saved) return initialHumorPosts;
-    const parsed = JSON.parse(saved) as HumorPost[];
-    return Array.isArray(parsed) ? parsed : initialHumorPosts;
-  } catch {
-    return initialHumorPosts;
-  }
+  // Supabase 미설정(로컬 전용 데모)일 때만 시드를 쓴다.
+  const local = readLocal<HumorPost>(POSTS_KEY);
+  return local.length ? local : initialHumorPosts;
 }
 
 export async function saveHumorPosts(posts: HumorPost[]) {
@@ -75,12 +82,7 @@ export async function saveHumorPosts(posts: HumorPost[]) {
   } catch {
     // 저장 실패 무시
   }
-  if (!supabase) return;
-  if (posts.length > 0) {
-    const { error } = await supabase.from(POSTS_TABLE).upsert(posts.map(postToRow), { onConflict: 'id' });
-    if (error) console.warn('Supabase humor post save failed. Local fallback updated.', error);
-  }
-  await pruneMissing(POSTS_TABLE, posts.map((post) => post.id));
+  await syncRows(POSTS_TABLE, posts.map(postToRow));
 }
 
 export async function loadHumorComments(): Promise<HumorComment[]> {
@@ -88,18 +90,14 @@ export async function loadHumorComments(): Promise<HumorComment[]> {
     const { data, error } = await supabase.from(COMMENTS_TABLE).select('*').order('created_at', { ascending: true });
     if (!error && data) {
       const comments = (data as HumorCommentRow[]).map(commentFromRow);
+      rememberRemote(COMMENTS_TABLE, data as unknown as Record<string, unknown>[], COMMENT_WRITE_KEYS);
       window.localStorage.setItem(COMMENTS_KEY, JSON.stringify(comments));
       return comments;
     }
+    return readLocal(COMMENTS_KEY);
   }
-  try {
-    const saved = window.localStorage.getItem(COMMENTS_KEY);
-    if (!saved) return initialHumorComments;
-    const parsed = JSON.parse(saved) as HumorComment[];
-    return Array.isArray(parsed) ? parsed : initialHumorComments;
-  } catch {
-    return initialHumorComments;
-  }
+  const local = readLocal<HumorComment>(COMMENTS_KEY);
+  return local.length ? local : initialHumorComments;
 }
 
 export async function saveHumorComments(comments: HumorComment[]) {
@@ -108,12 +106,7 @@ export async function saveHumorComments(comments: HumorComment[]) {
   } catch {
     // 저장 실패 무시
   }
-  if (!supabase) return;
-  if (comments.length > 0) {
-    const { error } = await supabase.from(COMMENTS_TABLE).upsert(comments.map(commentToRow), { onConflict: 'id' });
-    if (error) console.warn('Supabase humor comment save failed. Local fallback updated.', error);
-  }
-  await pruneMissing(COMMENTS_TABLE, comments.map((comment) => comment.id));
+  await syncRows(COMMENTS_TABLE, comments.map(commentToRow));
 }
 
 let humorSequence = 0;

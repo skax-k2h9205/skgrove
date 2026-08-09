@@ -1,4 +1,5 @@
 import { initialIssues } from './data/mockData';
+import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { Issue } from './types';
 
@@ -30,24 +31,40 @@ type IssueRow = {
   created_at?: string;
 };
 
+const ISSUE_WRITE_KEYS = [
+  'id', 'title', 'body', 'category', 'urgency', 'visibility', 'target',
+  'author', 'anonymous', 'status', 'answer', 'created_at',
+];
+
 export async function loadIssues() {
   if (supabase) {
     const { data, error } = await supabase.from(ISSUE_TABLE).select('*').order('created_at', { ascending: false });
 
     if (!error && data) {
       const issues = data.map(issueFromRow);
+      rememberRemote(ISSUE_TABLE, data as unknown as Record<string, unknown>[], ISSUE_WRITE_KEYS);
       window.localStorage.setItem(ISSUE_STORAGE_KEY, JSON.stringify(issues));
-      return issues.length > 0 ? issues : initialIssues;
+      // **비어 있으면 비어 있는 것이다.** 예전엔 여기서 시드를 돌려줬는데,
+      // 그러면 전부 삭제한 다음 아무 저장이나 해도 시드가 DB 로 되돌아간다.
+      return issues;
     }
+    // 읽기 실패 — 로컬 캐시만. 시드로 떨어지면 그게 저장을 타고 프로덕션에 올라간다.
+    return readLocalIssues();
   }
 
+  // Supabase 미설정(로컬 전용 데모)일 때만 시드를 쓴다.
+  const local = readLocalIssues();
+  return local.length ? local : initialIssues;
+}
+
+function readLocalIssues(): Issue[] {
   try {
     const saved = window.localStorage.getItem(ISSUE_STORAGE_KEY);
-    if (!saved) return initialIssues;
+    if (!saved) return [];
     const parsed = JSON.parse(saved) as Issue[];
-    return parsed.length > 0 ? parsed : initialIssues;
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return initialIssues;
+    return [];
   }
 }
 
@@ -58,17 +75,8 @@ export async function loadIssues() {
  */
 export async function saveIssues(issues: Issue[]): Promise<boolean> {
   window.localStorage.setItem(ISSUE_STORAGE_KEY, JSON.stringify(issues));
-
-  if (!supabase) return true; // 서버 미연동은 실패가 아니다(로컬 전용 모드)
-
-  const { error } = await supabase.from(ISSUE_TABLE).upsert(issues.map(issueToRow), { onConflict: 'id' });
-
-  if (error) {
-    console.warn('Supabase issue save failed. Local fallback is still updated.', error);
-    return false;
-  }
-
-  return true;
+  // 배열 전체가 아니라 **바뀐 접수만** 쓴다. 삭제는 deleteIssue 가 따로 한다.
+  return syncRows(ISSUE_TABLE, issues.map(issueToRow));
 }
 
 /** 접수 삭제(admin@sk.com 전용). Supabase issues 에서 제거한다. */

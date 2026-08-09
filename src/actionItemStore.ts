@@ -1,9 +1,12 @@
 import { initialActionItems } from './data/mockData';
+import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { ActionItem } from './types';
 
 const ACTION_STORAGE_KEY = 'skgrove:actionItems';
 const ACTION_TABLE = 'action_items';
+const ACTION_WRITE_KEYS = ['id', 'title', 'owner', 'due', 'status', 'source_kind', 'source_id',
+  'source_label', 'created_at', 'outcome', 'review_reason'];
 
 type ActionRow = {
   id: string;
@@ -25,31 +28,28 @@ export async function loadActionItems() {
 
     if (!error && data) {
       const items = data.map(actionFromRow);
+      rememberRemote(ACTION_TABLE, data as unknown as Record<string, unknown>[], ACTION_WRITE_KEYS);
       window.localStorage.setItem(ACTION_STORAGE_KEY, JSON.stringify(items));
-      return items.length > 0 ? items : initialActionItems;
+      // 비어 있으면 비어 있는 것이다 — 시드를 돌려주면 저장을 타고 DB 로 되돌아간다.
+      return items;
     }
   }
 
   try {
     const saved = window.localStorage.getItem(ACTION_STORAGE_KEY);
-    if (!saved) return initialActionItems;
+    if (!saved) return supabase ? [] : initialActionItems;
     const parsed = JSON.parse(saved) as ActionItem[];
-    return parsed.length > 0 ? parsed : initialActionItems;
+    if (!Array.isArray(parsed)) return supabase ? [] : initialActionItems;
+    return parsed.length > 0 || supabase ? parsed : initialActionItems;
   } catch {
-    return initialActionItems;
+    return supabase ? [] : initialActionItems;
   }
 }
 
 export async function saveActionItems(items: ActionItem[]) {
   window.localStorage.setItem(ACTION_STORAGE_KEY, JSON.stringify(items));
 
-  if (!supabase) return;
-
-  const { error } = await supabase.from(ACTION_TABLE).upsert(items.map(actionToRow), { onConflict: 'id' });
-
-  if (error) {
-    console.warn('Supabase action item save failed. Local fallback is still updated.', error);
-  }
+  await syncRows(ACTION_TABLE, items.map(actionToRow));
 }
 
 // 안건 통과 시 여러 액션이 한 번에 만들어질 수 있어 세션 카운터로 같은 밀리초 충돌을 막는다.

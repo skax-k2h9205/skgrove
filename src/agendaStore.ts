@@ -1,10 +1,16 @@
 import { initialAgendas } from './data/mockData';
 import { normalizeTeamPart } from './auth';
+import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { Agenda, AgendaOption } from './types';
 
 const AGENDA_STORAGE_KEY = 'skgrove:agendas';
 const AGENDA_TABLE = 'agendas';
+const AGENDA_WRITE_KEYS = [
+  'id', 'title', 'description', 'category', 'source', 'part', 'author', 'author_name',
+  'approve', 'reject', 'vote_type', 'options', 'multi_select', 'voter_count',
+  'status', 'created_at', 'eligible_count', 'deadline',
+];
 
 type AgendaRow = {
   id: string;
@@ -35,14 +41,16 @@ export async function loadAgendas() {
 
     if (!error && data) {
       const agendas = data.map(agendaFromRow);
+      rememberRemote(AGENDA_TABLE, data as unknown as Record<string, unknown>[], AGENDA_WRITE_KEYS);
       window.localStorage.setItem(AGENDA_STORAGE_KEY, JSON.stringify(agendas));
-      return agendas.length > 0 ? agendas : initialAgendas;
+      // 비어 있으면 비어 있는 것이다 — 시드를 돌려주면 저장을 타고 DB 로 되돌아간다.
+      return agendas;
     }
   }
 
   try {
     const saved = window.localStorage.getItem(AGENDA_STORAGE_KEY);
-    if (!saved) return initialAgendas;
+    if (!saved) return supabase ? [] : initialAgendas;
     const parsed = JSON.parse(saved) as Agenda[];
     // 로컬 캐시에도 옛 파트 이름이 남아 있다. DB 경로와 같은 정규화를 태운다.
     // 객관식 필드가 생기기 전에 저장된 캐시에는 options 자체가 없다.
@@ -55,26 +63,17 @@ export async function loadAgendas() {
       multiSelect: agenda.multiSelect ?? false,
       voterCount: agenda.voterCount ?? 0,
     }));
-    return fixed.length > 0 ? fixed : initialAgendas;
+    // Supabase 를 쓰는데 읽기가 실패했다면 시드로 떨어지면 안 된다(시드가 DB 로 올라간다).
+    return supabase ? fixed : (fixed.length > 0 ? fixed : initialAgendas);
   } catch {
-    return initialAgendas;
+    return supabase ? [] : initialAgendas;
   }
 }
 
 /** 서버 저장 성공 여부. false는 "이 기기에만 남았다"는 뜻이다(issueStore와 같은 규약). */
 export async function saveAgendas(agendas: Agenda[]): Promise<boolean> {
   window.localStorage.setItem(AGENDA_STORAGE_KEY, JSON.stringify(agendas));
-
-  if (!supabase) return true;
-
-  const { error } = await supabase.from(AGENDA_TABLE).upsert(agendas.map(agendaToRow), { onConflict: 'id' });
-
-  if (error) {
-    console.warn('Supabase agenda save failed. Local fallback is still updated.', error);
-    return false;
-  }
-
-  return true;
+  return syncRows(AGENDA_TABLE, agendas.map(agendaToRow));
 }
 
 // 캔미팅 후속 조치는 안건을 한 번에 여러 건 만든다.
