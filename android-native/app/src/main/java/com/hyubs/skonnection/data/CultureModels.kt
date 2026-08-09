@@ -71,14 +71,44 @@ data class MemoryRow(
     val tags: List<String>? = null,
 )
 
+/**
+ * 앨범 안의 사진·영상 한 장(team_memory_assets).
+ * 원본은 Supabase Storage에 있고, preview_url이 공개 URL이다.
+ */
+@Serializable
+data class MemoryAssetRow(
+    val id: Long,
+    @SerialName("memory_id") val memoryId: Long,
+    val type: String = "photo",
+    val title: String = "",
+    val uploader: String = "",
+    @SerialName("preview_url") val previewUrl: String? = null,
+)
+
+data class MemoryAsset(
+    val id: Long, val memoryId: Long, val type: String,
+    val title: String, val uploader: String, val previewUrl: String,
+) {
+    val isVideo: Boolean get() = type == "video"
+}
+
+fun MemoryAssetRow.toAsset() = MemoryAsset(
+    id = id, memoryId = memoryId, type = type, title = title,
+    uploader = uploader, previewUrl = previewUrl ?: "",
+)
+
 data class TeamMemory(
     val id: Long, val title: String, val eventDate: String, val place: String,
     val host: String, val summary: String, val tags: List<String>,
-)
+    val assets: List<MemoryAsset> = emptyList(),
+) {
+    /** 목록에서 쓸 표지. 미리보기 URL이 있는 첫 장 — 없으면 null이고 화면은 날짜 칩만 보여준다. */
+    val cover: MemoryAsset? get() = assets.firstOrNull { it.previewUrl.isNotBlank() }
+}
 
-fun MemoryRow.toMemory() = TeamMemory(
+fun MemoryRow.toMemory(assets: List<MemoryAsset> = emptyList()) = TeamMemory(
     id = id, title = title, eventDate = eventDate, place = place,
-    host = host, summary = summary, tags = tags ?: emptyList(),
+    host = host, summary = summary, tags = tags ?: emptyList(), assets = assets,
 )
 
 // ── 캔미팅 (can_sessions) ─────────────────────────────────────────
