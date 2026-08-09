@@ -54,12 +54,9 @@ private fun IssuesSection(c: AppContainer, modifier: Modifier) {
             items.isEmpty() -> EmptyBox("접수된 내용이 없어요. 첫 의견을 남겨보세요.")
             else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = 88.dp)) {
                 items(items, key = { it.id }) { i ->
-                    FeedCard(
-                        title = i.title.ifBlank { "(제목 없음)" },
-                        pill = i.status.ifBlank { null },
-                        subtitle = "${i.category} · ${i.target} · ${i.submitter}",
-                        body = i.body.ifBlank { null },
-                        meta = if (i.urgency.isNotBlank()) "긴급도 ${i.urgency}" else null,
+                    IssueCard(
+                        title = i.title, status = i.status, urgency = i.urgency,
+                        category = i.category, target = i.target, submitter = i.submitter, body = i.body,
                     )
                 }
             }
@@ -166,66 +163,12 @@ private fun AgendaSection(c: AppContainer, modifier: Modifier) {
         items.isEmpty() -> EmptyBox("등록된 안건이 없어요.", modifier)
         else -> LazyColumn(modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
             items(items, key = { it.id }) { a ->
-                val total = a.approve + a.reject
-                val rate = if (total > 0) a.approve * 100 / total else 0
-                val voted = votedIds.contains(a.id)
-                val open = a.status == "투표중"
-                androidx.compose.material3.Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                ) {
-                    androidx.compose.foundation.layout.Column(Modifier.padding(16.dp)) {
-                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            androidx.compose.material3.Text(
-                                a.title.ifBlank { "(제목 없음)" },
-                                style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                                modifier = Modifier.padding(end = 8.dp),
-                            )
-                            androidx.compose.material3.Text(
-                                a.status,
-                                style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                        androidx.compose.material3.Text(
-                            "${a.category} · ${a.part}",
-                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                            color = androidx.compose.material3.MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(top = 2.dp),
-                        )
-                        if (a.description.isNotBlank()) {
-                            androidx.compose.material3.Text(
-                                a.description,
-                                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(top = 6.dp),
-                            )
-                        }
-                        androidx.compose.material3.Text(
-                            "찬성 ${a.approve} · 반대 ${a.reject} (찬성률 ${rate}%)",
-                            style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
-                            color = androidx.compose.material3.MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                        if (open && !voted) {
-                            androidx.compose.foundation.layout.Row(modifier = Modifier.padding(top = 10.dp)) {
-                                androidx.compose.material3.Button(
-                                    onClick = { vm.vote(a, true) },
-                                    modifier = Modifier.padding(end = 8.dp),
-                                ) { androidx.compose.material3.Text("찬성") }
-                                androidx.compose.material3.OutlinedButton(onClick = { vm.vote(a, false) }) {
-                                    androidx.compose.material3.Text("반대")
-                                }
-                            }
-                        } else if (voted) {
-                            androidx.compose.material3.Text(
-                                "✓ 투표 완료",
-                                style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = 10.dp),
-                            )
-                        }
-                    }
-                }
+                AgendaCard(
+                    title = a.title, status = a.status, category = a.category, part = a.part,
+                    description = a.description, approve = a.approve, reject = a.reject,
+                    voted = votedIds.contains(a.id), open = a.status == "투표중",
+                    onApprove = { vm.vote(a, true) }, onReject = { vm.vote(a, false) },
+                )
             }
         }
     }
@@ -244,35 +187,13 @@ private fun ActionsSection(c: AppContainer, modifier: Modifier) {
             loading && items.isEmpty() -> LoadingBox()
             items.isEmpty() -> EmptyBox("액션아이템이 없어요. 새 액션을 추가해보세요.")
             else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = 88.dp)) {
+                val today = java.time.LocalDate.now().toString()
                 items(items, key = { it.id }) { a ->
-                    androidx.compose.material3.Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
-                        androidx.compose.foundation.layout.Column(Modifier.padding(16.dp)) {
-                            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                androidx.compose.material3.Text(a.title.ifBlank { "(제목 없음)" },
-                                    style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.padding(end = 8.dp))
-                                androidx.compose.material3.Text(a.status,
-                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
-                                    color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
-                                if (vm.isAdmin) {
-                                    androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-                                    androidx.compose.material3.Text("삭제", color = androidx.compose.material3.MaterialTheme.colorScheme.error,
-                                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
-                                        modifier = Modifier.clickable { deleteTarget = a }.padding(4.dp))
-                                }
-                            }
-                            androidx.compose.material3.Text("담당 ${a.owner}",
-                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 2.dp))
-                            val meta = buildString {
-                                if (a.due.isNotBlank()) append("목표일 ${a.due.take(10)}")
-                                if (a.sourceLabel.isNotBlank()) { if (isNotEmpty()) append(" · "); append(a.sourceLabel) }
-                            }
-                            if (meta.isNotBlank()) androidx.compose.material3.Text(meta,
-                                style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 6.dp))
-                        }
-                    }
+                    ActionCard(
+                        title = a.title, status = a.status, owner = a.owner, due = a.due, sourceLabel = a.sourceLabel,
+                        overdue = a.status != "완료" && a.due.isNotBlank() && a.due.take(10) < today,
+                        onDelete = if (vm.isAdmin) ({ deleteTarget = a }) else null,
+                    )
                 }
             }
         }
