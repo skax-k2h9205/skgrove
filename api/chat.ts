@@ -54,6 +54,20 @@ const RULE_PERSONA = [
   '정확한 내용은 담당자 확인이 필요하다고 덧붙인다. 어느 문서에서 왔는지 간단히 밝힌다.',
 ].join(' ');
 
+// 답을 그리는 쪽(웹 Markdownish, iOS ChatMarkdown, Android chatAnnotated)이 아는 서식만
+// 쓰게 한다. 여기 없는 걸 모델이 쓰면 화면에 `**이렇게**` 별표째로 남는다 — 실제로 상담
+// 답변 한 건에 별표 8개·구분선·기울임이 그대로 노출됐다(2026-08 확인).
+// 이 목록을 늘리려면 세 렌더러도 같이 늘려야 한다.
+const FORMAT_RULES = [
+  '\n\n[답변 서식]',
+  '아래 서식만 쓴다. 여기 없는 표기는 앱에서 기호가 글자로 그대로 보인다.',
+  '- 문단은 빈 줄로 나눈다',
+  '- 목록은 "- " 또는 "1. " 로 시작한다',
+  '- 강조는 **굵게** 와 *기울임* 만 쓴다',
+  '표, 제목(#), 인용(>), 링크([]()), 코드블록(```)은 쓰지 않는다.',
+  '한 답변에 강조는 3개를 넘기지 않는다 — 다 굵으면 아무것도 강조되지 않는다.',
+].join('\n');
+
 function buildMessages(body: ChatBody) {
   const { mode, messages = [], self, partner, cases, knowledge } = body;
   const system: string[] = [];
@@ -71,6 +85,7 @@ function buildMessages(body: ChatBody) {
       );
     }
   }
+  system.push(FORMAT_RULES);
   return [
     { role: 'system', content: system.join('') },
     ...messages.map((m) => ({ role: m.role, content: m.content })),
