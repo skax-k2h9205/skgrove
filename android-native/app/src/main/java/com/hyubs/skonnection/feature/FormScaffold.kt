@@ -67,6 +67,29 @@ fun FormScaffold(
     }
 }
 
+/**
+ * 섹션(더보기) 안에서 쓰는 전체화면 폼. 플랫폼 기본 너비 제한을 끄고 화면을 꽉 채워
+ * 섹션 상단바까지 덮는다. AlertDialog 대비 답답함·키보드 가림을 없앤다.
+ */
+@Composable
+fun FullScreenForm(
+    title: String,
+    submitLabel: String,
+    canSubmit: Boolean,
+    onSubmit: () -> Unit,
+    onClose: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onClose,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        androidx.compose.material3.Surface(Modifier.fillMaxSize()) {
+            FormScaffold(title, submitLabel, canSubmit, onSubmit, onClose, content = content)
+        }
+    }
+}
+
 /** 폼 섹션 라벨 — 필드 위 작은 제목(위계 부여). */
 @Composable
 fun FormLabel(text: String, required: Boolean = false) {

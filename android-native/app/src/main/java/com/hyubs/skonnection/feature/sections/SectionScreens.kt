@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -100,49 +101,41 @@ private fun IssueComposeDialog(
     var visibility by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(ISSUE_VISIBILITY[0]) }
     var anonymous by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { androidx.compose.material3.Text("대나무숲 접수") },
-        text = {
-            androidx.compose.foundation.layout.Column(
-                Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
-            ) {
-                androidx.compose.material3.OutlinedTextField(
-                    value = title, onValueChange = { title = it },
-                    label = { androidx.compose.material3.Text("제목") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                ChipRow("분류", ISSUE_CATEGORIES, category) { category = it }
-                ChipRow("대상", ISSUE_TARGETS, target) { target = it }
-                ChipRow("긴급도", ISSUE_URGENCY, urgency) { urgency = it }
-                ChipRow("공개", ISSUE_VISIBILITY, visibility) { visibility = it }
-                androidx.compose.material3.OutlinedTextField(
-                    value = body, onValueChange = { body = it },
-                    label = { androidx.compose.material3.Text("내용") },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                )
-                androidx.compose.material3.OutlinedTextField(
-                    value = expected, onValueChange = { expected = it },
-                    label = { androidx.compose.material3.Text("기대하는 변화") },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                )
-                androidx.compose.foundation.layout.Row(
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 8.dp),
-                ) {
-                    androidx.compose.material3.Switch(checked = anonymous, onCheckedChange = { anonymous = it })
-                    androidx.compose.material3.Text("익명으로 접수", modifier = Modifier.padding(start = 8.dp))
-                }
-            }
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(
-                onClick = { if (title.isNotBlank() && body.isNotBlank()) onSubmit(title, category, target, urgency, body, expected, visibility, anonymous) },
-                enabled = title.isNotBlank() && body.isNotBlank(),
-            ) { androidx.compose.material3.Text("접수") }
-        },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { androidx.compose.material3.Text("취소") } },
-    )
+    com.hyubs.skonnection.feature.FullScreenForm(
+        title = "대나무숲 접수", submitLabel = "접수",
+        canSubmit = title.isNotBlank() && body.isNotBlank(),
+        onSubmit = { if (title.isNotBlank() && body.isNotBlank()) onSubmit(title, category, target, urgency, body, expected, visibility, anonymous) },
+        onClose = onDismiss,
+    ) {
+        com.hyubs.skonnection.feature.FormLabel("제목", required = true)
+        androidx.compose.material3.OutlinedTextField(
+            value = title, onValueChange = { title = it },
+            placeholder = { androidx.compose.material3.Text("한 줄로 요약해주세요") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        ChipRow("분류", ISSUE_CATEGORIES, category) { category = it }
+        ChipRow("대상", ISSUE_TARGETS, target) { target = it }
+        ChipRow("긴급도", ISSUE_URGENCY, urgency) { urgency = it }
+        ChipRow("공개 범위", ISSUE_VISIBILITY, visibility) { visibility = it }
+        com.hyubs.skonnection.feature.FormLabel("내용", required = true)
+        androidx.compose.material3.OutlinedTextField(
+            value = body, onValueChange = { body = it },
+            placeholder = { androidx.compose.material3.Text("어떤 점이 불편하거나 개선되면 좋을지 적어주세요") },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+        )
+        com.hyubs.skonnection.feature.FormLabel("기대하는 변화")
+        androidx.compose.material3.OutlinedTextField(
+            value = expected, onValueChange = { expected = it },
+            placeholder = { androidx.compose.material3.Text("이렇게 바뀌면 좋겠어요") },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp),
+        )
+        androidx.compose.foundation.layout.Row(
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            androidx.compose.material3.Switch(checked = anonymous, onCheckedChange = { anonymous = it })
+            androidx.compose.material3.Text("익명으로 접수", modifier = Modifier.padding(start = 8.dp))
+        }
+    }
 }
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -295,19 +288,18 @@ private fun ActionsSection(c: AppContainer, modifier: Modifier) {
         var title by remember { mutableStateOf("") }
         var owner by remember { mutableStateOf("") }
         var due by remember { mutableStateOf("") }
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { composing = false },
-            title = { androidx.compose.material3.Text("액션아이템 추가") },
-            text = {
-                androidx.compose.foundation.layout.Column {
-                    androidx.compose.material3.OutlinedTextField(title, { title = it }, label = { androidx.compose.material3.Text("할 일") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    androidx.compose.material3.OutlinedTextField(owner, { owner = it }, label = { androidx.compose.material3.Text("담당자") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-                    androidx.compose.material3.OutlinedTextField(due, { due = it }, label = { androidx.compose.material3.Text("목표일 (YYYY-MM-DD, 선택)") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-                }
-            },
-            confirmButton = { androidx.compose.material3.TextButton(onClick = { if (title.isNotBlank()) vm.create(title, owner, due) { composing = false } }, enabled = title.isNotBlank()) { androidx.compose.material3.Text("추가") } },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { composing = false }) { androidx.compose.material3.Text("취소") } },
-        )
+        com.hyubs.skonnection.feature.FullScreenForm(
+            title = "액션아이템 추가", submitLabel = "추가", canSubmit = title.isNotBlank(),
+            onSubmit = { if (title.isNotBlank()) vm.create(title, owner, due) { composing = false } },
+            onClose = { composing = false },
+        ) {
+            com.hyubs.skonnection.feature.FormLabel("할 일", required = true)
+            androidx.compose.material3.OutlinedTextField(title, { title = it }, placeholder = { androidx.compose.material3.Text("무엇을 해야 하나요?") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            com.hyubs.skonnection.feature.FormLabel("담당자")
+            androidx.compose.material3.OutlinedTextField(owner, { owner = it }, placeholder = { androidx.compose.material3.Text("이름") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            com.hyubs.skonnection.feature.FormLabel("목표일 (선택)")
+            androidx.compose.material3.OutlinedTextField(due, { due = it }, placeholder = { androidx.compose.material3.Text("YYYY-MM-DD") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        }
     }
     deleteTarget?.let { t ->
         androidx.compose.material3.AlertDialog(
