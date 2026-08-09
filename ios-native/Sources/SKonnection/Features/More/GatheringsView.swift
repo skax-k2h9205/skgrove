@@ -76,10 +76,14 @@ private struct GatheringDetailSheet: View {
     let gatheringId: String
     @EnvironmentObject private var store: GatheringStore
     @EnvironmentObject private var session: SessionStore
+    @EnvironmentObject private var coffeeGames: CoffeeGameStore
     @Environment(\.dismiss) private var dismiss
+    @State private var showCoffeeGame = false
 
     private var myName: String { session.currentUser?.name ?? "나" }
     private var g: Gathering? { store.gatherings.first { $0.id == gatheringId } }
+    /// 지금 이 모임에서 돌아가는(또는 끝난) 게임.
+    private var liveGame: CoffeeGame? { coffeeGames.game(for: gatheringId) }
 
     var body: some View {
         NavigationStack {
@@ -92,6 +96,7 @@ private struct GatheringDetailSheet: View {
                         }
                         infoCard(g)
                         if !g.coffeePick.isEmpty { coffeeResult(g) }
+                        coffeeGameArea(g)
                         rosterCard(g)
                         actionArea(g)
                     }
@@ -105,6 +110,61 @@ private struct GatheringDetailSheet: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } } }
         }
         .presentationDetents([.medium, .large])
+        // 상세가 열려 있는 동안만 폴링한다 — 게임이 시작되면 참가자 폰에도 곧바로 뜬다.
+        .task {
+            await coffeeGames.loadPhotosIfNeeded()
+            coffeeGames.startPolling(gatheringId)
+        }
+        .onDisappear { coffeeGames.stopPolling() }
+        // 다른 사람이 게임을 시작하면 관전 화면을 자동으로 띄운다.
+        .onChange(of: liveGame?.phase) { _, phase in
+            if phase == .spinning, !showCoffeeGame { showCoffeeGame = true }
+        }
+        .sheet(isPresented: $showCoffeeGame) {
+            if let g {
+                CoffeeGameSheet(gatheringId: gatheringId,
+                                isHost: g.host == myName,
+                                hostName: g.host,
+                                participants: coffeeGames.participants(
+                                    names: store.coffeeCandidates(g).map(\.name)),
+                                onWinner: { store.setCoffeePick(g.id, name: $0) })
+            }
+        }
+    }
+
+    /// 커피 내기 게임 진입 — 주최자에겐 시작 버튼, 참가자에겐 관전 버튼.
+    @ViewBuilder
+    private func coffeeGameArea(_ g: Gathering) -> some View {
+        let isHost = g.host == myName
+        let joined = store.mySeat(g, name: myName) != nil
+        if let live = liveGame, live.phase != .done {
+            // 진행 중 — 누구나 들어가서 같이 볼 수 있다.
+            Button { showCoffeeGame = true; Haptics.light() } label: {
+                Label(live.phase == .spinning ? "지금 돌아가는 중 — 같이 보기"
+                                              : "\(live.startedBy)님이 \(live.kind.rawValue) 준비 중",
+                      systemImage: live.kind.systemImage)
+                    .font(.subheadline.bold()).frame(maxWidth: .infinity)
+                    .padding(.vertical, Theme.Space.x3)
+            }
+            .buttonStyle(.borderedProminent).tint(Theme.Palette.heart)
+        } else if store.canDrawCoffee(g) {
+            if isHost {
+                Button { showCoffeeGame = true; Haptics.light() } label: {
+                    Label("커피 내기 게임 시작", systemImage: "gamecontroller.fill")
+                        .font(.headline).frame(maxWidth: .infinity)
+                        .padding(.vertical, Theme.Space.x3)
+                }
+                .buttonStyle(.borderedProminent).tint(Theme.Palette.heart)
+            } else if joined {
+                Text("주최자가 게임을 시작하면 여기에서 같이 볼 수 있어요.")
+                    .font(.caption).foregroundStyle(Theme.Palette.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else if g.kind == .coffee, g.coffeePick.isEmpty, store.status(g) == .open {
+            Text("신청 마감 뒤에 커피 내기를 돌립니다 — 그때까지 참여자를 받아요.")
+                .font(.caption).foregroundStyle(Theme.Palette.muted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private func header(_ g: Gathering) -> some View {
@@ -175,15 +235,8 @@ private struct GatheringDetailSheet: View {
         let isHost = g.host == myName
         let joined = store.mySeat(g, name: myName) != nil
         VStack(spacing: Theme.Space.x2) {
-            // 주최자: 커피뽑기 + 취소
+            // 주최자: 모임 취소 (커피 담당 뽑기는 위 coffeeGameArea 의 게임으로 옮겼다)
             if isHost {
-                if store.canDrawCoffee(g) {
-                    Button { store.drawCoffee(g); Haptics.success() } label: {
-                        Label("커피 담당 뽑기", systemImage: "cup.and.saucer.fill").font(.headline)
-                            .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
-                    }
-                    .buttonStyle(.borderedProminent).tint(Theme.Palette.danger)
-                }
                 if store.status(g) == .open || store.status(g) == .closed {
                     Button(role: .destructive) { store.cancel(g.id, host: myName); Haptics.success(); dismiss() } label: {
                         Label("모임 취소", systemImage: "xmark.circle").font(.subheadline)
