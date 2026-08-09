@@ -212,7 +212,6 @@ export function Memory({ currentUser }: MemoryProps) {
         const isVideo = file.type.startsWith('video');
         // 사진은 업로드 전에 줄여 용량을 아낀다(영상·GIF는 compressImage가 원본 유지).
         const toUpload = await compressImage(file);
-        const localPreviewUrl = URL.createObjectURL(toUpload);
         const stored = await uploadMemoryAssetFile(selectedMemory.id, id, toUpload);
 
         return {
@@ -224,7 +223,9 @@ export function Memory({ currentUser }: MemoryProps) {
           uploadedAt: '방금',
           reactions: { '👍': 0, '👏': 0, '😂': 0, '🔥': 0, '💚': 0 },
           comments: [],
-          previewUrl: stored.previewUrl || localPreviewUrl,
+          // 업로드 실패 시 stored.previewUrl 은 빈 값이다. 로컬 blob 으로 메우면
+          // 그 주소가 DB 에 저장돼 다른 사람에게는 깨진 사진이 된다. 저장할 값이 없으면 비운다.
+          previewUrl: stored.previewUrl,
           storagePath: stored.storagePath || undefined,
         };
       }),
