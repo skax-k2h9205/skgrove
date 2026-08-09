@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.Icon
@@ -23,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -35,6 +38,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.hyubs.skonnection.data.HumorMedia
 
 private val AvatarColors = listOf(
     Color(0xFF2563EB), Color(0xFF7C3AED), Color(0xFFDB2777), Color(0xFF059669),
@@ -44,13 +48,6 @@ private val AvatarColors = listOf(
 private fun colorFor(name: String): Color =
     AvatarColors[(name.hashCode().let { if (it < 0) -it else it }) % AvatarColors.size]
 
-private fun isImageUrl(url: String): Boolean {
-    val u = url.lowercase()
-    return u.startsWith("http") &&
-        (u.endsWith(".jpg") || u.endsWith(".jpeg") || u.endsWith(".png") ||
-            u.endsWith(".gif") || u.endsWith(".webp") || u.contains("/image") ||
-            u.contains("supabase.co/storage"))
-}
 
 /** 인스타 스타일 피드 카드 — 아바타 헤더 · (이미지) · 좋아요/댓글 · 캡션. */
 @Composable
@@ -85,15 +82,32 @@ fun InstaPostCard(
             }
         }
 
-        // 미디어(이미지일 때만)
-        if (isImageUrl(mediaUrl)) {
-            AsyncImage(
-                model = mediaUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().aspectRatio(1f)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
+        // 미디어 — 유튜브 링크는 썸네일로 바꿔 그리고, 누르면 원본을 연다(목록 타일과 같은 규칙).
+        val thumb = HumorMedia.thumbnail(mediaUrl)
+        if (thumb != null) {
+            val playable = HumorMedia.isPlayable(mediaUrl)
+            val context = LocalContext.current
+            Box(
+                Modifier.fillMaxWidth().aspectRatio(1f)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .then(
+                        if (playable) Modifier.clickable { openLink(context, mediaUrl) } else Modifier,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                AsyncImage(
+                    model = thumb,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (playable) {
+                    Icon(
+                        Icons.Filled.PlayCircleFilled, contentDescription = "영상 보기",
+                        tint = Color.White.copy(alpha = 0.92f), modifier = Modifier.size(64.dp),
+                    )
+                }
+            }
         }
 
         // 액션 바
@@ -181,5 +195,19 @@ fun StoryRingRow(labels: List<String>, modifier: Modifier = Modifier) {
                 Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
             }
         }
+    }
+}
+
+/**
+ * 원본 링크를 외부 앱(유튜브·브라우저)으로 연다.
+ * 앱 안에서 영상을 재생하지 않는 것은 iOS와 같은 선택이다 — 유튜브는 자기 앱에서 봐야
+ * 로그인·화질·기록이 사용자 것과 이어진다. 열 수 있는 앱이 없으면 조용히 넘어간다.
+ */
+private fun openLink(context: android.content.Context, url: String) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 }
