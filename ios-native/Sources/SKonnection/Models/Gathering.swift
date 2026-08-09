@@ -137,8 +137,13 @@ final class GatheringStore: ObservableObject {
 
     /// 커피 담당을 뽑을 수 있는가 — '커피' 종류 모임 전용·취소 아님·미추첨·확정 2명 이상.
     /// (점심 번개 같은 일반 모임에는 커피뽑기가 뜨지 않는다 — 커피 담당을 정하는 자리에서만.)
+    ///
+    /// **신청 마감 전에는 열리지 않는다.** 명단이 아직 늘어나는 중에 돌리면
+    /// 뒤늦게 신청한 사람이 이유 없이 빠지기 때문이다(참여자는 마감될 때까지 받는다).
     func canDrawCoffee(_ g: Gathering) -> Bool {
-        g.kind == .coffee && !g.canceled && g.coffeePick.isEmpty && coffeeCandidates(g).count >= 2
+        g.kind == .coffee && !g.canceled && g.coffeePick.isEmpty
+            && coffeeCandidates(g).count >= 2
+            && status(g) != .open
     }
 
     // MARK: 액션
@@ -165,7 +170,15 @@ final class GatheringStore: ObservableObject {
         Task { try? await Supabase.patch("gatherings", id: id, ["canceled": true]) }
     }
 
-    /// 확정 로스터에서 커피 담당 한 명을 뽑는다.
+    /// 게임(커피룰렛·손가락룰렛)이 정한 당첨자를 모임에 기록한다.
+    /// 웹·안드로이드도 같은 coffee_pick 을 읽으므로 결과가 세 플랫폼에 그대로 뜬다.
+    func setCoffeePick(_ id: String, name: String) {
+        guard let i = gatherings.firstIndex(where: { $0.id == id }), !name.isEmpty else { return }
+        gatherings[i].coffeePick = name
+        Task { try? await Supabase.patch("gatherings", id: id, ["coffee_pick": name]) }
+    }
+
+    /// 확정 로스터에서 커피 담당 한 명을 뽑는다(게임 없이 즉석 추첨 — 현재 UI 에서는 쓰지 않음).
     func drawCoffee(_ g: Gathering) {
         guard canDrawCoffee(g), let i = gatherings.firstIndex(where: { $0.id == g.id }) else { return }
         let pool = coffeeCandidates(g)
