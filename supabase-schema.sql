@@ -804,6 +804,42 @@ alter table public.profiles add column if not exists energy_time text;    -- 아
 alter table public.profiles add column if not exists character_url text;  -- 생성된 캐릭터 이미지 URL
 
 -- 캐릭터 이미지 버킷. 모임 포스터(gathering-images)와 같은 방식(공개 읽기).
+-- 버킷만 만들면 읽기는 되지만 업로드는 RLS 에 막힌다 — storage.objects 정책이 따로 필요하다.
 insert into storage.buckets (id, name, public)
 values ('profile-characters', 'profile-characters', true)
-on conflict (id) do nothing;
+on conflict (id) do update set public = excluded.public;
+
+drop policy if exists "Allow prototype character reads" on storage.objects;
+drop policy if exists "Allow prototype character writes" on storage.objects;
+drop policy if exists "Allow prototype character updates" on storage.objects;
+drop policy if exists "Allow prototype character deletes" on storage.objects;
+
+create policy "Allow prototype character reads"
+  on storage.objects for select using (bucket_id = 'profile-characters');
+create policy "Allow prototype character writes"
+  on storage.objects for insert with check (bucket_id = 'profile-characters');
+create policy "Allow prototype character updates"
+  on storage.objects for update using (bucket_id = 'profile-characters')
+  with check (bucket_id = 'profile-characters');
+create policy "Allow prototype character deletes"
+  on storage.objects for delete using (bucket_id = 'profile-characters');
+
+
+-- =====================================================================
+-- 삭제(DELETE) 정책. RLS 가 켜진 테이블은 정책이 없는 동작을 조용히 거부하고,
+-- PostgREST 는 "0행 삭제"를 성공(204)으로 돌려준다. 그래서 앱의 삭제 버튼이
+-- 눌리는데 아무 일도 안 일어나는 상태로 오래 있었다(2026-08 발견).
+-- =====================================================================
+drop policy if exists "Allow prototype issue deletes" on public.issues;
+drop policy if exists "Allow prototype agenda deletes" on public.agendas;
+drop policy if exists "Allow prototype action deletes" on public.action_items;
+drop policy if exists "Allow prototype ballot deletes" on public.agenda_ballots;
+drop policy if exists "Allow prototype profile deletes" on public.profiles;
+drop policy if exists "Allow prototype account deletes" on public.accounts;
+
+create policy "Allow prototype issue deletes"   on public.issues          for delete using (true);
+create policy "Allow prototype agenda deletes"  on public.agendas         for delete using (true);
+create policy "Allow prototype action deletes"  on public.action_items    for delete using (true);
+create policy "Allow prototype ballot deletes"  on public.agenda_ballots  for delete using (true);
+create policy "Allow prototype profile deletes" on public.profiles        for delete using (true);
+create policy "Allow prototype account deletes" on public.accounts        for delete using (true);
