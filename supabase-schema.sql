@@ -729,6 +729,9 @@ create policy "Allow prototype market image deletes"
   using (bucket_id = 'market-images');
 
 -- 유머게시판 생성 썸네일 버킷. gathering-images/market-images 와 같은 개방 정책이다.
+-- 주의: 이 insert 로는 버킷이 실제로 만들어지지 않는다(2026-08 프로덕션에서 확인).
+-- Storage → New bucket 에서 사람이 직접 만들어야 하고, 그때까지 업로드는 실패하며
+-- 웹은 화면용 blob: 주소를 DB 에 그대로 저장한다 — 새로고침하면 깨진 이미지가 된다.
 insert into storage.buckets (id, name, public)
 values ('humor-images', 'humor-images', true)
 on conflict (id) do update set
@@ -781,11 +784,19 @@ alter table public.counsel_messages enable row level security;
 
 drop policy if exists "Allow prototype counsel reads" on public.counsel_messages;
 drop policy if exists "Allow prototype counsel writes" on public.counsel_messages;
+drop policy if exists "Allow prototype counsel updates" on public.counsel_messages;
+drop policy if exists "Allow prototype counsel deletes" on public.counsel_messages;
 
 create policy "Allow prototype counsel reads"
   on public.counsel_messages for select using (true);
 create policy "Allow prototype counsel writes"
   on public.counsel_messages for insert with check (true);
+-- 상담 대화는 개인적인 고민이 들어가는 곳이다. 본인이 지울 수 있어야 한다.
+-- select/insert 만 있던 동안 삭제 요청은 204 를 받고 아무 일도 일어나지 않았다.
+create policy "Allow prototype counsel updates"
+  on public.counsel_messages for update using (true) with check (true);
+create policy "Allow prototype counsel deletes"
+  on public.counsel_messages for delete using (true);
 
 -- 성향 진단(MBTI/DISC) + 협업 가이드 컬럼 (profiles). 모두 nullable.
 alter table public.profiles add column if not exists mbti_type text;
