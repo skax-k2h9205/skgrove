@@ -18,7 +18,34 @@ struct CoffeeGameSheet: View {
     @EnvironmentObject private var games: CoffeeGameStore
     @Environment(\.dismiss) private var dismiss
 
+    /// 다시보기 시작 시각. 켜져 있는 동안은 서버 상태 대신 이 시각을 기준으로 그린다.
+    @State private var replayStart: Date?
+
     private var game: CoffeeGame? { games.game(for: gatheringId) }
+
+    /**
+     화면에 그릴 게임. 다시보기 중이면 **시작 시각만 지금으로 바꾼 사본**을 넘긴다.
+     연출은 전부 `시간 → 화면` 순수 계산이라, 시작 시각만 옮기면 같은 seed 로
+     같은 그림이 처음부터 다시 흐른다. 게임 뷰는 한 줄도 고칠 필요가 없다.
+     */
+    private func displayed(_ g: CoffeeGame) -> CoffeeGame {
+        guard let start = replayStart else { return g }
+        var copy = g
+        copy.phase = .spinning
+        copy.startedAtMs = Int64(start.timeIntervalSince1970 * 1000)
+        return copy
+    }
+
+    private func replay(_ g: CoffeeGame) {
+        guard replayStart == nil else { return }
+        Haptics.light()
+        replayStart = Date()
+        let seconds = g.kind == .wheel ? CoffeeSpin.wheelTotalDuration : CoffeeSpin.fingerSpinDuration
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64((seconds + 0.6) * 1_000_000_000))
+            replayStart = nil
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -47,14 +74,17 @@ struct CoffeeGameSheet: View {
 
     @ViewBuilder
     private func stage(_ game: CoffeeGame) -> some View {
+        // 다시보기 중에는 isHost 를 끈다 — 진행자 버튼이 뜨거나 onFinish 가 다시 불리면 안 된다.
+        let shown = displayed(game)
+        let asHost = isHost && replayStart == nil
         switch game.kind {
         case .wheel:
-            CoffeeWheelView(game: game, isHost: isHost,
+            CoffeeWheelView(game: shown, isHost: asHost,
                             onSpin: { Task { await games.spin(gatheringId: gatheringId,
                                                               participants: participants) } },
                             onFinish: finish)
         case .finger:
-            FingerRouletteView(game: game, isHost: isHost,
+            FingerRouletteView(game: shown, isHost: asHost,
                                onSpin: { picked in
                                    Task { await games.spin(gatheringId: gatheringId,
                                                            participants: picked) } },
@@ -113,15 +143,13 @@ struct CoffeeGameSheet: View {
         VStack(spacing: Theme.Space.x2) {
             Text("\(game.kind.rawValue) · 참가 \(game.participants.count)명")
                 .font(.caption).foregroundStyle(Theme.Palette.muted)
-            Button {
-                Task { await games.refresh(gatheringId) }   // 같은 seed 로 다시 재생
-                Haptics.light()
-            } label: {
-                Label("다시보기", systemImage: "arrow.counterclockwise")
+            Button { replay(game) } label: {
+                Label(replayStart == nil ? "다시보기" : "재생 중…", systemImage: "arrow.counterclockwise")
                     .font(.subheadline).frame(maxWidth: .infinity)
                     .padding(.vertical, Theme.Space.x2)
             }
             .buttonStyle(.bordered).tint(Theme.Palette.primary)
+            .disabled(replayStart != nil)
         }
     }
 

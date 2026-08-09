@@ -197,6 +197,16 @@ final class GatheringStore: ObservableObject {
             SupabaseGatheringInsert(id: id, kind: kind.dbValue, title: title, start_at: startAt,
                                     close_at: closeAt, capacity: capacity, place: place, description: desc,
                                     host: host, coffee_draw: coffeeDraw)) }
+
+        // 포스터는 웹에서 만든 모임에만 붙어 있었다 — iOS 로 연 모임은 아이콘 타일로만 떠서
+        // 같은 격자에 두 종류가 섞였다. 등록은 막지 않고 뒤따라 붙인다(생성에 10초 이상 걸린다).
+        Task { @MainActor in
+            guard let seed = gatherings.first(where: { $0.id == id }) else { return }
+            guard let posterURL = await GatheringPoster.make(for: seed) else { return }
+            guard let i = gatherings.firstIndex(where: { $0.id == id }) else { return }
+            gatherings[i].imageURL = posterURL
+            try? await Supabase.patch("gatherings", id: id, ["image_url": posterURL])
+        }
     }
 
     /// 시작까지 남은 시간 사람말.

@@ -64,6 +64,28 @@ enum Supabase {
         try check(resp, data)
     }
 
+    /// Storage 업로드 후 공개 URL 을 돌려준다. 실패하면 nil —
+    /// 화면은 이미지 없이도 성립하므로 호출부는 "없으면 아이콘 타일" 한 갈래만 다루면 된다.
+    static func uploadImage(bucket: String, path: String, data: Data, contentType: String) async -> String? {
+        guard isConfigured, var comps = URLComponents(string: "\(url)/storage/v1/object/\(bucket)/\(path)") else {
+            return nil
+        }
+        comps.query = nil
+        var req = URLRequest(url: comps.url!)
+        req.httpMethod = "POST"
+        req.setValue(anonKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        req.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        req.setValue("true", forHTTPHeaderField: "x-upsert")
+        req.httpBody = data
+        guard let (body, resp) = try? await URLSession.shared.data(for: req),
+              let code = (resp as? HTTPURLResponse)?.statusCode, (200..<300).contains(code) else {
+            return nil
+        }
+        _ = body
+        return "\(url)/storage/v1/object/public/\(bucket)/\(path)"
+    }
+
     static let decoder = JSONDecoder()
     static let encoder = JSONEncoder()
 

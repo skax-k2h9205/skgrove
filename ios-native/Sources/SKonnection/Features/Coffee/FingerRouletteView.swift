@@ -123,7 +123,7 @@ struct FingerRouletteView: View {
     // MARK: 관전(그리고 주최자의 돌리는 중·결과 화면)
 
     private var spectatorStage: some View {
-        TimelineView(.animation) { context in
+        TimelineView(.animation(paused: game.phase != .spinning)) { context in
             let t = game.phase == .spinning ? game.elapsed(now: context.date)
                   : (game.phase == .done ? CoffeeSpin.fingerSpinDuration : 0)
             let focus = CoffeeSpin.fingerFocus(at: t, winnerIndex: game.winnerIndex,
@@ -138,9 +138,16 @@ struct FingerRouletteView: View {
                 ring(focus: ended ? game.winnerIndex : focus, settled: ended)
                     .frame(height: 300)
             }
-            .onChange(of: ended) { _, done in
-                if done, isHost, game.phase == .spinning { onFinish() }
+            // 포커스가 옮겨갈 때마다 딸깍 — 두구두구는 소리 없이 손으로 느껴져야 한다.
+            .onChange(of: focus) { _, _ in
+                if game.phase == .spinning, !ended { Haptics.light() }
             }
+            .onChange(of: ended) { _, done in
+                guard done, game.phase == .spinning else { return }
+                Haptics.success()
+                if isHost { onFinish() }
+            }
+            .overlay { if ended { CoffeeConfetti(seed: game.seed) } }
         }
     }
 

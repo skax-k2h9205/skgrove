@@ -11,29 +11,50 @@ struct CoffeeWheelView: View {
     let onSpin: () -> Void
     let onFinish: () -> Void
 
+    @State private var celebrate = false
+
     private var people: [CoffeeParticipant] { game.participants }
     private var winnerIndex: Int { game.winnerIndex }
 
+    // 12색. 8색이면 9명부터 원판을 한 바퀴 돌아 인접 칸이 같은 색이 된다.
     private let palette: [Color] = [
         Color(hex: 0x006BB8), Color(hex: 0xED4956), Color(hex: 0x047857),
         Color(hex: 0xE8A33D), Color(hex: 0x7C3AED), Color(hex: 0x0EA5A5),
-        Color(hex: 0xDB2777), Color(hex: 0x2563EB),
+        Color(hex: 0xDB2777), Color(hex: 0x2563EB), Color(hex: 0xF97316),
+        Color(hex: 0x0891B2), Color(hex: 0x65A30D), Color(hex: 0x9333EA),
     ]
+
+    /// 마지막 칸이 첫 칸과 붙어 있으므로, 한 바퀴 도는 경우 색이 이어지지 않게 건너뛴다.
+    private func segmentColor(_ i: Int, count: Int) -> Color {
+        let n = palette.count
+        if count > 1, count % n == 1, i == count - 1 { return palette[1 % n] }
+        return palette[i % n]
+    }
 
     var body: some View {
         VStack(spacing: Theme.Space.x5) {
             headline
 
-            TimelineView(.animation) { context in
+            TimelineView(.animation(paused: game.phase != .spinning)) { context in
                 let t = game.phase == .spinning ? game.elapsed(now: context.date)
                       : (game.phase == .done ? CoffeeSpin.wheelTotalDuration : 0)
                 let rot = CoffeeSpin.wheelRotation(at: t, winnerIndex: winnerIndex, count: people.count)
+                let ended = t >= CoffeeSpin.wheelTotalDuration
                 wheelStack(rotation: rot)
-                    .onChange(of: t >= CoffeeSpin.wheelTotalDuration) { _, ended in
-                        if ended, isHost, game.phase == .spinning { onFinish() }
+                    // 칸 하나가 바늘을 지날 때마다 딸깍. 실제 룰렛의 손맛이 여기서 나온다.
+                    // 각도로 세면 감속하면서 간격이 저절로 벌어져 긴장감이 붙는다.
+                    .onChange(of: Int(rot / (360.0 / Double(max(people.count, 1))))) { _, _ in
+                        if game.phase == .spinning, !ended { Haptics.light() }
+                    }
+                    .onChange(of: ended) { _, done in
+                        guard done, game.phase == .spinning else { return }
+                        Haptics.success()
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.5)) { celebrate = true }
+                        if isHost { onFinish() }
                     }
             }
             .frame(width: 300, height: 300)
+            .overlay { if celebrate || game.phase == .done { CoffeeConfetti(seed: game.seed) } }
 
             footer
             Spacer(minLength: 0)
@@ -86,7 +107,7 @@ struct CoffeeWheelView: View {
             ForEach(0..<n, id: \.self) { i in
                 CoffeeSector(start: .degrees(-90 + Double(i) * delta),
                              end: .degrees(-90 + Double(i + 1) * delta))
-                    .fill(palette[i % palette.count])
+                    .fill(segmentColor(i, count: n))
             }
             ForEach(0..<n, id: \.self) { i in
                 Text(people.indices.contains(i) ? people[i].name : "?")

@@ -83,6 +83,9 @@ struct ChatView: View {
             ScrollView {
                 VStack(spacing: Theme.Space.x3) {
                     ForEach(turns) { turn in bubble(turn).id(turn.id) }
+                    // 첫 화면에서 빈 입력창만 보면 뭘 물어야 할지 모른다.
+                    // 눌러서 바로 보내지는 예시를 깔아 첫 질문의 문턱을 없앤다.
+                    if turns.count <= 1, !sending { starters }
                     if sending {
                         HStack { ProgressView(); Text("생각 중…").font(.footnote).foregroundStyle(Theme.Palette.muted) }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -98,6 +101,49 @@ struct ChatView: View {
                 if let last = turns.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }
             }
         }
+    }
+
+    /// 모드별 예시 질문. 웹에는 안내 문구에 예시가 있었는데 iOS 에는 빠져 있었다.
+    /// 문구로 적어두는 것보다 눌러서 바로 보내지는 편이 실제로 쓰인다.
+    private var starterQuestions: [String] {
+        isCounsel
+        ? ["요즘 일이 너무 많아서 지쳐요",
+           "동료와 의견이 자꾸 부딪혀요",
+           "피드백을 어떻게 전할지 모르겠어요",
+           "회의에서 말을 못 꺼내겠어요"]
+        : ["전표 승인 기한이 언제인가요?",
+           "의욕관리비 한도가 얼마예요?",
+           "하이닉스 상시 출입증은 어떻게 받나요?",
+           "연차는 며칠 전에 올려야 하나요?",
+           "사내 AI 도구는 어디까지 써도 되나요?"]
+    }
+
+    private var starters: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.x2) {
+            Text("이런 걸 물어볼 수 있어요")
+                .font(.caption).foregroundStyle(Theme.Palette.muted)
+            ForEach(starterQuestions, id: \.self) { q in
+                Button {
+                    Haptics.selection()
+                    draft = q
+                    send()
+                } label: {
+                    HStack(spacing: Theme.Space.x2) {
+                        Text(q).font(.subheadline).foregroundStyle(Theme.Palette.ink)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.footnote).foregroundStyle(Theme.Palette.cta)
+                    }
+                    .padding(.horizontal, Theme.Space.x3).padding(.vertical, Theme.Space.x2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.lg))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.lg).stroke(Theme.Palette.border))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func bubble(_ turn: ChatTurn) -> some View {
