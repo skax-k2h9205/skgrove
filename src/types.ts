@@ -45,7 +45,10 @@ export type ManagedAccount = CurrentUser & {
   // 없으면 앱 이메일(email)로 폴백.
   slackEmail?: string;
   // 로그인 비밀번호 해시(pbkdf2$...). 없으면 첫 로그인 때 본인이 설정한다.
+  // 서버 인증이 켜지면 이 값은 클라이언트로 내려오지 않는다(폴백용으로만 남는다).
   passwordHash?: string;
+  // true 면 로그인 직후 새 비밀번호를 정하게 강제한다(초기 비번 123123 대비).
+  mustChangePassword?: boolean;
 };
 
 // 접수자가 고른 공개 범위. '리더만 보기'는 안건 전환을 막는 약속이므로 저장해야 한다.

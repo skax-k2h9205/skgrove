@@ -5,8 +5,11 @@ import { supabase } from './supabaseClient';
 
 const ACCOUNT_STORAGE_KEY = 'skgrove:accounts';
 const ACCOUNT_TABLE = 'accounts';
+// password_hash·must_change_password 는 이 목록에 없다 — 계정 관리(이름·역할 수정)는
+// anon 으로 돌지만, 비번 컬럼 쓰기 권한은 REVOKE 로 회수했다(오직 서버 함수만 만진다).
+// 여기 넣으면 계정 편집 PATCH 에 비번 컬럼이 섞여 403 이 난다.
 const ACCOUNT_WRITE_KEYS = ['id','name','email','role','part','status','joined_at','photo_url',
-  'is_connectioner','slack_email','password_hash'];
+  'is_connectioner','slack_email'];
 
 const adminAccount: ManagedAccount = {
   id: 'USR-ADMIN',
@@ -76,6 +79,7 @@ type AccountRow = {
   is_connectioner?: boolean | null;
   slack_email?: string | null;
   password_hash?: string | null;
+  must_change_password?: boolean | null;
 };
 
 export async function loadAccounts() {
@@ -153,6 +157,7 @@ function accountFromRow(row: AccountRow): ManagedAccount {
     connectioner: row.is_connectioner ?? false,
     slackEmail: row.slack_email ?? undefined,
     passwordHash: row.password_hash ?? undefined,
+    mustChangePassword: row.must_change_password ?? false,
   };
 }
 
@@ -168,6 +173,20 @@ function accountToRow(account: ManagedAccount): AccountRow {
     photo_url: account.photoUrl || null,
     is_connectioner: account.connectioner ?? false,
     slack_email: account.slackEmail || null,
-    password_hash: account.passwordHash || null,
+    // password_hash·must_change_password 는 여기서 내보내지 않는다(서버 함수 전용 컬럼).
   };
+}
+
+/**
+ * 비밀번호 해시 직접 저장 — **서버 인증이 없을 때의 폴백 전용.**
+ * 서버(api/auth)가 켜지면 이 경로는 쓰이지 않는다. REVOKE 적용 후엔 403 이 나므로,
+ * 서버가 없고 REVOKE 도 안 한 초기 상태에서만 동작한다(브라우저에서 해시 저장).
+ */
+export async function setPasswordHashRemote(email: string, hash: string) {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from(ACCOUNT_TABLE)
+    .update({ password_hash: hash, must_change_password: false })
+    .eq('email', email.toLowerCase());
+  if (error) console.warn('Fallback password write failed (expected after REVOKE).', error);
 }

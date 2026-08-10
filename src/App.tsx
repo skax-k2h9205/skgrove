@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { deleteAccount, loadAccounts, makeAccountId, saveAccounts, seedAccounts } from './accountStore';
+import { deleteAccount, loadAccounts, makeAccountId, saveAccounts, seedAccounts, setPasswordHashRemote } from './accountStore';
 import { deleteActionItem, loadActionItems, makeActionItemId, saveActionItems } from './actionItemStore';
 import { applySelection, finalStatus, isOpen, liveStatus, settleAgendas } from './agendaRules';
 import { deleteAgenda, loadAgendas, makeAgendaId, makeAgendaOptions, saveAgendas } from './agendaStore';
@@ -963,12 +963,17 @@ export function App() {
   };
 
   // 첫 로그인 때 본인이 정한 비밀번호 해시를 그 계정에 저장한다.
+  // 서버 인증 폴백(서버 미설정 시에만 호출됨). 로컬 상태를 갱신하고,
+  // 비번 해시는 전용 경로로 저장한다(일반 계정 sync 는 더 이상 password_hash 를 쓰지 않는다).
   const setAccountPassword = (email: string, passwordHash: string) => {
-    persistAccounts(
-      accounts.map((account) =>
-        account.email.toLowerCase() === email.toLowerCase() ? { ...account, passwordHash } : account,
+    setAccounts((prev) =>
+      prev.map((account) =>
+        account.email.toLowerCase() === email.toLowerCase()
+          ? { ...account, passwordHash, mustChangePassword: false }
+          : account,
       ),
     );
+    void setPasswordHashRemote(email, passwordHash);
   };
 
   // 자율 관리: 로그인한 본인 계정의 프로필 사진만 갱신한다.

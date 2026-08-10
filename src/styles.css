@@ -690,6 +690,23 @@ h1 {
 }
 
 /* 첫 로그인 안내(비밀번호 설정). 놓치지 않게 옅은 파랑 박스로 또렷하게. */
+/* "비밀번호를 잊으셨나요?" — 입력칸 아래 작은 텍스트 링크. */
+.login-link {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-muted);
+  font-size: var(--text-meta);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.login-link:hover {
+  color: var(--color-primary);
+}
+
 .login-hint {
   background: var(--tint-primary);
   border-radius: var(--radius);
