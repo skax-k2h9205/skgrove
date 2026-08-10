@@ -47,3 +47,5 @@ scripts/set-account-photos.mjs
 # 이 저장소는 public 이므로 절대 커밋하지 않는다.
 .playwright-mcp/
 SKonnection-발표자료.*
+# 대본에도 팀원 실명과 접수 내용이 들어간다.
+SKonnection-발표대본.*
