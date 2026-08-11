@@ -49,3 +49,5 @@ scripts/set-account-photos.mjs
 SKonnection-발표자료.*
 # 대본에도 팀원 실명과 접수 내용이 들어간다.
 SKonnection-발표대본.*
+# 해커톤 제출 자료 — 경쟁 전 공개 저장소에 올리지 않는다.
+SKonnection-해커톤-*
