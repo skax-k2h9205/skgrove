@@ -253,7 +253,7 @@ function retryNoteFor(found: string): string {
 }
 
 // OpenRouter 대시보드에 표기되는 앱 이름. api/ai.ts 와 같은 값으로 맞춘다.
-const APP_TITLE = 'Connectioner';
+const APP_TITLE = 'SKonnection';
 
 // 응답이 비면 조용히 통과시키지 않는다. 검사기가 죽은 것을 '이상 없음' 으로 읽으면 안 된다.
 async function chat(apiKey: string, model: string, messages: ChatMessage[], maxTokens: number): Promise<string> {
