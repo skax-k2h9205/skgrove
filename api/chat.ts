@@ -112,7 +112,7 @@ export async function POST(request: Request): Promise<Response> {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'X-Title': 'Connectioner',
+        'X-Title': 'SKonnection',
       },
       body: JSON.stringify({ model, messages: buildMessages(body) }),
     });
