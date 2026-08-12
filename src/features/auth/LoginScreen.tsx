@@ -121,7 +121,7 @@ export function LoginScreen({ accounts, onLogin, onRegister, onSetPassword }: Lo
           return;
         }
         setError('');
-        setNotice('가입된 계정이라면 슬랙 DM으로 인증번호를 보냈어요. 10분 안에 입력해 주세요.');
+        setNotice('가입된 계정이라면 슬랙 DM으로 인증번호를 보냈어요. 5분 안에 입력해 주세요.');
         setPhase('reset-confirm');
       } finally {
         setBusy(false);

@@ -16,7 +16,7 @@ import { pbkdf2Sync, randomBytes, randomInt, timingSafeEqual } from 'node:crypto
 const ITERATIONS = 100_000;
 const KEY_BYTES = 32;
 const MIN_PASSWORD = 6;
-const CODE_TTL_MIN = 10;
+const CODE_TTL_MIN = 5;
 const MAX_ATTEMPTS = 5;
 
 function env(name: string): string | undefined {
