@@ -43,10 +43,13 @@ import { ActionBoard } from './features/actions/ActionBoard';
 import { ActionCreateForm } from './features/actions/ActionCreateForm';
 import { ChatWidget } from './features/chat/ChatWidget';
 import { clearSession, loadSession, saveSession } from './session';
+import { supabase } from './supabaseClient';
+import { identityFromSession, resolveSlackAccount, type SlackIdentity } from './authLink';
 import { AgendaBoard } from './features/agenda/AgendaBoard';
 import type { AgendaDraft } from './features/agenda/AgendaForm';
 import { AccountManagement } from './features/auth/AccountManagement';
 import { LoginScreen } from './features/auth/LoginScreen';
+import { SlackPartPrompt } from './features/auth/SlackPartPrompt';
 import { Connect } from './features/connect/Connect';
 import { Dashboard } from './features/dashboard/Dashboard';
 import { HumorBoard } from './features/humor/HumorBoard';
@@ -158,6 +161,7 @@ import type {
   Section,
   TeaSession,
   TeaSessionStatus,
+  TeamPart,
   VoteSelection,
 } from './types';
 
@@ -200,8 +204,18 @@ const SECTION_BY_HASH: Record<string, Section> = {
 
 export function App() {
   const [accounts, setAccounts] = useState<ManagedAccount[]>(seedAccounts);
+  // Supabase 에서 계정을 실제로 받아왔는가. Slack 세션을 seed(로컬) 계정에 성급히 맞춰
+  // 중복 생성하는 걸 막으려면, 원격 로드가 끝난 뒤에만 매칭한다.
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
   // 저장된 세션이 있으면 복원한다 — 새로고침해도 로그인이 유지된다.
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => loadSession());
+  // Slack(OIDC) 로그인 파이프라인:
+  //  pendingSlack = 리다이렉트 복귀/세션에서 잡은 신원(아직 계정 매칭 전).
+  //  slackNewUser = 매칭 실패한 @sk.com 신규자 → 파트 1회 선택 화면으로.
+  //  slackError   = 차단 사유(비활성·비-@sk.com 등)를 로그인 화면에 표시.
+  const [pendingSlack, setPendingSlack] = useState<SlackIdentity | null>(null);
+  const [slackNewUser, setSlackNewUser] = useState<SlackIdentity | null>(null);
+  const [slackError, setSlackError] = useState('');
   const [active, setActive] = useState<Section>('dashboard');
   const [issues, setIssues] = useState<Issue[]>(initialIssues);
   const [agendas, setAgendas] = useState<Agenda[]>(initialAgendas);
@@ -287,6 +301,7 @@ export function App() {
     loadAccounts().then((loadedAccounts) => {
       if (isMounted) {
         setAccounts(loadedAccounts);
+        setAccountsLoaded(true);
       }
     });
     loadIssues().then((loadedIssues) => {
@@ -1454,13 +1469,108 @@ export function App() {
     saveSession(user); // 새로고침해도 로그인 유지
   };
 
+  // ── Slack(OIDC) 로그인 ──
+  // (1) Supabase 세션을 잡아 pendingSlack 으로. 리다이렉트 복귀(detectSessionInUrl)와
+  //     이후 토큰 갱신까지 onAuthStateChange 로 들어온다. 세션이 있을 때만 반응한다.
+  useEffect(() => {
+    if (!supabase) return;
+    let mounted = true;
+    const capture = (identity: SlackIdentity | null) => {
+      if (mounted && identity) setPendingSlack(identity);
+    };
+    supabase.auth.getSession().then(({ data }) => capture(identityFromSession(data.session)));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) =>
+      capture(identityFromSession(session)),
+    );
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  const startSlackLogin = () => {
+    setSlackError('');
+    // 같은 창에서 리다이렉트 → 복귀. redirectTo 를 현재 오리진으로 고정(프리뷰/로컬 대응).
+    void supabase?.auth.signInWithOAuth({
+      provider: 'slack_oidc',
+      options: { redirectTo: window.location.origin },
+    });
+  };
+
+  // 매칭 있는 계정에 Slack 연결값(auth_uid·slack_user_id)을 한 번만 박아둔다.
+  const linkSlackAccount = (account: ManagedAccount, identity: SlackIdentity) => {
+    const nextSlackUserId = identity.slackUserId ?? account.slackUserId;
+    if (account.authUid === identity.uid && account.slackUserId === nextSlackUserId) return;
+    persistAccounts(
+      accounts.map((a) =>
+        a.id === account.id ? { ...a, authUid: identity.uid, slackUserId: nextSlackUserId } : a,
+      ),
+    );
+  };
+
+  // 첫 슬랙 로그인(신규 @sk.com) — 파트 1회 선택 후 자동 활성 팀원으로 생성하고 입장.
+  const createSlackAccount = (identity: SlackIdentity, part: TeamPart) => {
+    const account: ManagedAccount = {
+      id: makeAccountId(),
+      name: identity.name,
+      email: identity.email,
+      role: '팀원',
+      part,
+      status: '활성',
+      joinedAt: new Date().toISOString().slice(0, 10),
+      connectioner: false,
+      authUid: identity.uid,
+      slackUserId: identity.slackUserId,
+    };
+    persistAccounts([...accounts, account]);
+    setSlackNewUser(null);
+    handleLogin({ name: account.name, email: account.email, role: account.role, part, connectioner: false });
+  };
+
+  const cancelSlackLogin = () => {
+    setSlackNewUser(null);
+    setPendingSlack(null);
+    void supabase?.auth.signOut();
+  };
+
+  // (2) pendingSlack 을 계정과 대조 — 원격 계정 로드가 끝났고, 아직 로그인 전일 때만.
+  //     매칭되면 로그인, @sk.com 신규면 파트 선택, 그 외(비활성·비사내)는 차단.
+  useEffect(() => {
+    if (currentUser || !pendingSlack || !accountsLoaded) return;
+    const identity = pendingSlack;
+    const res = resolveSlackAccount(identity, accounts);
+    setPendingSlack(null);
+    if (res.kind === 'login') {
+      linkSlackAccount(res.account, identity);
+      handleLogin(res.user);
+    } else if (res.kind === 'newUser') {
+      setSlackNewUser(identity);
+    } else {
+      setSlackError(res.reason);
+      void supabase?.auth.signOut();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, pendingSlack, accountsLoaded, accounts]);
+
   if (!currentUser) {
+    if (slackNewUser) {
+      return (
+        <SlackPartPrompt
+          name={slackNewUser.name}
+          email={slackNewUser.email}
+          onConfirm={(part) => createSlackAccount(slackNewUser, part)}
+          onCancel={cancelSlackLogin}
+        />
+      );
+    }
     return (
       <LoginScreen
         accounts={accounts}
         onLogin={handleLogin}
         onRegister={registerAccount}
         onSetPassword={setAccountPassword}
+        onSlackLogin={supabase ? startSlackLogin : undefined}
+        slackError={slackError}
       />
     );
   }
@@ -1480,6 +1590,10 @@ export function App() {
       onLogout={() => {
         clearSession();
         setCurrentUser(null);
+        // Slack 세션까지 정리 — 안 하면 다음 렌더에서 세션이 다시 잡혀 자동 재로그인된다.
+        setPendingSlack(null);
+        setSlackNewUser(null);
+        void supabase?.auth.signOut();
       }}
       onSectionChange={changeSection}
     >
