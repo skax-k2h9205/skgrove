@@ -1490,10 +1490,17 @@ export function App() {
 
   const startSlackLogin = () => {
     setSlackError('');
+    // 워크스페이스를 고정(team 힌트)해 "워크스페이스 URL 입력" 단계를 건너뛴다.
+    // Phase 0 는 단일 팀이라 team_id 를 박아둔다(비밀 아님 — authorize URL 에 노출되는 값).
+    // env 로 덮어쓸 수 있고, 멀티테넌트로 가면 이 고정을 없애 테넌트별로 정한다.
+    const team = (import.meta.env.VITE_SLACK_TEAM_ID as string | undefined) || 'T07BDCWME6M';
     // 같은 창에서 리다이렉트 → 복귀. redirectTo 를 현재 오리진으로 고정(프리뷰/로컬 대응).
     void supabase?.auth.signInWithOAuth({
       provider: 'slack_oidc',
-      options: { redirectTo: window.location.origin },
+      options: {
+        redirectTo: window.location.origin,
+        queryParams: team ? { team } : undefined,
+      },
     });
   };
 
