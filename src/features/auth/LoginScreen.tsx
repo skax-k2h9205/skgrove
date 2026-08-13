@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { HeartHandshake, LogIn, UserPlus, KeyRound, ShieldCheck } from 'lucide-react';
+import { HeartHandshake, LogIn, UserPlus, KeyRound, ShieldCheck, Slack } from 'lucide-react';
 import { teamParts, isCompanyEmail } from '../../auth';
 import { login as serverLogin, changePassword, requestReset, confirmReset } from '../../authApi';
 import type { CurrentUser, ManagedAccount, TeamPart } from '../../types';
@@ -7,31 +7,23 @@ import type { CurrentUser, ManagedAccount, TeamPart } from '../../types';
 // 새 비밀번호의 최소 길이. 너무 짧으면 해시를 걸어도 금방 뚫린다.
 const MIN_PASSWORD_LENGTH = 6;
 
-const toCurrentUser = (account: ManagedAccount): CurrentUser => ({
-  name: account.name,
-  email: account.email,
-  role: account.role,
-  part: account.part,
-  connectioner: account.connectioner ?? false,
-});
-
-// 빠른 로그인(데모) 대상 계정. 리더=심상준(팀리더), 팀원=이수현(팀원).
-const DEMO_LEADER_EMAIL = 'simair@sk.com';
-const DEMO_MEMBER_EMAIL = 'suhyunle@sk.com';
-
 type LoginScreenProps = {
   accounts: ManagedAccount[];
   onLogin: (user: CurrentUser) => void;
   onRegister: (account: Omit<ManagedAccount, 'id' | 'joinedAt' | 'status'>) => void;
   // 비밀번호 변경 폴백(서버 미설정 시). 서버가 켜지면 쓰이지 않는다.
   onSetPassword: (email: string, passwordHash: string) => void;
+  // Slack(OIDC) 로그인 시작. Supabase 미설정이면 undefined → 버튼을 숨긴다.
+  onSlackLogin?: () => void;
+  // Slack 로그인 실패/차단 사유(비활성 등). 리다이렉트 복귀 후 App 이 채운다.
+  slackError?: string;
 };
 
 // auth: 로그인/가입 · change: 첫 로그인 강제 변경 · reset: 인증번호 초기화
 type AuthMode = 'login' | 'signup';
 type Phase = 'auth' | 'change' | 'reset-request' | 'reset-confirm';
 
-export function LoginScreen({ accounts, onLogin, onRegister, onSetPassword }: LoginScreenProps) {
+export function LoginScreen({ accounts, onLogin, onRegister, onSetPassword, onSlackLogin, slackError }: LoginScreenProps) {
   const [mode, setMode] = useState<AuthMode>('login');
   const [phase, setPhase] = useState<Phase>('auth');
   const [name, setName] = useState('');
@@ -50,15 +42,10 @@ export function LoginScreen({ accounts, onLogin, onRegister, onSetPassword }: Lo
   const [pendingUser, setPendingUser] = useState<CurrentUser | null>(null);
   const [pendingCurrentPw, setPendingCurrentPw] = useState('');
 
-  // 빠른 로그인(데모)은 로그인 화면 로고를 눌러야 열리는 히든 제스처. 일반 유저는 발견하기 어렵다.
-  const [showQuickLogin, setShowQuickLogin] = useState(false);
-
-  const quickLeader = accounts.find(
-    (account) => account.email.toLowerCase() === DEMO_LEADER_EMAIL && account.status === '활성',
-  );
-  const quickMember = accounts.find(
-    (account) => account.email.toLowerCase() === DEMO_MEMBER_EMAIL && account.status === '활성',
-  );
+  // Slack 로그인이 유일한 로그인 수단이다. 이메일+비번 폼은 백도어가 아니라,
+  // Slack 자체가 설정 안 된 환경(로컬 개발 등)에서만 뜨는 폴백이다 — 정상 배포에선 절대 안 보인다.
+  // (히든 제스처·데모 빠른 로그인 같은 우회 경로는 전부 제거했다.)
+  const showEmailLogin = !onSlackLogin;
 
   const resetFields = () => {
     setError('');
@@ -221,8 +208,6 @@ export function LoginScreen({ accounts, onLogin, onRegister, onSetPassword }: Lo
     setMode('login');
   };
 
-  void toCurrentUser; // 데모 빠른 로그인에서 사용
-
   return (
     <main className="login-page">
       {/*
@@ -247,7 +232,7 @@ export function LoginScreen({ accounts, onLogin, onRegister, onSetPassword }: Lo
           로고 클릭 = 커넥셔너용 빠른 로그인(데모) 히든 토글. 일반 유저는 알기 어렵다.
         */}
         <div className="brand login-brand">
-          <div className="brand-mark" onClick={() => setShowQuickLogin((prev) => !prev)} title="SKonnection">
+          <div className="brand-mark" title="SKonnection">
             <HeartHandshake size={24} />
           </div>
           <div>
@@ -315,66 +300,91 @@ export function LoginScreen({ accounts, onLogin, onRegister, onSetPassword }: Lo
         {/* ── 로그인 / 가입 ── */}
         {phase === 'auth' && (
           <>
-            {mode === 'signup' && (
-              <label>
-                이름
-                <input value={name} onChange={(event) => setName(event.target.value)} placeholder="이선민" />
-              </label>
-            )}
-
-            <label>
-              사내메일
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="name@sk.com"
-              />
-            </label>
-
-            {mode === 'login' && (
-              <label>
-                비밀번호
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="비밀번호"
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  className="login-link"
-                  onClick={() => {
-                    setPhase('reset-request');
-                    resetFields();
-                  }}
-                >
-                  비밀번호를 잊으셨나요?
-                </button>
-              </label>
-            )}
-
-            {mode === 'signup' && (
+            {/*
+              Slack 로그인이 기본 진입로. 비밀번호를 만들거나 외울 필요 없이 "이미 회사
+              슬랙에 로그인한 사람"만 확실히 들어온다. 아래 이메일+비번은 슬랙을 못 쓰는
+              상황용 백업으로 남겨둔다(전환기).
+            */}
+            {onSlackLogin && (
               <>
+                <button type="button" className="primary-button slack-login-button" onClick={onSlackLogin}>
+                  <Slack size={18} /> Slack으로 로그인
+                </button>
+                {slackError && <p className="form-error">{slackError}</p>}
+                {!showEmailLogin && <p className="login-hint">사내 Slack 계정으로 로그인합니다.</p>}
+                {showEmailLogin && (
+                  <div className="login-divider" aria-hidden="true">
+                    <span>또는 사내메일로 (백업)</span>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* 이메일+비번은 백업 경로. Slack 이 있으면 로고 탭으로만 펼친다(관리자/비상용). */}
+            {showEmailLogin && (
+              <>
+                {mode === 'signup' && (
+                  <label>
+                    이름
+                    <input value={name} onChange={(event) => setName(event.target.value)} placeholder="이선민" />
+                  </label>
+                )}
+
                 <label>
-                  소속 파트
-                  <select value={part} onChange={(event) => setPart(event.target.value as TeamPart)}>
-                    {teamParts.map((item) => (
-                      <option key={item}>{item}</option>
-                    ))}
-                  </select>
+                  사내메일
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="name@sk.com"
+                  />
                 </label>
 
-                {/*
-                  권한은 가입 폼에서 고르지 않는다. 신청자가 '팀리더'를 선택할 수 있으면
-                  승인자가 권한 항목을 눈여겨보지 않는 순간 그대로 통과한다.
-                  권한 상향은 계정 관리 화면에서 팀리더가 명시적으로 처리한다.
-                */}
-                <div className="role-note">
-                  <strong>권한은 팀원으로 시작합니다</strong>
-                  <span>파트리더·팀리더 권한이 필요하면 가입 승인 후 팀리더가 계정 관리에서 변경합니다.</span>
-                </div>
+                {mode === 'login' && (
+                  <label>
+                    비밀번호
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="비밀번호"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      className="login-link"
+                      onClick={() => {
+                        setPhase('reset-request');
+                        resetFields();
+                      }}
+                    >
+                      비밀번호를 잊으셨나요?
+                    </button>
+                  </label>
+                )}
+
+                {mode === 'signup' && (
+                  <>
+                    <label>
+                      소속 파트
+                      <select value={part} onChange={(event) => setPart(event.target.value as TeamPart)}>
+                        {teamParts.map((item) => (
+                          <option key={item}>{item}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {/*
+                      권한은 가입 폼에서 고르지 않는다. 신청자가 '팀리더'를 선택할 수 있으면
+                      승인자가 권한 항목을 눈여겨보지 않는 순간 그대로 통과한다.
+                      권한 상향은 계정 관리 화면에서 팀리더가 명시적으로 처리한다.
+                    */}
+                    <div className="role-note">
+                      <strong>권한은 팀원으로 시작합니다</strong>
+                      <span>파트리더·팀리더 권한이 필요하면 가입 승인 후 팀리더가 계정 관리에서 변경합니다.</span>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </>
@@ -402,7 +412,7 @@ export function LoginScreen({ accounts, onLogin, onRegister, onSetPassword }: Lo
               </button>
             )}
           </div>
-        ) : (
+        ) : showEmailLogin ? (
           <div className="login-actions">
             <button className="primary-button" type="submit" disabled={busy}>
               {mode === 'login' ? <LogIn size={18} /> : <UserPlus size={18} />}
@@ -421,25 +431,7 @@ export function LoginScreen({ accounts, onLogin, onRegister, onSetPassword }: Lo
               {mode === 'login' ? '가입' : '로그인으로'}
             </button>
           </div>
-        )}
-
-        {phase === 'auth' && showQuickLogin && (quickLeader || quickMember) && (
-          <div className="quick-login">
-            <span>빠른 로그인 (데모)</span>
-            <div className="quick-login-row">
-              {quickLeader && (
-                <button type="button" onClick={() => onLogin(toCurrentUser(quickLeader))}>
-                  리더 · {quickLeader.name}
-                </button>
-              )}
-              {quickMember && (
-                <button type="button" onClick={() => onLogin(toCurrentUser(quickMember))}>
-                  팀원 · {quickMember.name}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+        ) : null}
       </form>
     </main>
   );

@@ -49,6 +49,11 @@ export type ManagedAccount = CurrentUser & {
   passwordHash?: string;
   // true 면 로그인 직후 새 비밀번호를 정하게 강제한다(초기 비번 123123 대비).
   mustChangePassword?: boolean;
+  // Slack(OIDC) 로그인 연결값. 첫 슬랙 로그인 때 계정에 박아둔다.
+  //  authUid     = Supabase auth.users.id — 향후 RLS/테넌트 스코핑 키.
+  //  slackUserId = Slack 사용자 id(Uxxxx) — DM 을 이메일 대신 id 로 보내는 근거.
+  authUid?: string;
+  slackUserId?: string;
 };
 
 // 접수자가 고른 공개 범위. '리더만 보기'는 안건 전환을 막는 약속이므로 저장해야 한다.
