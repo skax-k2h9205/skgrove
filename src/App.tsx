@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { deleteAccount, loadAccounts, makeAccountId, saveAccounts, seedAccounts, setPasswordHashRemote } from './accountStore';
+import { deleteAccount, loadAccounts, makeAccountId, saveAccounts, seedAccounts } from './accountStore';
 import { deleteActionItem, loadActionItems, makeActionItemId, saveActionItems } from './actionItemStore';
 import { applySelection, finalStatus, isOpen, liveStatus, settleAgendas } from './agendaRules';
 import { deleteAgenda, loadAgendas, makeAgendaId, makeAgendaOptions, saveAgendas } from './agendaStore';
@@ -44,7 +44,7 @@ import { ActionCreateForm } from './features/actions/ActionCreateForm';
 import { ChatWidget } from './features/chat/ChatWidget';
 import { clearSession, loadSession, saveSession } from './session';
 import { supabase } from './supabaseClient';
-import { identityFromSession, resolveSlackAccount, type SlackIdentity } from './authLink';
+import { identityFromSession, resolveAccount, type AuthIdentity } from './authLink';
 import { AgendaBoard } from './features/agenda/AgendaBoard';
 import type { AgendaDraft } from './features/agenda/AgendaForm';
 import { AccountManagement } from './features/auth/AccountManagement';
@@ -210,11 +210,11 @@ export function App() {
   // 저장된 세션이 있으면 복원한다 — 새로고침해도 로그인이 유지된다.
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => loadSession());
   // Slack(OIDC) 로그인 파이프라인:
-  //  pendingSlack = 리다이렉트 복귀/세션에서 잡은 신원(아직 계정 매칭 전).
-  //  slackNewUser = 매칭 실패한 @sk.com 신규자 → 파트 1회 선택 화면으로.
-  //  slackError   = 차단 사유(비활성·비-@sk.com 등)를 로그인 화면에 표시.
-  const [pendingSlack, setPendingSlack] = useState<SlackIdentity | null>(null);
-  const [slackNewUser, setSlackNewUser] = useState<SlackIdentity | null>(null);
+  //  pendingSlack = 세션에서 잡은 신원(이메일/Slack 무관, 아직 계정 매칭 전).
+  //  slackNewUser = 파트 미지정 신규자(Slack 등) → 파트 1회 선택 화면으로.
+  //  slackError   = 차단 사유(비활성·비사내 등)를 로그인 화면에 표시.
+  const [pendingSlack, setPendingSlack] = useState<AuthIdentity | null>(null);
+  const [slackNewUser, setSlackNewUser] = useState<AuthIdentity | null>(null);
   const [slackError, setSlackError] = useState('');
   const [active, setActive] = useState<Section>('dashboard');
   const [issues, setIssues] = useState<Issue[]>(initialIssues);
@@ -977,20 +977,6 @@ export function App() {
     void deleteActionItem(id);
   };
 
-  // 첫 로그인 때 본인이 정한 비밀번호 해시를 그 계정에 저장한다.
-  // 서버 인증 폴백(서버 미설정 시에만 호출됨). 로컬 상태를 갱신하고,
-  // 비번 해시는 전용 경로로 저장한다(일반 계정 sync 는 더 이상 password_hash 를 쓰지 않는다).
-  const setAccountPassword = (email: string, passwordHash: string) => {
-    setAccounts((prev) =>
-      prev.map((account) =>
-        account.email.toLowerCase() === email.toLowerCase()
-          ? { ...account, passwordHash, mustChangePassword: false }
-          : account,
-      ),
-    );
-    void setPasswordHashRemote(email, passwordHash);
-  };
-
   // 자율 관리: 로그인한 본인 계정의 프로필 사진만 갱신한다.
   const saveMyProfilePhoto = (photoUrl: string) => {
     if (!currentUser) return;
@@ -1378,18 +1364,6 @@ export function App() {
     );
   };
 
-  const registerAccount = (account: Omit<ManagedAccount, 'id' | 'joinedAt' | 'status'>) => {
-    persistAccounts([
-      ...accounts,
-      {
-        ...account,
-        id: makeAccountId(),
-        status: '승인 대기',
-        joinedAt: new Date().toISOString().slice(0, 10),
-      },
-    ]);
-  };
-
   const changeSection = (section: Section) => {
     // 리더 관리함은 실제 리더 역할만. 커넥셔너 전권으로는 딥링크(#leader)로도 못 들어온다.
     if (section === 'leader' && currentUser && !hasLeaderRole(currentUser)) {
@@ -1475,13 +1449,13 @@ export function App() {
   useEffect(() => {
     if (!supabase) return;
     let mounted = true;
-    const capture = (identity: SlackIdentity | null) => {
+    const capture = (identity: AuthIdentity | null) => {
       if (mounted && identity) setPendingSlack(identity);
     };
     supabase.auth.getSession().then(({ data }) => capture(identityFromSession(data.session)));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) =>
-      capture(identityFromSession(session)),
-    );
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      capture(identityFromSession(session));
+    });
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
@@ -1505,7 +1479,7 @@ export function App() {
   };
 
   // 매칭 있는 계정에 Slack 연결값(auth_uid·slack_user_id)을 한 번만 박아둔다.
-  const linkSlackAccount = (account: ManagedAccount, identity: SlackIdentity) => {
+  const linkSlackAccount = (account: ManagedAccount, identity: AuthIdentity) => {
     const nextSlackUserId = identity.slackUserId ?? account.slackUserId;
     if (account.authUid === identity.uid && account.slackUserId === nextSlackUserId) return;
     persistAccounts(
@@ -1516,7 +1490,7 @@ export function App() {
   };
 
   // 첫 슬랙 로그인(신규 @sk.com) — 파트 1회 선택 후 자동 활성 팀원으로 생성하고 입장.
-  const createSlackAccount = (identity: SlackIdentity, part: TeamPart) => {
+  const createSlackAccount = (identity: AuthIdentity, part: TeamPart) => {
     const account: ManagedAccount = {
       id: makeAccountId(),
       name: identity.name,
@@ -1545,13 +1519,16 @@ export function App() {
   useEffect(() => {
     if (currentUser || !pendingSlack || !accountsLoaded) return;
     const identity = pendingSlack;
-    const res = resolveSlackAccount(identity, accounts);
+    const res = resolveAccount(identity, accounts);
     setPendingSlack(null);
     if (res.kind === 'login') {
       linkSlackAccount(res.account, identity);
       handleLogin(res.user);
     } else if (res.kind === 'newUser') {
-      setSlackNewUser(identity);
+      // 이메일 가입은 파트를 이미 골라 왔다(user_metadata) → 바로 생성.
+      // 파트가 없으면(Slack 등) 파트 선택 화면으로.
+      if (identity.part) createSlackAccount(identity, identity.part);
+      else setSlackNewUser(identity);
     } else {
       setSlackError(res.reason);
       void supabase?.auth.signOut();
@@ -1570,14 +1547,11 @@ export function App() {
         />
       );
     }
+    // Slack 로그인은 기본 숨김(VITE_SLACK_LOGIN='true' 일 때만 노출). 주 경로 = 이메일 인증.
     return (
       <LoginScreen
-        accounts={accounts}
-        onLogin={handleLogin}
-        onRegister={registerAccount}
-        onSetPassword={setAccountPassword}
-        onSlackLogin={supabase ? startSlackLogin : undefined}
-        slackError={slackError}
+        onSlackLogin={supabase && import.meta.env.VITE_SLACK_LOGIN === 'true' ? startSlackLogin : undefined}
+        authError={slackError}
       />
     );
   }
