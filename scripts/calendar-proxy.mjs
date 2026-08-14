@@ -73,7 +73,7 @@ export function normalizeEvents(items) {
 /** 토큰을 opener 로 넘기고 닫히는 콜백 페이지. postMessage 대상 오리진을 명시한다. */
 function callbackPage(payload) {
   const json = JSON.stringify({ type: 'skgrove:calendar', ...payload });
-  return `<!doctype html><meta charset="utf-8"><title>Connectioner</title>
+  return `<!doctype html><meta charset="utf-8"><title>SKonnection</title>
 <body style="font:14px/1.6 system-ui;padding:24px;color:#1d2522">
 <p>연결을 마쳤습니다. 이 창은 곧 닫힙니다.</p>
 <script>
@@ -88,7 +88,7 @@ function callbackPage(payload) {
 /** 일회성 설정용. 갱신 토큰을 화면에만 띄운다(opener 로 보내지 않는다). */
 function refreshTokenPage(refreshToken) {
   const safe = String(refreshToken).replace(/[<>&]/g, '');
-  return `<!doctype html><meta charset="utf-8"><title>Connectioner — 캘린더 설정</title>
+  return `<!doctype html><meta charset="utf-8"><title>SKonnection — 캘린더 설정</title>
 <body style="font:14px/1.7 system-ui;padding:32px;max-width:720px;color:#1f2420">
 <h2 style="margin:0 0 8px">갱신 토큰을 받았습니다</h2>
 <p style="color:#5a5f56;margin:0 0 16px">
