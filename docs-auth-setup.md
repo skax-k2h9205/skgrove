@@ -5,7 +5,7 @@
 
 ## 1) Vercel 환경변수에 service_role 키 추가  ← 먼저
 1. Supabase 대시보드 → Project Settings → API → **service_role** 키 복사 (secret, 절대 공유 금지)
-2. Vercel → connectioner 프로젝트 → Settings → Environment Variables
+2. Vercel → 해당 프로젝트 → Settings → Environment Variables
 3. 이름 `SUPABASE_SERVICE_ROLE_KEY`, 값 붙여넣기, Production 체크 → Save
 4. (선택) `SUPABASE_URL` = `https://sjymcpjbmsqapsptvlml.supabase.co` — 없어도 기본값으로 동작
 5. 재배포(다음 push 때 자동 반영)

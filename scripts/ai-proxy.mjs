@@ -98,7 +98,7 @@ export function handleAi(req, res) {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${API_KEY}`,
-          'X-Title': 'Connectioner',
+          'X-Title': 'SKonnection',
         },
         body: JSON.stringify({
           model: MODEL,

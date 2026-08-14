@@ -136,7 +136,7 @@ export function retryNoteFor(found) {
 async function chat(model, messages, maxTokens) {
   const res = await fetch(CHAT_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}`, 'X-Title': 'Connectioner' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}`, 'X-Title': 'SKonnection' },
     body: JSON.stringify({ model, max_tokens: maxTokens, messages }),
   });
   const data = await res.json().catch(() => null);
@@ -201,7 +201,7 @@ async function findText(dataUri) {
 async function draw(prompt) {
   const res = await fetch(IMAGE_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}`, 'X-Title': 'Connectioner' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}`, 'X-Title': 'SKonnection' },
     body: JSON.stringify({ model: IMAGE_MODEL, prompt }),
   });
   const data = await res.json().catch(() => null);
