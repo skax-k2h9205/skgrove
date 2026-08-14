@@ -7,6 +7,12 @@ import type { CurrentUser, ManagedAccount, TeamPart } from '../../types';
 // 새 비밀번호의 최소 길이. 너무 짧으면 해시를 걸어도 금방 뚫린다.
 const MIN_PASSWORD_LENGTH = 6;
 
+// Slack 로그인은 Slack이 정한 최소 브라우저 버전 이상에서만 뜬다. 미달이면 Slack이
+// "미지원 브라우저"로 막아 로그인 페이지가 아예 안 나온다(특히 구버전 Safari를 쓰는
+// 회사 VDI/OA 환경). 그래서 지원 버전을 화면에 상시 안내한다.
+// ※ Slack은 이 요건을 매년 5월·11월 갱신한다 — 그때 이 숫자만 고치면 된다.
+const SUPPORTED_BROWSERS = 'Chrome 137+ · Edge 136+ · Firefox 139+ · Safari 26+';
+
 type LoginScreenProps = {
   accounts: ManagedAccount[];
   onLogin: (user: CurrentUser) => void;
@@ -311,7 +317,15 @@ export function LoginScreen({ accounts, onLogin, onRegister, onSetPassword, onSl
                   <Slack size={18} /> Slack으로 로그인
                 </button>
                 {slackError && <p className="form-error">{slackError}</p>}
-                {!showEmailLogin && <p className="login-hint">사내 Slack 계정으로 로그인합니다.</p>}
+                {!showEmailLogin && (
+                  <p className="login-hint">
+                    사내 Slack 계정으로 로그인합니다.
+                    <br />
+                    <span className="login-browser-hint">
+                      최신 브라우저에서 로그인됩니다 — {SUPPORTED_BROWSERS}. 안 되면 브라우저를 업데이트하거나 Chrome을 사용하세요.
+                    </span>
+                  </p>
+                )}
                 {showEmailLogin && (
                   <div className="login-divider" aria-hidden="true">
                     <span>또는 사내메일로 (백업)</span>
