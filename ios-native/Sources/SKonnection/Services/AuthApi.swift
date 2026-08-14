@@ -19,12 +19,19 @@ enum AuthApi {
         let passwordHash: String?
         let mustChangePassword: Bool?
         let isConnectioner: Bool?
+        // Slack(OIDC) 연동값 — 슬랙 로그인 매칭(slackEmail)·연결(authUid/slackUserId)에 쓴다.
+        let slackEmail: String?
+        let authUid: String?
+        let slackUserId: String?
 
         enum CodingKeys: String, CodingKey {
             case id, name, email, role, part, status
             case passwordHash = "password_hash"
             case mustChangePassword = "must_change_password"
             case isConnectioner = "is_connectioner"
+            case slackEmail = "slack_email"
+            case authUid = "auth_uid"
+            case slackUserId = "slack_user_id"
         }
 
         var currentUser: CurrentUser {

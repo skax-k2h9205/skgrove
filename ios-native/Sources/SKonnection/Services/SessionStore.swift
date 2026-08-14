@@ -32,6 +32,8 @@ final class SessionStore: ObservableObject {
     func logout() {
         currentUser = nil
         UserDefaults.standard.removeObject(forKey: key)
+        // Slack(OIDC) 세션도 무효화한다(웹 signOut 과 동일). 이메일/비번 폴백엔 영향 없음.
+        Task { await SupabaseAuth.signOut() }
     }
 
     private func loadSession() -> CurrentUser? {

@@ -15,13 +15,22 @@ settings:
     GENERATE_INFOPLIST_FILE: YES
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 
-# Supabase Swift SDK 는 데이터 연동(Phase 1)에서 추가한다. 토대 빌드를 가볍게 유지.
+# supabase-swift: Slack(OIDC) 로그인에 auth 모듈이 필요해 도입(웹과 같은 라이브러리 계열).
+# signInWithOAuth 가 ASWebAuthenticationSession·PKCE·세션을 자동 처리한다.
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: "2.0.0"
+
 targets:
   SKonnection:
     type: application
     platform: iOS
     sources:
       - path: Sources/SKonnection
+    dependencies:
+      - package: Supabase
+        product: Supabase
     info:
       path: Sources/SKonnection/Info.plist
       properties:
@@ -33,6 +42,12 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        # Slack(OIDC) 로그인 콜백. Supabase Auth 의 Redirect URLs 허용목록에도
+        # 같은 값(skonnection://login-callback)이 등록돼야 최종 콜백이 앱으로 돌아온다.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.hyubs.skonnection.auth
+            CFBundleURLSchemes:
+              - skonnection
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hyubs.skonnection
