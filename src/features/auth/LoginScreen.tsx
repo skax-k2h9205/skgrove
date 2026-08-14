@@ -11,7 +11,8 @@ const MIN_PASSWORD_LENGTH = 6;
 // "미지원 브라우저"로 막아 로그인 페이지가 아예 안 나온다(특히 구버전 Safari를 쓰는
 // 회사 VDI/OA 환경). 그래서 지원 버전을 화면에 상시 안내한다.
 // ※ Slack은 이 요건을 매년 5월·11월 갱신한다 — 그때 이 숫자만 고치면 된다.
-const SUPPORTED_BROWSERS = 'Chrome 137+ · Edge 136+ · Firefox 139+ · Safari 26+';
+// 각 "이름 버전" 사이는 줄바꿈 안 되게 nbsp( )로 묶어, "26+"만 다음 줄로 떨어지지 않게 한다.
+const SUPPORTED_BROWSERS = 'Chrome 137+ · Edge 136+ · Firefox 139+ · Safari 26+';
 
 type LoginScreenProps = {
   accounts: ManagedAccount[];
@@ -318,13 +319,10 @@ export function LoginScreen({ accounts, onLogin, onRegister, onSetPassword, onSl
                 </button>
                 {slackError && <p className="form-error">{slackError}</p>}
                 {!showEmailLogin && (
-                  <p className="login-hint">
-                    사내 Slack 계정으로 로그인합니다.
-                    <br />
-                    <span className="login-browser-hint">
-                      최신 브라우저에서 로그인됩니다 — {SUPPORTED_BROWSERS}. 안 되면 브라우저를 업데이트하거나 Chrome을 사용하세요.
-                    </span>
-                  </p>
+                  <div className="login-note">
+                    <p className="login-note-browsers">지원 브라우저 · {SUPPORTED_BROWSERS}</p>
+                    <p className="login-note-fallback">안 되면 브라우저를 업데이트하거나 Chrome을 사용하세요.</p>
+                  </div>
                 )}
                 {showEmailLogin && (
                   <div className="login-divider" aria-hidden="true">
