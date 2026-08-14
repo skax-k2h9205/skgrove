@@ -628,6 +628,14 @@ h1 {
   text-align: center;
 }
 
+/* 지원 브라우저 버전 안내 — 본 안내와 같은 톤, 줄 간격만 살짝 벌린다. */
+.login-browser-hint {
+  color: var(--color-muted);
+  display: inline-block;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
 .form-error {
   background: var(--tint-danger);
   border: 1px solid var(--color-danger);
