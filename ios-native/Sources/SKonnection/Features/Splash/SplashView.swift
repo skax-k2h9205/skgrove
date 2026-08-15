@@ -13,15 +13,29 @@ struct SplashView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: Theme.Space.x3) {
-                Text("SKonnection")
-                    .font(.system(size: 44, weight: .bold))
-                    .foregroundStyle(.white)
-                Text("팀을 잇는 곳")
-                    .font(.title3)
-                    .foregroundStyle(.white.opacity(0.85))
+            VStack(spacing: Theme.Space.x5) {
+                // 브랜드 로고 — 그라데이션 위에서 대비되도록 흰 라운드 카드 + 브랜드블루 하트.
+                // (앱 아이콘/로그인 헤더의 하트 모티프와 동일. 옛 hand-drawn 악수 글리프는 깨져 보여 뺐던 것.)
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(.white)
+                    .frame(width: 120, height: 120)
+                    .overlay(
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 58, weight: .semibold))
+                            .foregroundStyle(Theme.Palette.primary)
+                    )
+                    .shadow(color: .black.opacity(0.18), radius: 24, y: 10)
+
+                VStack(spacing: Theme.Space.x2) {
+                    Text("SKonnection")
+                        .font(.system(size: 40, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text("팀을 잇는 곳")
+                        .font(.title3)
+                        .foregroundStyle(.white.opacity(0.85))
+                }
             }
-            .scaleEffect(appeared ? 1 : 0.92)
+            .scaleEffect(appeared ? 1 : 0.9)
             .opacity(appeared ? 1 : 0)
         }
         .onAppear {
