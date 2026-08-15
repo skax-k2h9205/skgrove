@@ -13022,3 +13022,28 @@ button.notif-row {
   font-weight: 700;
   cursor: pointer;
 }
+
+/* 익명 접수 암호화 UI */
+.anon-key-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.anon-key-setup label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.intake-enc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--tint-primary-ink);
+  background: var(--tint-primary);
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin: 4px 0;
+}

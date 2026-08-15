@@ -26,7 +26,8 @@ type IntakeProps = {
   partLeaders: { name: string; part: string }[];
   onIdentityChange: (identity: Identity) => void;
   onIssueUpdate: (issue: Issue) => void;
-  onSubmitIssue: (issue: Omit<Issue, 'id' | 'status' | 'createdAt'>) => Issue;
+  // 익명 접수는 App에서 대상 리더 공개키로 암호화하므로 비동기다.
+  onSubmitIssue: (issue: Omit<Issue, 'id' | 'status' | 'createdAt'>) => Promise<Issue>;
 };
 
 type IntakeStep = 'scope' | 'content' | 'review' | 'complete';
@@ -68,6 +69,10 @@ export function Intake({ identity, currentUser, issues, partLeaders, onIdentityC
   const [anonymousIssueId, setAnonymousIssueId] = useState('');
   // 검토를 통과하기 전에는 제출할 수 없다. 검토 중에도 잠근다.
   const [reviewReady, setReviewReady] = useState(false);
+  // 방금 접수가 암호화되어 저장됐는지(완료 화면 안내용).
+  const [receiptEncrypted, setReceiptEncrypted] = useState(false);
+  // 익명 글은 대상 리더만 복호화하므로 외부 AI 검토를 하지 않는다(본문이 서버로 안 감).
+  const skipReview = identity === '익명';
 
   const currentStepIndex = steps.findIndex((item) => item.id === step);
   const myIssues = issues.filter(
@@ -82,11 +87,12 @@ export function Intake({ identity, currentUser, issues, partLeaders, onIdentityC
     return true;
   });
 
-  const submit = () => {
+  const submit = async () => {
     // 버튼이 잠겨 있어도 다른 경로로 호출될 수 있으니 여기서 한 번 더 막는다.
-    if (!reviewReady || !title.trim() || !body.trim()) return;
+    // 익명은 외부 AI 검토를 건너뛰므로 reviewReady 게이트를 적용하지 않는다.
+    if ((!skipReview && !reviewReady) || !title.trim() || !body.trim()) return;
     const nextAnonymousCode = identity === '익명' ? makeAnonymousAccessCode() : undefined;
-    const createdIssue = onSubmitIssue({
+    const createdIssue = await onSubmitIssue({
       title: title.trim(),
       category,
       author: identity,
@@ -100,6 +106,7 @@ export function Intake({ identity, currentUser, issues, partLeaders, onIdentityC
       expectedChange: expectedChange.trim(),
       visibility,
     });
+    setReceiptEncrypted(createdIssue.encrypted === true);
     setReceiptId(createdIssue.id);
     setReceiptAccessCode(nextAnonymousCode ?? '');
     if (nextAnonymousCode) {
@@ -453,36 +460,49 @@ export function Intake({ identity, currentUser, issues, partLeaders, onIdentityC
               </div>
             </div>
 
-            <ReviewGate
-              title={title}
-              body={body}
-              expectedChange={expectedChange}
-              onEditManually={() => setStep('content')}
-              onReadyChange={setReviewReady}
-              onApply={(fields, rewritten) => {
-                // 수정안을 해당 항목에 반영한다. 값이 바뀌면 ReviewGate 가 자동으로 다시 검토한다.
-                fields.forEach((field) => {
-                  if (field === 'title') setTitle(rewritten);
-                  else if (field === 'body') setBody(rewritten);
-                  else setExpectedChange(rewritten);
-                });
-              }}
-            />
-
-            {/* 경고를 세 개 쌓으면 서로를 무력화한다. 막는 역할은 위의 ReviewGate 하나만 맡고,
-                항상 보여야 하는 안내 두 줄은 조용한 톤으로 묶는다. 외부 전송 고지는 검토 결과와 무관하게 항상 보인다. */}
-            <div className="submit-notes">
-              <ShieldCheck size={16} />
-              <div>
-                <p>개인정보, 실명 비방, 민감 정보가 포함되어 있지 않은지 한 번 더 확인해주세요.</p>
-                <p>다듬기 검토를 위해 작성 내용이 외부 AI로 전송됩니다. 이름·메일·소속은 보내지 않습니다.</p>
+            {skipReview ? (
+              // 익명 접수: 본문을 대상 리더 공개키로 암호화하므로 외부 AI로 보내지 않는다(검토 생략).
+              <div className="submit-notes">
+                <ShieldCheck size={16} />
+                <div>
+                  <p>익명 접수는 대상 리더만 열어볼 수 있도록 <strong>암호화되어 저장</strong>됩니다. 운영자도 내용을 볼 수 없어요.</p>
+                  <p>암호화 글은 외부 AI 다듬기 검토를 하지 않습니다. 제목엔 민감 정보를 넣지 말아주세요.</p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <ReviewGate
+                  title={title}
+                  body={body}
+                  expectedChange={expectedChange}
+                  onEditManually={() => setStep('content')}
+                  onReadyChange={setReviewReady}
+                  onApply={(fields, rewritten) => {
+                    // 수정안을 해당 항목에 반영한다. 값이 바뀌면 ReviewGate 가 자동으로 다시 검토한다.
+                    fields.forEach((field) => {
+                      if (field === 'title') setTitle(rewritten);
+                      else if (field === 'body') setBody(rewritten);
+                      else setExpectedChange(rewritten);
+                    });
+                  }}
+                />
+
+                {/* 경고를 세 개 쌓으면 서로를 무력화한다. 막는 역할은 위의 ReviewGate 하나만 맡고,
+                    항상 보여야 하는 안내 두 줄은 조용한 톤으로 묶는다. 외부 전송 고지는 검토 결과와 무관하게 항상 보인다. */}
+                <div className="submit-notes">
+                  <ShieldCheck size={16} />
+                  <div>
+                    <p>개인정보, 실명 비방, 민감 정보가 포함되어 있지 않은지 한 번 더 확인해주세요.</p>
+                    <p>다듬기 검토를 위해 작성 내용이 외부 AI로 전송됩니다. 이름·메일·소속은 보내지 않습니다.</p>
+                  </div>
+                </div>
+              </>
+            )}
             <div className="form-actions">
               <button className="secondary-button" onClick={() => setStep('content')}>
                 수정하기
               </button>
-              <button className="primary-button" disabled={!reviewReady} onClick={submit}>
+              <button className="primary-button" disabled={!skipReview && !reviewReady} onClick={submit}>
                 <Send size={18} />
                 접수하기
               </button>
@@ -495,6 +515,14 @@ export function Intake({ identity, currentUser, issues, partLeaders, onIdentityC
             <CheckCircle2 size={42} />
             <p className="eyebrow">접수 완료</p>
             <h2>{receiptId}</h2>
+            {receiptAccessCode && (
+              <p className="intake-enc-badge">
+                <ShieldCheck size={15} />
+                {receiptEncrypted
+                  ? '본문이 대상 리더 공개키로 암호화되어 저장됐어요. 운영자도 내용을 볼 수 없습니다.'
+                  : '대상 리더가 아직 암호화 키를 설정하지 않아 이번 글은 암호화되지 않았어요.'}
+              </p>
+            )}
             {receiptAccessCode && (
               <div className="anonymous-receipt">
                 <strong>익명 확인 코드</strong>

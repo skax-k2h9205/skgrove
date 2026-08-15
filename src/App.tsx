@@ -44,6 +44,8 @@ import { ActionCreateForm } from './features/actions/ActionCreateForm';
 import { ChatWidget } from './features/chat/ChatWidget';
 import { clearSession, loadSession, saveSession } from './session';
 import { supabase } from './supabaseClient';
+import { encryptForRecipients } from './crypto/issueCrypto';
+import { loadLeaderPublicKeys } from './crypto/leaderKeyStore';
 import { identityFromSession, resolveAccount, type AuthIdentity } from './authLink';
 import { AgendaBoard } from './features/agenda/AgendaBoard';
 import type { AgendaDraft } from './features/agenda/AgendaForm';
@@ -387,10 +389,41 @@ export function App() {
   }, [currentUser]);
 
   // createdAt은 App이 채운다(접수 시각). 호출부가 넘기지 않는다.
-  const submitIssue = (issue: Omit<Issue, 'id' | 'status' | 'createdAt'>) => {
+  // 익명 접수는 대상 리더 공개키로 본문을 E2E 암호화한다 — 운영자(anon)도 못 읽는다.
+  // 대상 리더가 아직 키를 설정하지 않았으면(공개키 없음) 평문으로 저장(비반적 폴백).
+  const submitIssue = async (issue: Omit<Issue, 'id' | 'status' | 'createdAt'>): Promise<Issue> => {
+    let prepared = issue;
+    if (issue.author === '익명') {
+      try {
+        const leaders = leadersFor(accounts, issue.target);
+        const pubKeys = await loadLeaderPublicKeys(leaders.map((leader) => leader.id));
+        const recipients = leaders
+          .filter((leader) => pubKeys[leader.id])
+          .map((leader) => ({ accountId: leader.id, publicJwk: pubKeys[leader.id] }));
+        if (recipients.length > 0) {
+          const enc = await encryptForRecipients(
+            JSON.stringify({ body: issue.body, expectedChange: issue.expectedChange }),
+            recipients,
+          );
+          // 평문은 저장하지 않는다(body/expectedChange 비움). 암호문만 남긴다.
+          prepared = {
+            ...issue,
+            body: '',
+            expectedChange: '',
+            encrypted: true,
+            encPayload: enc.payload,
+            encKeys: enc.keys,
+            encAlg: enc.alg,
+          };
+        }
+      } catch (error) {
+        // 암호화 실패 시 평문으로 조용히 새지 않는다 — 폴백은 '대상 리더 키 없음'일 때만.
+        console.warn('익명 접수 암호화 실패, 평문 폴백.', error);
+      }
+    }
     const next: Issue = {
       id: makeIssueId(),
-      ...issue,
+      ...prepared,
       status: '접수',
       createdAt: today(),
     };

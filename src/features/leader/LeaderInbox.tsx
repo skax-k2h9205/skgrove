@@ -24,6 +24,7 @@ import {
   statusNeedsReason,
 } from '../../issueRules';
 import { leadersFor } from '../../notificationRules';
+import { EncryptedIssueBody } from './AnonCrypto';
 import type { Agenda, CurrentUser, Identity, Issue, IssueStatus, ManagedAccount, TeamPart, VoteType } from '../../types';
 
 type AgendaDraft = Pick<
@@ -99,6 +100,10 @@ export function LeaderInbox({ issues, accounts, currentUser, today, onIssueUpdat
       ? myIssues.filter((issue) => issue.status !== '회수' && issue.status !== '종료')
       : myIssues.filter((issue) => issue.status === filter);
   const selectedIssue = visibleIssues.find((issue) => issue.id === selectedIssueId) ?? null;
+  // 암호화 접수 복호화에 필요한 내 계정 id(CurrentUser엔 id가 없어 accounts에서 이메일로 찾는다).
+  const myAccountId = accounts.find(
+    (account) => account.email.toLowerCase() === currentUser.email.toLowerCase(),
+  )?.id ?? '';
   const agendaDraft = selectedIssue ? agendaDrafts[selectedIssue.id] ?? makeAgendaDraft(selectedIssue) : null;
   const waitingCount = myIssues.filter((issue) => issue.status === '접수' || issue.status === '검토중').length;
   const answeredCount = myIssues.filter((issue) => issue.leaderReply).length;
@@ -378,17 +383,22 @@ export function LeaderInbox({ issues, accounts, currentUser, today, onIssueUpdat
                 </div>
               )}
 
-              {/* 리더가 답변하려면 접수자가 무엇을 썼는지 읽을 수 있어야 한다. */}
-              <div className="issue-body-box">
-                <strong>접수 내용</strong>
-                <p>{selectedIssue.body || '작성된 내용이 없습니다.'}</p>
-                {selectedIssue.expectedChange && (
-                  <>
-                    <strong>기대 변화</strong>
-                    <p>{selectedIssue.expectedChange}</p>
-                  </>
-                )}
-              </div>
+              {/* 리더가 답변하려면 접수자가 무엇을 썼는지 읽을 수 있어야 한다.
+                  암호화 접수는 대상 리더만 자기 기기에서 복호화한다(운영자 불가독). */}
+              {selectedIssue.encrypted ? (
+                <EncryptedIssueBody issue={selectedIssue} accountId={myAccountId} />
+              ) : (
+                <div className="issue-body-box">
+                  <strong>접수 내용</strong>
+                  <p>{selectedIssue.body || '작성된 내용이 없습니다.'}</p>
+                  {selectedIssue.expectedChange && (
+                    <>
+                      <strong>기대 변화</strong>
+                      <p>{selectedIssue.expectedChange}</p>
+                    </>
+                  )}
+                </div>
+              )}
 
               <div className="leader-action-tabs">
                 <button className={activeAction === 'reply' ? 'selected' : ''} onClick={() => setActiveAction('reply')}>
