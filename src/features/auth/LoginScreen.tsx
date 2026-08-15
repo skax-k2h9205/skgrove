@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { HeartHandshake, LogIn, UserPlus, KeyRound, ShieldCheck, Slack } from 'lucide-react';
 import { teamParts, isCompanyEmail } from '../../auth';
 import { supabase } from '../../supabaseClient';
@@ -36,6 +36,8 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
   // 가입 초대코드 + 그 코드로 확정된 테넌트(팀). 파트 선택지도 이 팀 것으로 바뀐다.
   const [joinCode, setJoinCode] = useState('');
   const [resolvedTenant, setResolvedTenant] = useState<Tenant | null>(null);
+  // 초대 링크(?join=코드)로 팀이 확정된 경우 코드칸 대신 확인 배지만 보여준다.
+  const [linkLocked, setLinkLocked] = useState(false);
   const [code, setCode] = useState('');
   const [newPw, setNewPw] = useState('');
   const [newPw2, setNewPw2] = useState('');
@@ -49,6 +51,22 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
     if (!keepNotice) setNotice('');
     setCode('');
   };
+
+  // 초대 링크(?join=코드)로 들어오면 코드를 자동 채우고 가입 화면으로. 팀이 확정되면
+  // 코드칸을 숨기고(확인 배지) 파트도 그 팀 것으로. 링크가 유효하지 않으면 수동 입력으로 폴백.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const jc = new URLSearchParams(window.location.search).get('join');
+    if (!jc) return;
+    setJoinCode(jc);
+    setView('signup');
+    fetchTenantByJoinCode(jc).then((t) => {
+      if (!t) return;
+      setResolvedTenant(t);
+      setLinkLocked(true);
+      if (t.parts.length) setPart(t.parts[0] as TeamPart);
+    });
+  }, []);
 
   // 초대코드를 입력/이탈하면 그 팀을 조회해 파트 선택지를 그 팀 것으로 바꾼다.
   const resolveTenant = async () => {
@@ -233,16 +251,24 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
 
         {view === 'signup' && (
           <>
-            <label>
-              초대코드
-              <input
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value)}
-                onBlur={resolveTenant}
-                placeholder="팀 관리자에게 받은 코드"
-              />
-              {resolvedTenant && <span className="field-ok">{resolvedTenant.name}으로 가입합니다</span>}
-            </label>
+            {linkLocked && resolvedTenant ? (
+              // 초대 링크로 팀이 확정됨 → 코드 입력 없이 확인만.
+              <div className="role-note">
+                <strong>{resolvedTenant.name}</strong>
+                <span>초대 링크로 이 팀에 가입합니다.</span>
+              </div>
+            ) : (
+              <label>
+                초대코드
+                <input
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value)}
+                  onBlur={resolveTenant}
+                  placeholder="팀 관리자에게 받은 코드"
+                />
+                {resolvedTenant && <span className="field-ok">{resolvedTenant.name}으로 가입합니다</span>}
+              </label>
+            )}
             <label>
               이름
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="이선민" />
@@ -311,10 +337,6 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
                 ))}
               </select>
             </label>
-            <div className="role-note">
-              <strong>권한은 팀원으로 시작합니다</strong>
-              <span>파트리더·팀리더 권한이 필요하면 팀리더가 계정 관리에서 변경합니다.</span>
-            </div>
           </>
         )}
 

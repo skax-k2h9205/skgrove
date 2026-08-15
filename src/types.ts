@@ -16,6 +16,7 @@ export type Section =
   | 'growth'
   | 'accounts'
   | 'system'
+  | 'platform'
   | 'notifications'
   | 'humor'
   | 'market';

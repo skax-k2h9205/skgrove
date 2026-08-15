@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Bell, Camera, HeartHandshake, LogOut, MessageSquarePlus } from 'lucide-react';
-import { hasLeaderRole, isConnectioner, isTeamLeader } from '../auth';
+import { hasLeaderRole, isConnectioner, isPlatformOwner, isTeamLeader } from '../auth';
 import { navGroups, sections } from '../navigation';
 import type { CurrentUser, Section } from '../types';
 import { Avatar } from './Avatar';
@@ -11,12 +11,20 @@ import { Avatar } from './Avatar';
   (접수 → 리더 검토 → 익명 투표 → 액션)'이 이미 흐름을 보여준다.
   팀원에게 13개 중 2개가 매일 못 누르는 상태로 남는 건 순손실이라 감춘다.
 */
-function canSee(id: Section, canUseLeaderMenu: boolean, canUseAccountsMenu: boolean, canUseConnectionerMenu: boolean) {
+function canSee(
+  id: Section,
+  canUseLeaderMenu: boolean,
+  canUseAccountsMenu: boolean,
+  canUseConnectionerMenu: boolean,
+  canUsePlatformMenu: boolean,
+) {
   if (id === 'leader') return canUseLeaderMenu;
   if (id === 'accounts') return canUseAccountsMenu;
   // 조뽑기·시스템 관리 등 커넥셔너 도구는 커넥셔너로 지정된 사람에게만.
   if (id === 'connect') return canUseConnectionerMenu;
   if (id === 'system') return canUseConnectionerMenu;
+  // 플랫폼 관리는 플랫폼 오너(전 테넌트 관제)에게만.
+  if (id === 'platform') return canUsePlatformMenu;
   return true;
 }
 
@@ -47,6 +55,8 @@ export function AppShell({
   const userCanUseAccountsMenu = isTeamLeader(currentUser);
   // 조뽑기·시스템 관리는 커넥셔너(슈퍼관리자)에게만 노출.
   const userCanUseConnectionerMenu = isConnectioner(currentUser);
+  // 플랫폼 관리는 플랫폼 오너에게만.
+  const userCanUsePlatformMenu = isPlatformOwner(currentUser);
 
   const [photoOpen, setPhotoOpen] = useState(false);
   const [photoInput, setPhotoInput] = useState('');
@@ -77,7 +87,13 @@ export function AppShell({
         <nav className="nav">
           {navGroups.map((group) => {
             const visible = group.items.filter((section) =>
-              canSee(section.id, userCanUseLeaderMenu, userCanUseAccountsMenu, userCanUseConnectionerMenu),
+              canSee(
+                section.id,
+                userCanUseLeaderMenu,
+                userCanUseAccountsMenu,
+                userCanUseConnectionerMenu,
+                userCanUsePlatformMenu,
+              ),
             );
             // 항목이 모두 걸러진 그룹은 제목만 남는다. 그룹째 렌더하지 않는다.
             if (visible.length === 0) return null;

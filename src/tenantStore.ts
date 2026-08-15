@@ -52,6 +52,37 @@ export async function loadTenants(): Promise<Tenant[]> {
   return [seedTenant];
 }
 
+export type NewTenantInput = {
+  name: string;
+  joinCode: string;
+  parts: string[];
+  allowedDomain?: string;
+};
+
+/** 새 테넌트 개설(플랫폼 오너 콘솔). 성공 시 생성된 Tenant, 실패 시 에러 메시지. */
+export async function createTenant(
+  input: NewTenantInput,
+): Promise<{ ok: true; tenant: Tenant } | { ok: false; error: string }> {
+  if (!supabase) return { ok: false, error: '서버가 연결되지 않았어요.' };
+  const { data, error } = await supabase
+    .from(TENANT_TABLE)
+    .insert({
+      name: input.name.trim(),
+      join_code: input.joinCode.trim(),
+      parts: input.parts,
+      allowed_domain: input.allowedDomain?.trim() || null,
+      active: true,
+    })
+    .select()
+    .single();
+  if (error) {
+    // 초대코드 유니크 충돌이 가장 흔하다.
+    const dup = /duplicate|unique/i.test(error.message);
+    return { ok: false, error: dup ? '이미 쓰이는 초대코드예요. 다른 코드를 써주세요.' : error.message };
+  }
+  return { ok: true, tenant: tenantFromRow(data as TenantRow) };
+}
+
 /** 초대코드로 활성 테넌트를 찾는다(가입 화면에서 직접 호출). 없으면 null. */
 export async function fetchTenantByJoinCode(code: string): Promise<Tenant | null> {
   const trimmed = code.trim();

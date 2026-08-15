@@ -4,7 +4,7 @@ import { deleteActionItem, loadActionItems, makeActionItemId, saveActionItems } 
 import { applySelection, finalStatus, isOpen, liveStatus, settleAgendas } from './agendaRules';
 import { deleteAgenda, loadAgendas, makeAgendaId, makeAgendaOptions, saveAgendas } from './agendaStore';
 import { hasVoted, loadBallots, makeVoterKey, saveBallots } from './ballotStore';
-import { hasLeaderRole, isAdmin, isConnectioner, isLeader, isTeamLeader, teamParts } from './auth';
+import { hasLeaderRole, isAdmin, isConnectioner, isLeader, isPlatformOwner, isTeamLeader, teamParts } from './auth';
 import { loadCanSteps, saveCanSteps } from './canStepsStore';
 import {
   loadCanOpinions,
@@ -48,6 +48,8 @@ import { encryptForRecipients } from './crypto/issueCrypto';
 import { loadLeaderPublicKeys } from './crypto/leaderKeyStore';
 import { identityFromSession, resolveAccount, type AuthIdentity } from './authLink';
 import { setCurrentTenantId } from './tenantContext';
+import { loadTenants, createTenant, type Tenant, type NewTenantInput } from './tenantStore';
+import { PlatformConsole } from './features/platform/PlatformConsole';
 import { AgendaBoard } from './features/agenda/AgendaBoard';
 import type { AgendaDraft } from './features/agenda/AgendaForm';
 import { AccountManagement } from './features/auth/AccountManagement';
@@ -211,6 +213,8 @@ export function App() {
   // Supabase 에서 계정을 실제로 받아왔는가. Slack 세션을 seed(로컬) 계정에 성급히 맞춰
   // 중복 생성하는 걸 막으려면, 원격 로드가 끝난 뒤에만 매칭한다.
   const [accountsLoaded, setAccountsLoaded] = useState(false);
+  // 테넌트 목록(플랫폼 오너 콘솔용).
+  const [tenants, setTenants] = useState<Tenant[]>([]);
   // 저장된 세션이 있으면 복원한다 — 새로고침해도 로그인이 유지된다.
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => loadSession());
   // Slack(OIDC) 로그인 파이프라인:
@@ -307,6 +311,9 @@ export function App() {
         setAccounts(loadedAccounts);
         setAccountsLoaded(true);
       }
+    });
+    loadTenants().then((loaded) => {
+      if (isMounted) setTenants(loaded);
     });
     loadIssues().then((loadedIssues) => {
       if (isMounted) {
@@ -1414,7 +1421,19 @@ export function App() {
       setActive('dashboard');
       return;
     }
+    // 플랫폼 관리는 플랫폼 오너만.
+    if (section === 'platform' && currentUser && !isPlatformOwner(currentUser)) {
+      setActive('dashboard');
+      return;
+    }
     setActive(section);
+  };
+
+  // 새 팀 개설(플랫폼 오너 콘솔). 성공하면 목록에 즉시 반영.
+  const handleCreateTenant = async (input: NewTenantInput) => {
+    const r = await createTenant(input);
+    if (r.ok) setTenants((prev) => [...prev, r.tenant]);
+    return r;
   };
 
   // 홈 피드에서 게시글을 누르면 그 섹션으로 이동해 해당 항목 상세를 연다(딥링크).
@@ -1829,6 +1848,9 @@ export function App() {
       {active === 'accounts' && isTeamLeader(currentUser) && <AccountManagement accounts={accounts} onAccountsChange={persistAccounts} onDelete={isAdmin(currentUser) ? removeAccount : undefined} currentEmail={currentUser.email} />}
       {active === 'system' && isConnectioner(currentUser) && (
         <SystemManagement settings={notifySettings} onSettingsChange={persistNotifySettings} />
+      )}
+      {active === 'platform' && isPlatformOwner(currentUser) && (
+        <PlatformConsole tenants={tenants} onCreate={handleCreateTenant} />
       )}
       </ErrorBoundary>
       {/* 토스트는 경계 밖에 둔다. 화면이 깨져도 저장 실패 같은 알림은 계속 보여야 한다. */}
