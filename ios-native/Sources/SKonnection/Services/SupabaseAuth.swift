@@ -54,6 +54,48 @@ extension SlackIdentity {
             ?? (email.isEmpty ? "팀원" : String(email.prefix(while: { $0 != "@" })))
         let slackUserId = str("provider_id") ?? str("sub") ?? user.identities?.first?.id
         // auth_uid 는 웹과 같은 소문자 UUID 로 맞춘다(DB 매칭 일관성).
-        self.init(uid: user.id.uuidString.lowercased(), email: email, name: name, slackUserId: slackUserId)
+        self.init(uid: user.id.uuidString.lowercased(), email: email, name: name,
+                  slackUserId: slackUserId, part: str("part"))
+    }
+}
+
+// MARK: - 이메일 인증(웹 blind-email-auth 와 동일: Supabase Auth 이메일+비번+6자리 OTP)
+extension SupabaseAuth {
+    enum EmailError: Error { case alreadyRegistered, noSession }
+
+    /// 이메일+비밀번호 로그인. 성공 세션에서 신원을 뽑는다.
+    static func signInEmail(_ email: String, _ password: String) async throws -> SlackIdentity {
+        let session = try await client.auth.signIn(email: email, password: password)
+        return SlackIdentity(from: session.user)
+    }
+
+    /// 가입 — 6자리 확인 코드를 메일로 발송. 반환 true = OTP 확인 필요, false = 바로 세션(확인 off).
+    static func signUpEmail(_ email: String, _ password: String, name: String, part: String) async throws -> Bool {
+        let res = try await client.auth.signUp(
+            email: email, password: password,
+            data: ["full_name": .string(name), "part": .string(part)])
+        // 이미 가입된 이메일이면 identities 가 빈 배열로 온다(웹과 동일 판정).
+        if let identities = res.user.identities, identities.isEmpty { throw EmailError.alreadyRegistered }
+        return res.session == nil
+    }
+
+    /// 가입 확인 코드 검증 → 세션 생성.
+    static func verifySignupOTP(_ email: String, _ code: String) async throws -> SlackIdentity {
+        let res = try await client.auth.verifyOTP(email: email, token: code, type: .signup)
+        guard let user = res.user ?? res.session?.user else { throw EmailError.noSession }
+        return SlackIdentity(from: user)
+    }
+
+    /// 비밀번호 재설정 코드 발송(recovery OTP).
+    static func requestReset(_ email: String) async throws {
+        try await client.auth.resetPasswordForEmail(email)
+    }
+
+    /// 재설정 코드 검증 후 새 비밀번호로 갱신.
+    static func confirmReset(_ email: String, _ code: String, newPassword: String) async throws {
+        _ = try await client.auth.verifyOTP(email: email, token: code, type: .recovery)
+        _ = try await client.auth.update(user: UserAttributes(password: newPassword))
+        // 재설정 직후 세션이 남으므로, 로그인 화면으로 되돌리려 로그아웃한다(웹과 동일 흐름).
+        try? await client.auth.signOut()
     }
 }

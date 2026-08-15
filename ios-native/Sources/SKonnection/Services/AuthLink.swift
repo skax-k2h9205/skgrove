@@ -7,9 +7,10 @@ let teamParts: [String] = ["TEST혁신파트", "ITS혁신파트", "PM혁신파�
 /// 웹 `authLink.ts` 의 SlackIdentity 와 같은 규약. 권한(역할·파트)은 앱 accounts 가 단일 소스다.
 struct SlackIdentity: Identifiable, Equatable {
     let uid: String          // Supabase auth.users.id (auth_uid) — 소문자 UUID
-    let email: String        // Slack 계정 이메일(소문자)
+    let email: String        // 로그인 이메일(소문자)
     let name: String         // 표시 이름
-    let slackUserId: String? // Slack 사용자 id(Uxxxx)
+    let slackUserId: String? // Slack 사용자 id(Uxxxx) — Slack 로그인일 때만
+    var part: String? = nil  // 이메일 가입 시 고른 소속 파트(user_metadata) — 신규 계정 생성에 쓴다
     var id: String { uid }
 }
 
