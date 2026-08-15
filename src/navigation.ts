@@ -9,6 +9,7 @@ import {
   Inbox,
   Laugh,
   MessageSquarePlus,
+  Building2,
   Settings,
   Shuffle,
   Sparkles,
@@ -51,6 +52,7 @@ export const sections: AppSection[] = [
   { id: 'notifications', label: '알림 / 메시지', icon: Bell, owner: '김승현' },
   { id: 'accounts', label: '계정 관리', icon: UsersRound, owner: '팀리더' },
   { id: 'system', label: '시스템 관리', icon: Settings, owner: '커넥셔너' },
+  { id: 'platform', label: '플랫폼 관리', icon: Building2, owner: '플랫폼 오너' },
   /* 마이페이지는 사이드바에 넣지 않는다. 사이드바는 일을 하러 가는 곳이고,
      개인 영역은 헤더 우측 사용자 칩이 입구다(사진 변경도 거기 붙어 있다).
      다만 헤더 제목을 뽑으려면 sections 목록에는 있어야 한다. */
@@ -81,5 +83,10 @@ export const navGroups: NavGroup[] = [
   {
     title: '살펴보기 · 관리',
     items: ['growth', 'metrics', 'profiles', 'notifications', 'accounts', 'system'].map((id) => bySection(id as Section)),
+  },
+  // 플랫폼 오너 전용. 여러 테넌트(팀/회사)를 개설·관리한다. 오너에게만 보인다(AppShell.canSee).
+  {
+    title: '플랫폼',
+    items: ['platform'].map((id) => bySection(id as Section)),
   },
 ];

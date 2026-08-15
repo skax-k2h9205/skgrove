@@ -9,7 +9,7 @@ const ACCOUNT_TABLE = 'accounts';
 // anon 으로 돌지만, 비번 컬럼 쓰기 권한은 REVOKE 로 회수했다(오직 서버 함수만 만진다).
 // 여기 넣으면 계정 편집 PATCH 에 비번 컬럼이 섞여 403 이 난다.
 const ACCOUNT_WRITE_KEYS = ['id','name','email','role','part','status','joined_at','photo_url',
-  'is_connectioner','slack_email','auth_uid','slack_user_id'];
+  'is_connectioner','slack_email','auth_uid','slack_user_id','tenant_id','is_platform_owner'];
 
 const adminAccount: ManagedAccount = {
   id: 'USR-ADMIN',
@@ -82,6 +82,8 @@ type AccountRow = {
   must_change_password?: boolean | null;
   auth_uid?: string | null;
   slack_user_id?: string | null;
+  tenant_id?: string | null;
+  is_platform_owner?: boolean | null;
 };
 
 export async function loadAccounts() {
@@ -162,6 +164,8 @@ function accountFromRow(row: AccountRow): ManagedAccount {
     mustChangePassword: row.must_change_password ?? false,
     authUid: row.auth_uid ?? undefined,
     slackUserId: row.slack_user_id ?? undefined,
+    tenantId: row.tenant_id ?? undefined,
+    platformOwner: row.is_platform_owner ?? false,
   };
 }
 
@@ -179,6 +183,8 @@ function accountToRow(account: ManagedAccount): AccountRow {
     slack_email: account.slackEmail || null,
     auth_uid: account.authUid || null,
     slack_user_id: account.slackUserId || null,
+    tenant_id: account.tenantId || null,
+    is_platform_owner: account.platformOwner ?? false,
     // password_hash·must_change_password 는 여기서 내보내지 않는다(서버 함수 전용 컬럼).
   };
 }

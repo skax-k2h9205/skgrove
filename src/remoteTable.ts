@@ -19,8 +19,18 @@
 // 원격 상태를 한 번도 못 봤다면(오프라인·읽기 실패) **원격에는 아무것도 쓰지 않는다.**
 // 모르는 상태에서 덮어쓰는 것보다 로컬에만 두는 편이 안전하다.
 import { supabase } from './supabaseClient';
+import { getCurrentTenantId } from './tenantContext';
 
 type Row = Record<string, unknown>;
+
+// 멀티테넌트: 저장하는 모든 행에 현재 테넌트 id 를 스탬핑한다. 스토어마다 tenant_id 를
+// 신경 쓰지 않아도 이 한 곳에서 붙는다. 이미 tenant_id 가 있거나(원격에서 온 값) 현재
+// 테넌트를 모르면(로그인 전) 건드리지 않는다 — 단일 테넌트 시절 동작과 100% 동일.
+function stampTenant(row: Row): Row {
+  const tid = getCurrentTenantId();
+  if (!tid || row.tenant_id != null) return row;
+  return { ...row, tenant_id: tid };
+}
 
 /** 테이블별 스냅샷: id → 우리가 쓰는 컬럼만 추린 직렬화 문자열. */
 const snapshots = new Map<string, Map<string, string>>();
@@ -93,7 +103,8 @@ export async function syncRows(
     if (prev.get(id) !== stable(row)) changed.push(row);
   }
   if (changed.length) {
-    const { error } = await supabase.from(table).upsert(changed, { onConflict });
+    // 스탬핑은 실제 쓰기 payload 에만 — diff/스냅샷은 테넌트 무관하게 유지해 서명이 어긋나지 않게.
+    const { error } = await supabase.from(table).upsert(changed.map(stampTenant), { onConflict });
     if (error) {
       console.warn(`Supabase ${table} 저장 실패.`, error);
       return false; // 스냅샷을 갱신하지 않는다 — 다음에 다시 시도된다

@@ -603,6 +603,66 @@ h1 {
   border-color: var(--color-slack);
 }
 
+/* 플랫폼 오너 콘솔 — 테넌트 개설 폼 + 목록 테이블. */
+.platform-create-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: var(--space-3);
+}
+.platform-table-wrap {
+  overflow-x: auto;
+}
+.platform-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.platform-table th,
+.platform-table td {
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-body);
+  padding: 10px var(--space-3);
+  text-align: left;
+  vertical-align: middle;
+}
+.platform-table th {
+  color: var(--color-muted);
+  font-size: var(--text-meta);
+  font-weight: 700;
+}
+.platform-table code {
+  background: var(--tint-primary);
+  border-radius: 6px;
+  color: var(--color-primary-strong);
+  font-weight: 700;
+  padding: 2px 6px;
+}
+.copy-link {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+.pill-off {
+  color: var(--color-muted);
+  font-size: var(--text-micro);
+}
+
+@media (max-width: 720px) {
+  .platform-create-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 초대코드가 유효할 때 그 팀 이름을 확인해주는 작은 안내. */
+.field-ok {
+  color: var(--color-primary-strong);
+  display: block;
+  font-size: var(--text-micro);
+  font-weight: 600;
+  margin-top: 4px;
+}
+
 /* Slack 로그인과 이메일 백업 사이 구분선. 가운데 라벨을 얇은 선이 감싼다. */
 .login-divider {
   align-items: center;

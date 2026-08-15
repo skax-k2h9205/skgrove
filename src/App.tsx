@@ -4,7 +4,7 @@ import { deleteActionItem, loadActionItems, makeActionItemId, saveActionItems } 
 import { applySelection, finalStatus, isOpen, liveStatus, settleAgendas } from './agendaRules';
 import { deleteAgenda, loadAgendas, makeAgendaId, makeAgendaOptions, saveAgendas } from './agendaStore';
 import { hasVoted, loadBallots, makeVoterKey, saveBallots } from './ballotStore';
-import { hasLeaderRole, isAdmin, isConnectioner, isLeader, isTeamLeader, teamParts } from './auth';
+import { hasLeaderRole, isAdmin, isConnectioner, isLeader, isPlatformOwner, isTeamLeader, teamParts } from './auth';
 import { loadCanSteps, saveCanSteps } from './canStepsStore';
 import {
   loadCanOpinions,
@@ -47,6 +47,9 @@ import { supabase } from './supabaseClient';
 import { encryptForRecipients } from './crypto/issueCrypto';
 import { loadLeaderPublicKeys } from './crypto/leaderKeyStore';
 import { identityFromSession, resolveAccount, type AuthIdentity } from './authLink';
+import { setCurrentTenantId } from './tenantContext';
+import { loadTenants, createTenant, type Tenant, type NewTenantInput } from './tenantStore';
+import { PlatformConsole } from './features/platform/PlatformConsole';
 import { AgendaBoard } from './features/agenda/AgendaBoard';
 import type { AgendaDraft } from './features/agenda/AgendaForm';
 import { AccountManagement } from './features/auth/AccountManagement';
@@ -210,6 +213,8 @@ export function App() {
   // Supabase 에서 계정을 실제로 받아왔는가. Slack 세션을 seed(로컬) 계정에 성급히 맞춰
   // 중복 생성하는 걸 막으려면, 원격 로드가 끝난 뒤에만 매칭한다.
   const [accountsLoaded, setAccountsLoaded] = useState(false);
+  // 테넌트 목록(플랫폼 오너 콘솔용).
+  const [tenants, setTenants] = useState<Tenant[]>([]);
   // 저장된 세션이 있으면 복원한다 — 새로고침해도 로그인이 유지된다.
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => loadSession());
   // Slack(OIDC) 로그인 파이프라인:
@@ -306,6 +311,9 @@ export function App() {
         setAccounts(loadedAccounts);
         setAccountsLoaded(true);
       }
+    });
+    loadTenants().then((loaded) => {
+      if (isMounted) setTenants(loaded);
     });
     loadIssues().then((loadedIssues) => {
       if (isMounted) {
@@ -1413,7 +1421,19 @@ export function App() {
       setActive('dashboard');
       return;
     }
+    // 플랫폼 관리는 플랫폼 오너만.
+    if (section === 'platform' && currentUser && !isPlatformOwner(currentUser)) {
+      setActive('dashboard');
+      return;
+    }
     setActive(section);
+  };
+
+  // 새 팀 개설(플랫폼 오너 콘솔). 성공하면 목록에 즉시 반영.
+  const handleCreateTenant = async (input: NewTenantInput) => {
+    const r = await createTenant(input);
+    if (r.ok) setTenants((prev) => [...prev, r.tenant]);
+    return r;
   };
 
   // 홈 피드에서 게시글을 누르면 그 섹션으로 이동해 해당 항목 상세를 연다(딥링크).
@@ -1474,6 +1494,7 @@ export function App() {
     setActive('dashboard');
     setSelectedCanId(null);
     setCurrentUser(user);
+    setCurrentTenantId(user.tenantId ?? null); // 쓰기 스탬핑·읽기 스코핑의 기준
     saveSession(user); // 새로고침해도 로그인 유지
   };
 
@@ -1495,6 +1516,12 @@ export function App() {
       sub.subscription.unsubscribe();
     };
   }, []);
+
+  // currentUser(로그인·세션복원·로그아웃) 변화에 tenantContext 를 항상 동기화한다.
+  // 새로고침으로 세션이 복원되는 경로에서도 tenant_id 스탬핑 기준이 유지되도록.
+  useEffect(() => {
+    setCurrentTenantId(currentUser?.tenantId ?? null);
+  }, [currentUser]);
 
   const startSlackLogin = () => {
     setSlackError('');
@@ -1523,8 +1550,11 @@ export function App() {
     );
   };
 
-  // 첫 슬랙 로그인(신규 @sk.com) — 파트 1회 선택 후 자동 활성 팀원으로 생성하고 입장.
+  // 신규 가입(이메일 코드 인증 완료 or 첫 슬랙 로그인) — 자동 활성 팀원으로 생성하고 입장.
+  // 테넌트는 가입 시 초대코드로 정해져 metadata(identity.tenantId)로 넘어온다.
   const createSlackAccount = (identity: AuthIdentity, part: TeamPart) => {
+    // 쓰기 스탬핑이 이 계정 생성(persistAccounts→saveAccounts)에도 걸리도록 먼저 세팅.
+    if (identity.tenantId) setCurrentTenantId(identity.tenantId);
     const account: ManagedAccount = {
       id: makeAccountId(),
       name: identity.name,
@@ -1536,10 +1566,18 @@ export function App() {
       connectioner: false,
       authUid: identity.uid,
       slackUserId: identity.slackUserId,
+      tenantId: identity.tenantId,
     };
     persistAccounts([...accounts, account]);
     setSlackNewUser(null);
-    handleLogin({ name: account.name, email: account.email, role: account.role, part, connectioner: false });
+    handleLogin({
+      name: account.name,
+      email: account.email,
+      role: account.role,
+      part,
+      connectioner: false,
+      tenantId: identity.tenantId,
+    });
   };
 
   const cancelSlackLogin = () => {
@@ -1605,6 +1643,7 @@ export function App() {
       onLogout={() => {
         clearSession();
         setCurrentUser(null);
+        setCurrentTenantId(null);
         // Slack 세션까지 정리 — 안 하면 다음 렌더에서 세션이 다시 잡혀 자동 재로그인된다.
         setPendingSlack(null);
         setSlackNewUser(null);
@@ -1809,6 +1848,9 @@ export function App() {
       {active === 'accounts' && isTeamLeader(currentUser) && <AccountManagement accounts={accounts} onAccountsChange={persistAccounts} onDelete={isAdmin(currentUser) ? removeAccount : undefined} currentEmail={currentUser.email} />}
       {active === 'system' && isConnectioner(currentUser) && (
         <SystemManagement settings={notifySettings} onSettingsChange={persistNotifySettings} />
+      )}
+      {active === 'platform' && isPlatformOwner(currentUser) && (
+        <PlatformConsole tenants={tenants} onCreate={handleCreateTenant} />
       )}
       </ErrorBoundary>
       {/* 토스트는 경계 밖에 둔다. 화면이 깨져도 저장 실패 같은 알림은 계속 보여야 한다. */}

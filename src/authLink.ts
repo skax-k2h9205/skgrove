@@ -12,6 +12,7 @@ export type AuthIdentity = {
   email: string; // 로그인 이메일(소문자)
   name: string; // 표시 이름
   part?: TeamPart; // 가입 시 고른 소속 파트(이메일 가입은 user_metadata 로 넘어옴)
+  tenantId?: string; // 가입 시 초대코드로 정해진 테넌트(user_metadata 로 넘어옴)
   slackUserId?: string; // Slack 사용자 id(Slack 로그인일 때만) — 향후 DM 을 id 로
 };
 
@@ -26,6 +27,8 @@ const toCurrentUser = (a: ManagedAccount): CurrentUser => ({
   role: a.role,
   part: a.part,
   connectioner: a.connectioner ?? false,
+  tenantId: a.tenantId,
+  platformOwner: a.platformOwner ?? false,
 });
 
 /** Supabase 유저에서 신원만 뽑는다. 이메일 가입은 user_metadata 에 full_name·part 를 담아둔다. */
@@ -39,8 +42,9 @@ export function extractIdentity(user: User): AuthIdentity {
     str(meta.preferred_username) ??
     (email ? email.split('@')[0] : '팀원');
   const part = str(meta.part) as TeamPart | undefined;
+  const tenantId = str(meta.tenant_id);
   const slackUserId = str(meta.provider_id) ?? str(meta.sub) ?? str(user.identities?.[0]?.id);
-  return { uid: user.id, email, name, part, slackUserId };
+  return { uid: user.id, email, name, part, tenantId, slackUserId };
 }
 
 /** onAuthStateChange/getSession 세션에서 신원을 뽑는다. 세션·유저가 없으면 null. */
