@@ -40,3 +40,8 @@ create table if not exists public.growth_competency_log (
 -- 시작하되, 아래처럼 RLS 로 owner 와 그 사람의 leaders 만 SELECT 하도록 좁히는 것을 후속으로 한다.
 -- (대나무숲 anon 평문 노출과 같은 계열의 위험 — 지금은 노출되므로 배포 후 빠르게 RLS 적용 권장.)
 -- alter table public.growth_goals enable row level security; ... (leaders 매핑 함수 필요)
+
+-- anon/authenticated 쓰기 권한(기존 앱 테이블과 동일하게). 없으면 INSERT 가 401 난다.
+grant select, insert, update, delete on public.growth_goals to anon, authenticated;
+grant select, insert, update, delete on public.growth_competencies to anon, authenticated;
+grant select, insert, update, delete on public.growth_competency_log to anon, authenticated;
