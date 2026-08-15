@@ -51,10 +51,12 @@ struct LoginView: View {
                     footerLinks
                 }
                 .padding(Theme.Space.x5)
+                .padding(.top, Theme.Space.x4)
                 .frame(maxWidth: .infinity)
             }
         }
-        .ignoresSafeArea(.container, edges: .top)
+        // 콘텐츠는 상단 세이프에어리어(상태바·다이나믹 아일랜드)를 존중한다.
+        // 배경색만 전체를 채우고(위 page.ignoresSafeArea), 헤더가 상태바와 겹치지 않게 한다.
     }
 
     // MARK: - 단계별 입력
