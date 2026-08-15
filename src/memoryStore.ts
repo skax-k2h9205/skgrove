@@ -1,5 +1,6 @@
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
+import { tenantPath } from './tenantContext';
 import type { MemoryAsset, TeamMemory } from './types';
 
 const MEMORY_STORAGE_KEY = 'skgrove:teamMemories';
@@ -113,7 +114,7 @@ export async function uploadMemoryAssetFile(memoryId: number, assetId: number, f
   if (!supabase) return { previewUrl: '', storagePath: '' };
 
   const safeName = file.name.replace(/[^\w.\-]+/g, '_');
-  const storagePath = `${memoryId}/${assetId}-${safeName}`;
+  const storagePath = tenantPath(`${memoryId}/${assetId}-${safeName}`);
   const { error } = await supabase.storage.from(MEMORY_BUCKET).upload(storagePath, file, {
     cacheControl: '3600',
     upsert: true,

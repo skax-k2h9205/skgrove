@@ -4,6 +4,7 @@
 import { initialHumorComments, initialHumorPosts } from './data/mockData';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
+import { tenantPath } from './tenantContext';
 import type { HumorComment, HumorPost } from './types';
 
 const POSTS_KEY = 'skgrove:humorposts';
@@ -129,7 +130,7 @@ export async function uploadHumorImage(postId: string, file: File): Promise<{ im
   if (!supabase) return { imageUrl: URL.createObjectURL(file) };
 
   const safeName = file.name.replace(/[^\w.\-]+/g, '_');
-  const storagePath = `${postId}/${safeName}`;
+  const storagePath = tenantPath(`${postId}/${safeName}`);
   const { error } = await supabase.storage.from(IMAGE_BUCKET).upload(storagePath, file, {
     cacheControl: '3600',
     upsert: true,

@@ -10,3 +10,11 @@ export function setCurrentTenantId(id: string | null) {
 export function getCurrentTenantId(): string | null {
   return currentTenantId;
 }
+
+// 스토리지 업로드 경로를 테넌트 폴더로 감싼다 — `${tenantId}/<원래 경로>`.
+// Stage 2b 스토리지 정책이 foldername[1] = 테넌트로 격리하는 것과 짝을 이룬다.
+// 로그인 전(테넌트 미확정)엔 기본 테넌트(#1) 폴더로 — tenantStore.DEFAULT_TENANT_ID 와 동일.
+export function tenantPath(subpath: string): string {
+  const tid = currentTenantId ?? '00000000-0000-0000-0000-000000000001';
+  return `${tid}/${subpath}`;
+}
