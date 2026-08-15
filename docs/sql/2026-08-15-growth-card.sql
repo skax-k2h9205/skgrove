@@ -45,3 +45,9 @@ create table if not exists public.growth_competency_log (
 grant select, insert, update, delete on public.growth_goals to anon, authenticated;
 grant select, insert, update, delete on public.growth_competencies to anon, authenticated;
 grant select, insert, update, delete on public.growth_competency_log to anon, authenticated;
+
+-- Supabase 가 새 테이블에 RLS 를 기본 활성화한다. 이 앱은 anon 키로 접근(auth.uid 없음)이라
+-- owner 기반 RLS 를 쓸 수 없어 기존 테이블처럼 RLS 를 끈다(프라이버시는 앱 전체 과제).
+alter table public.growth_goals disable row level security;
+alter table public.growth_competencies disable row level security;
+alter table public.growth_competency_log disable row level security;
