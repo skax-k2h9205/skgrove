@@ -13,6 +13,7 @@ export type Section =
   | 'connect'
   | 'memory'
   | 'metrics'
+  | 'growth'
   | 'accounts'
   | 'system'
   | 'notifications'
