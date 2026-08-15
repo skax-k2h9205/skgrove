@@ -144,6 +144,7 @@ import type { GatheringDraft } from './features/gatherings/GatheringForm';
 import type { MarketDraft } from './features/market/MarketForm';
 import { loadProfiles } from './profileStore';
 import { ProfilesContext, type AvatarInfo } from './profilesContext';
+import { TenantPartsContext } from './tenantParts';
 import type {
   ActionItem,
   Agenda,
@@ -256,6 +257,13 @@ export function App() {
   // 계정별 아바타(색·사진). Avatar가 ProfilesContext로 읽는다. 로그인 후 DB에서 로드.
   // 색은 성향 프로필(profiles), 사진은 계정(accounts)에서 오며 여기서 합친다.
   const [profileDirectory, setProfileDirectory] = useState<Profile[]>(initialProfiles);
+  // 현재 로그인한 사용자의 테넌트(팀) 파트 목록. 파트는 팀마다 다르므로 auth.teamParts(SK 고정)
+  // 대신 여기서 계산해 컨텍스트로 내려준다. 테넌트를 못 찾으면 SK 기본 파트로 폴백.
+  const tenantParts = useMemo(() => {
+    const t = tenants.find((x) => x.id === currentUser?.tenantId);
+    return t?.parts.length ? t.parts : [...teamParts];
+  }, [tenants, currentUser]);
+
   const profileMap = useMemo(() => {
     const map = new Map<string, AvatarInfo>();
     profileDirectory.forEach((profile) => map.set(profile.name, { color: profile.color }));
@@ -708,7 +716,7 @@ export function App() {
       teamName: '',
       heldAt: new Date().toISOString().slice(0, 10),
       method: '오프라인',
-      parts: [...teamParts],
+      parts: [...tenantParts],
       stage: 'setup',
       resultSummary: '',
       followUp: null,
@@ -1633,6 +1641,7 @@ export function App() {
   ).length;
 
   return (
+    <TenantPartsContext.Provider value={tenantParts}>
     <ProfilesContext.Provider value={profileMap}>
     <AppShell
       active={active}
@@ -1859,5 +1868,6 @@ export function App() {
     {/* AI 상담 챗봇 — 라우팅과 무관하게 모든 화면 위에 떠 있는 플로팅 위젯. */}
     <ChatWidget currentUser={currentUser} profiles={profileDirectory} issues={issues} agendas={agendas} />
     </ProfilesContext.Provider>
+    </TenantPartsContext.Provider>
   );
 }

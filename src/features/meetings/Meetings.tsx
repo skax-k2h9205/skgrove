@@ -16,7 +16,8 @@ import {
   Sparkles,
   UsersRound,
 } from 'lucide-react';
-import { hasTeamLeaderRole, isLeader, teamParts } from '../../auth';
+import { hasTeamLeaderRole, isLeader } from '../../auth';
+import { useTenantParts } from '../../tenantParts';
 import { readCalendarEvents } from '../../calendarStore';
 import { CalendarLink } from './CalendarLink';
 import type { CanStepConfig } from '../../canConfig';
@@ -136,6 +137,7 @@ export function Meetings({
   onAnnounceToSlack,
   onNotifyStatus,
 }: MeetingsProps) {
+  const teamParts = useTenantParts();
   // '#meetings-tea' 딥링크로 들어오면 티미팅 탭으로 시작.
   const [tab, setTab] = useState<'can' | 'tea'>(
     typeof window !== 'undefined' && window.location.hash.includes('tea') ? 'tea' : 'can',

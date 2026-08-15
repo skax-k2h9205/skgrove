@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FilePlus2, Search, Vote } from 'lucide-react';
 import { daysLeft, isOpen, optionRate, voteTotal, winningOptions } from '../../agendaRules';
-import { teamParts } from '../../auth';
+import { useTenantParts } from '../../tenantParts';
 import type { Agenda, CurrentUser, TeamPart, VoteSelection } from '../../types';
 import { EmptyState } from '../../components/EmptyState';
 import { AgendaDetail } from './AgendaDetail';
@@ -39,8 +39,6 @@ type AgendaBoardProps = {
 
 type BoardView = 'list' | 'create' | 'detail';
 
-const partFilters: TeamPart[] = ['전체', ...teamParts];
-
 export function AgendaBoard({
   agendas,
   currentUser,
@@ -58,6 +56,8 @@ export function AgendaBoard({
   canDelete,
   onDeleteAgenda,
 }: AgendaBoardProps) {
+  // 파트 필터: '전체' + 현재 팀 파트.
+  const partFilters: TeamPart[] = ['전체', ...useTenantParts()];
   const [view, setView] = useState<BoardView>('list');
   // 상세를 '홈 피드'에서 열었는지 기록한다. 뒤로가기 목적지(홈 vs 목록)를 이걸로 정한다.
   const [openedFromFeed, setOpenedFromFeed] = useState(false);

@@ -1,7 +1,7 @@
 import { useMemo, useState, type ChangeEvent } from 'react';
 import { CalendarClock, ChevronDown, Coffee, ImagePlus, MapPin, Trash2, Users, Zap } from 'lucide-react';
 import { PanelHeader } from '../../components/PanelHeader';
-import { teamParts } from '../../auth';
+import { useTenantParts } from '../../tenantParts';
 import type { Gathering, GatheringCost, GatheringKind, TeamPart } from '../../types';
 
 export type GatheringDraft = Pick<
@@ -14,7 +14,6 @@ type GatheringFormProps = {
   onCancel: () => void;
 };
 
-const parts: TeamPart[] = ['전체', ...teamParts];
 const costs: GatheringCost[] = ['없음', 'n빵', '주최자 부담'];
 
 /** 'YYYY-MM-DDTHH:mm' 로컬 시각. datetime-local 이 그대로 받는 형식이다. */
@@ -43,6 +42,7 @@ const FLASH_CHIPS: Array<{ label: string; value: () => string }> = [
 ];
 
 export function GatheringForm({ onSubmit, onCancel }: GatheringFormProps) {
+  const parts: TeamPart[] = ['전체', ...useTenantParts()];
   /*
     한때 이 선택이 사이드바 메뉴 두 개였다. 규칙에 kind 분기가 하나도 없어서
     (정원·대기·승계·상태·포스터 전부 동일) 메뉴를 나눈 대가는 "이건 번개인가

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { MIN_OPTIONS, VoteMethodEditor, validateVoteOptions } from '../agenda/VoteMethodEditor';
-import { teamParts } from '../../auth';
+import { useTenantParts } from '../../tenantParts';
 import {
   RESPONSE_DUE_DAYS,
   daysSinceCreated,
@@ -63,11 +63,12 @@ const issueStatuses: IssueStatus[] = [
   '답변완료',
   ...secondaryFilters,
 ];
-const agendaParts: TeamPart[] = ['전체', ...teamParts];
 const DEFAULT_VOTING_DAYS = 7;
 const addDays = (days: number) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 
 export function LeaderInbox({ issues, accounts, currentUser, today, onIssueUpdate, onPromoteToAgenda, canDelete, onDeleteIssue }: LeaderInboxProps) {
+  // 안건 전환 시 파트 선택: '전체' + 현재 팀 파트.
+  const agendaParts: TeamPart[] = ['전체', ...useTenantParts()];
   const handleDelete = (issue: Issue) => {
     if (!onDeleteIssue) return;
     if (window.confirm(`'${issue.title}' 접수를 삭제할까요? 되돌릴 수 없습니다.`)) onDeleteIssue(issue.id);
