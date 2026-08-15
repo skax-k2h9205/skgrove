@@ -29,11 +29,17 @@ type IssueRow = {
   one_on_one_response?: Issue['oneOnOneResponse'] | null;
   status_reason?: string | null;
   created_at?: string;
+  // E2E 암호화(익명 전용) 컬럼
+  encrypted?: boolean | null;
+  enc_payload?: string | null;
+  enc_keys?: Issue['encKeys'] | null;
+  enc_alg?: string | null;
 };
 
 const ISSUE_WRITE_KEYS = [
   'id', 'title', 'body', 'category', 'urgency', 'visibility', 'target',
   'author', 'anonymous', 'status', 'answer', 'created_at',
+  'encrypted', 'enc_payload', 'enc_keys', 'enc_alg',
 ];
 
 export async function loadIssues() {
@@ -90,7 +96,7 @@ export function makeIssueId() {
   return `SOOP-${Date.now().toString(36).toUpperCase()}`;
 }
 
-function issueFromRow(row: IssueRow): Issue {
+export function issueFromRow(row: IssueRow): Issue {
   return {
     id: row.id,
     title: row.title,
@@ -117,10 +123,16 @@ function issueFromRow(row: IssueRow): Issue {
     statusReason: row.status_reason ?? undefined,
     // 과거 데이터에는 값이 없을 수 있다. 없으면 경과일을 계산하지 않는다(빈 문자열).
     createdAt: row.created_at ?? '',
+    encrypted: row.encrypted ?? undefined,
+    encPayload: row.enc_payload ?? undefined,
+    encKeys: row.enc_keys ?? undefined,
+    encAlg: row.enc_alg ?? undefined,
   };
 }
 
-function issueToRow(issue: Issue): IssueRow {
+export function issueToRow(issue: Issue): IssueRow {
+  // 암호화 글은 평문(body/expected_change)을 절대 내보내지 않는다 — 암호문만 저장한다.
+  const isEncrypted = issue.encrypted === true;
   return {
     id: issue.id,
     title: issue.title,
@@ -133,8 +145,8 @@ function issueToRow(issue: Issue): IssueRow {
     target: issue.target,
     status: issue.status,
     urgency: issue.urgency,
-    body: issue.body,
-    expected_change: issue.expectedChange,
+    body: isEncrypted ? '' : issue.body,
+    expected_change: isEncrypted ? '' : issue.expectedChange,
     visibility: issue.visibility,
     leader_reply: issue.leaderReply ?? null,
     one_on_one_note: issue.oneOnOneNote ?? null,
@@ -144,5 +156,9 @@ function issueToRow(issue: Issue): IssueRow {
     one_on_one_response: issue.oneOnOneResponse ?? null,
     status_reason: issue.statusReason ?? null,
     created_at: issue.createdAt || undefined,
+    encrypted: isEncrypted,
+    enc_payload: issue.encPayload ?? null,
+    enc_keys: issue.encKeys ?? null,
+    enc_alg: issue.encAlg ?? null,
   };
 }

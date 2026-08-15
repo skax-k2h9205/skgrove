@@ -1,3 +1,5 @@
+import type { RecipientKey } from './crypto/issueCrypto';
+
 export type Section =
   | 'dashboard'
   | 'mypage'
@@ -87,6 +89,13 @@ export type Issue = {
   createdAt: string;
   // 보류·종료 사유. 접수자 화면에도 그대로 노출된다.
   statusReason?: string;
+  // ── E2E 암호화(익명 전용, v1) ── 대상 리더 공개키로 암호화된 본문.
+  // encrypted면 body/expectedChange는 빈 문자열이고, 실제 내용은 encPayload/encKeys에 있다.
+  // 운영자(anon)는 암호문만 볼 수 있고, 대상 리더만 복호화한다.
+  encrypted?: boolean;
+  encPayload?: string;
+  encKeys?: RecipientKey[];
+  encAlg?: string;
 };
 
 export type Agenda = {
