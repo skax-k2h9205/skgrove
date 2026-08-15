@@ -16,6 +16,7 @@ struct SKonnectionApp: App {
     @StateObject private var profiles = ProfileStore()
     @StateObject private var memories = MemoryStore()
     @StateObject private var system = SystemStore()
+    @StateObject private var growth = GrowthStore()
     @State private var showSplash = true
     @State private var splashScheduled = false
 
@@ -41,6 +42,7 @@ struct SKonnectionApp: App {
                 .environmentObject(profiles)
                 .environmentObject(memories)
                 .environmentObject(system)
+                .environmentObject(growth)
 
                 if showSplash {
                     SplashView()

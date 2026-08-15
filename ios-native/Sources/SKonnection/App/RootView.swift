@@ -162,6 +162,7 @@ struct MoreView: View {
                     link("조 뽑기", "shuffle", Theme.Palette.success) { ConnectView() }
                 }
                 Section("지표 · 알림") {
+                    link("성장 · 커리어", "leaf.fill", Theme.Palette.success) { GrowthView() }
                     link("파트지수 / 리포트", "chart.bar.fill", Theme.Palette.primaryStrong) { MetricsView() }
                     link("알림 / 메시지", "bell.fill", Theme.Palette.cta) { NotificationsView() }
                 }
