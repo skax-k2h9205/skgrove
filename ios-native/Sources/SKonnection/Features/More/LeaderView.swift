@@ -5,9 +5,12 @@ import SwiftUI
 struct LeaderView: View {
     @EnvironmentObject private var store: IssueStore
     @EnvironmentObject private var agendas: AgendaStore
+    @EnvironmentObject private var session: SessionStore
     @State private var filter: IssueStatus? = nil
     @State private var promoted: String?      // 방금 안건화한 접수 안내
     @State private var action: LeaderAction?  // 답변·1on1·보류·종료 입력 대상
+    // 암호화 접수 복호화용 내 계정 id(CurrentUser엔 id가 없어 roster에서 이메일로 찾는다).
+    @State private var leaderAccountId = ""
 
     private var filtered: [Issue] {
         guard let filter else { return store.issues }
@@ -38,6 +41,12 @@ struct LeaderView: View {
         .sheet(item: $action) { act in
             LeaderActionSheet(action: act) { text in commit(act, text) }
         }
+        .task {
+            // 내 계정 id를 이메일로 1회 해석(암호화 접수 복호화에 필요).
+            guard leaderAccountId.isEmpty, let email = session.currentUser?.email else { return }
+            let roster = await AuthLink.fetchRoster()
+            leaderAccountId = roster.first { $0.email.lowercased() == email.lowercased() }?.id ?? ""
+        }
     }
 
     private func card(_ issue: Issue) -> some View {
@@ -49,7 +58,10 @@ struct LeaderView: View {
                 StatusBadge(text: issue.status.rawValue, tint: issue.status.tint, ink: issue.status.ink)
             }
             Text(issue.title).font(.headline).foregroundStyle(Theme.Palette.ink)
-            if !issue.body.isEmpty {
+            if issue.encrypted == true {
+                // 암호화 익명 접수 — 대상 리더만 자기 기기에서 복호화해 본다.
+                EncryptedIssueBody(issue: issue, accountId: leaderAccountId)
+            } else if !issue.body.isEmpty {
                 Text(issue.body).font(.subheadline).foregroundStyle(Theme.Palette.muted).lineLimit(2)
             }
 

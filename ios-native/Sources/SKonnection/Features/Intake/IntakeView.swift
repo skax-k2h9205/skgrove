@@ -210,11 +210,16 @@ struct IntakeView: View {
             visibility: visibility, status: .received, createdAt: "방금",
             submitterEmail: named ? session.currentUser?.email : nil
         )
-        store.submit(issue)
         justSubmitted = issue.id
         findings = []
         title = ""; detail = ""; expectedChange = ""
         Haptics.success()
+        // 익명이면 대상 리더 공개키로 본문을 암호화한 뒤 저장한다(운영자 불가독).
+        // 키 없으면 평문 폴백. 실명은 그대로.
+        Task {
+            let prepared = await AnonEncrypt.encryptIfAnonymous(issue)
+            store.submit(prepared)
+        }
     }
 }
 

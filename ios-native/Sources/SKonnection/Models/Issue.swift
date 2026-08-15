@@ -52,6 +52,12 @@ struct Issue: Identifiable, Codable {
     var leaderReply: String = ""
     var oneOnOneNote: String = ""
     var reason: String = ""       // 보류/종료 사유(웹 statusNeedsReason)
+    // ── E2E 암호화(익명 전용, 웹과 호환) ── encrypted면 body/expectedChange는 빈 문자열,
+    // 실제 내용은 encPayload/encKeys에. 대상 리더만 복호화(운영자 불가독). 옛 캐시 호환 위해 optional.
+    var encrypted: Bool? = nil
+    var encPayload: String? = nil
+    var encKeys: [IssueCrypto.RecipientKey]? = nil
+    var encAlg: String? = nil
 
     // 웹 issueRules.ts 이식 — 응답 지연 감지.
     static let responseDueDays = 7
@@ -193,8 +199,13 @@ struct SupabaseIssueInsert: Encodable {
     let body: String
     let expected_change: String
     let visibility: String
+    let encrypted: Bool
+    let enc_payload: String?
+    let enc_keys: [IssueCrypto.RecipientKey]?
+    let enc_alg: String?
 
     init(_ issue: Issue) {
+        let isEnc = issue.encrypted == true
         id = issue.id
         title = issue.title
         category = issue.category
@@ -205,9 +216,14 @@ struct SupabaseIssueInsert: Encodable {
         target = issue.target.rawValue
         status = issue.status.rawValue
         urgency = issue.urgency.rawValue
-        body = issue.body
-        expected_change = issue.expectedChange
+        // 암호화 글은 평문을 절대 내보내지 않는다.
+        body = isEnc ? "" : issue.body
+        expected_change = isEnc ? "" : issue.expectedChange
         visibility = issue.visibility.rawValue
+        encrypted = isEnc
+        enc_payload = issue.encPayload
+        enc_keys = issue.encKeys
+        enc_alg = issue.encAlg
     }
 }
 
@@ -228,6 +244,10 @@ struct SupabaseIssueRow: Decodable {
     let leader_reply: String?
     let one_on_one_note: String?
     let status_reason: String?
+    let encrypted: Bool?
+    let enc_payload: String?
+    let enc_keys: [IssueCrypto.RecipientKey]?
+    let enc_alg: String?
 
     func toIssue() -> Issue {
         Issue(
@@ -245,7 +265,11 @@ struct SupabaseIssueRow: Decodable {
             submitterEmail: submitter_email,
             leaderReply: leader_reply ?? "",
             oneOnOneNote: one_on_one_note ?? "",
-            reason: status_reason ?? ""
+            reason: status_reason ?? "",
+            encrypted: encrypted,
+            encPayload: enc_payload,
+            encKeys: enc_keys,
+            encAlg: enc_alg
         )
     }
 }
