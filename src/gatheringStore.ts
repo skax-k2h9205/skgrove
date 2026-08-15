@@ -8,7 +8,7 @@ import { normalizeTeamPart } from './auth';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { Gathering, GatheringCost, GatheringKind, GatheringPoster, GatheringSignup, TeamPart } from './types';
-import { getCurrentTenantId } from './tenantContext';
+import { getCurrentTenantId, tenantPath } from './tenantContext';
 
 const GATHERINGS_KEY = 'skgrove:gatherings';
 const SIGNUPS_KEY = 'skgrove:gatheringSignups';
@@ -207,7 +207,7 @@ export async function uploadGatheringImage(gatheringId: string, file: File) {
   if (!supabase) return { imageUrl: URL.createObjectURL(file), storagePath: '' };
 
   const safeName = file.name.replace(/[^\w.\-]+/g, '_');
-  const storagePath = `${gatheringId}/${safeName}`;
+  const storagePath = tenantPath(`${gatheringId}/${safeName}`);
   const { error } = await supabase.storage.from(POSTER_BUCKET).upload(storagePath, file, {
     cacheControl: '3600',
     upsert: true,

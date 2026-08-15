@@ -7,7 +7,7 @@
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { GatheringPoster, MarketBid, MarketItem, MarketKind } from './types';
-import { getCurrentTenantId } from './tenantContext';
+import { getCurrentTenantId, tenantPath } from './tenantContext';
 
 const ITEMS_KEY = 'skgrove:marketItems';
 const BIDS_KEY = 'skgrove:marketBids';
@@ -198,7 +198,7 @@ export async function uploadMarketImage(itemId: string, file: File) {
   if (!supabase) return { imageUrl: URL.createObjectURL(file) };
 
   const safeName = file.name.replace(/[^\w.\-]+/g, '_');
-  const storagePath = `${itemId}/${safeName}`;
+  const storagePath = tenantPath(`${itemId}/${safeName}`);
   const { error } = await supabase.storage.from(IMAGE_BUCKET).upload(storagePath, file, {
     cacheControl: '3600',
     upsert: true,

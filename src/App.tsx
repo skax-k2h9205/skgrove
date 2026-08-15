@@ -1548,11 +1548,13 @@ export function App() {
   };
 
   // 매칭 있는 계정에 Slack 연결값(auth_uid·slack_user_id)을 한 번만 박아둔다.
-  const linkSlackAccount = (account: ManagedAccount, identity: AuthIdentity) => {
+  // base 는 방금 인증 세션으로 읽어온 최신 계정 목록(resolve 에서 넘겨줌) — closure 의 stale
+  // accounts 대신 이걸 기준으로 갱신해야 RLS 락다운 후에도 정확하다.
+  const linkSlackAccount = (account: ManagedAccount, identity: AuthIdentity, base: ManagedAccount[]) => {
     const nextSlackUserId = identity.slackUserId ?? account.slackUserId;
     if (account.authUid === identity.uid && account.slackUserId === nextSlackUserId) return;
     persistAccounts(
-      accounts.map((a) =>
+      base.map((a) =>
         a.id === account.id ? { ...a, authUid: identity.uid, slackUserId: nextSlackUserId } : a,
       ),
     );
@@ -1560,7 +1562,8 @@ export function App() {
 
   // 신규 가입(이메일 코드 인증 완료 or 첫 슬랙 로그인) — 자동 활성 팀원으로 생성하고 입장.
   // 테넌트는 가입 시 초대코드로 정해져 metadata(identity.tenantId)로 넘어온다.
-  const createSlackAccount = (identity: AuthIdentity, part: TeamPart) => {
+  // base 기본값은 현재 state 지만, resolve 경로에서는 인증 재조회한 최신 목록을 넘긴다.
+  const createSlackAccount = (identity: AuthIdentity, part: TeamPart, base: ManagedAccount[] = accounts) => {
     // 쓰기 스탬핑이 이 계정 생성(persistAccounts→saveAccounts)에도 걸리도록 먼저 세팅.
     if (identity.tenantId) setCurrentTenantId(identity.tenantId);
     const account: ManagedAccount = {
@@ -1576,7 +1579,7 @@ export function App() {
       slackUserId: identity.slackUserId,
       tenantId: identity.tenantId,
     };
-    persistAccounts([...accounts, account]);
+    persistAccounts([...base, account]);
     setSlackNewUser(null);
     handleLogin({
       name: account.name,
@@ -1595,26 +1598,38 @@ export function App() {
   };
 
   // (2) pendingSlack 을 계정과 대조 — 원격 계정 로드가 끝났고, 아직 로그인 전일 때만.
-  //     매칭되면 로그인, @sk.com 신규면 파트 선택, 그 외(비활성·비사내)는 차단.
+  //     매칭되면 로그인, 신규면 파트 선택/생성, 그 외(비활성 등)는 차단.
+  //     ★ 매칭 전에 accounts 를 '인증 세션으로' 재조회한다. mount 로드는 anon 이라,
+  //       RLS 락다운(Stage 2b) 후엔 anon 이 비어 기존 사용자를 신규로 오인·중복 생성할 수 있다.
+  //       인증 재조회로 그 위험을 없애고, syncRows 스냅샷도 인증본으로 갱신된다.
   useEffect(() => {
     if (currentUser || !pendingSlack || !accountsLoaded) return;
     const identity = pendingSlack;
-    const res = resolveAccount(identity, accounts);
-    setPendingSlack(null);
-    if (res.kind === 'login') {
-      linkSlackAccount(res.account, identity);
-      handleLogin(res.user);
-    } else if (res.kind === 'newUser') {
-      // 이메일 가입은 파트를 이미 골라 왔다(user_metadata) → 바로 생성.
-      // 파트가 없으면(Slack 등) 파트 선택 화면으로.
-      if (identity.part) createSlackAccount(identity, identity.part);
-      else setSlackNewUser(identity);
-    } else {
-      setSlackError(res.reason);
-      void supabase?.auth.signOut();
-    }
+    let cancelled = false;
+    (async () => {
+      const fresh = await loadAccounts();
+      if (cancelled) return;
+      setAccounts(fresh);
+      const res = resolveAccount(identity, fresh);
+      setPendingSlack(null);
+      if (res.kind === 'login') {
+        linkSlackAccount(res.account, identity, fresh);
+        handleLogin(res.user);
+      } else if (res.kind === 'newUser') {
+        // 이메일 가입은 파트를 이미 골라 왔다(user_metadata) → 바로 생성.
+        // 파트가 없으면(Slack 등) 파트 선택 화면으로.
+        if (identity.part) createSlackAccount(identity, identity.part, fresh);
+        else setSlackNewUser(identity);
+      } else {
+        setSlackError(res.reason);
+        void supabase?.auth.signOut();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, pendingSlack, accountsLoaded, accounts]);
+  }, [currentUser, pendingSlack, accountsLoaded]);
 
   if (!currentUser) {
     if (slackNewUser) {

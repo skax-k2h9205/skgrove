@@ -1,7 +1,7 @@
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { CurrentUser, Profile } from './types';
-import { getCurrentTenantId } from './tenantContext';
+import { getCurrentTenantId, tenantPath } from './tenantContext';
 
 const PROFILE_STORAGE_KEY = 'skgrove:profiles';
 const PROFILE_USER_KEY_PREFIX = 'skgrove:profile:';
@@ -171,7 +171,7 @@ export async function uploadCharacterImage(profileKey: string, file: File): Prom
   if (!supabase) return '';
 
   const safeKey = profileKey.replace(/[^\w.\-]+/g, '_');
-  const storagePath = `${safeKey}/${file.name}`;
+  const storagePath = tenantPath(`${safeKey}/${file.name}`);
   const { error } = await supabase.storage.from(CHARACTER_BUCKET).upload(storagePath, file, {
     cacheControl: '3600',
     upsert: true,
