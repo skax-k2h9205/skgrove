@@ -46,6 +46,7 @@ import { clearSession, loadSession, saveSession } from './session';
 import { supabase } from './supabaseClient';
 import { encryptForRecipients } from './crypto/issueCrypto';
 import { loadLeaderPublicKeys } from './crypto/leaderKeyStore';
+import { encryptionPlan } from './issueEncryptionPolicy';
 import { identityFromSession, resolveAccount, type AuthIdentity } from './authLink';
 import { setCurrentTenantId } from './tenantContext';
 import { loadTenants, createTenant, type Tenant, type NewTenantInput } from './tenantStore';
@@ -406,17 +407,28 @@ export function App() {
   }, [currentUser]);
 
   // createdAt은 App이 채운다(접수 시각). 호출부가 넘기지 않는다.
-  // 익명 접수는 대상 리더 공개키로 본문을 E2E 암호화한다 — 운영자(anon)도 못 읽는다.
-  // 대상 리더가 아직 키를 설정하지 않았으면(공개키 없음) 평문으로 저장(비반적 폴백).
+  // 암호화 대상(익명 전체 / 실명 '리더만 보기')이면 본문을 수신자 공개키로 E2E 암호화한다.
+  //  - 익명: 대상 리더만 수신자 → 운영자도, 작성자도(불명) 못 읽는다.
+  //  - 실명 '리더만 보기': 대상 리더 + 작성자 본인 수신자 → 작성자는 '내 접수'에서 재열람.
+  // 수신자 공개키가 하나도 없으면 평문으로 저장(비반적 폴백).
   const submitIssue = async (issue: Omit<Issue, 'id' | 'status' | 'createdAt'>): Promise<Issue> => {
     let prepared = issue;
-    if (issue.author === '익명') {
+    const plan = encryptionPlan(issue.author, issue.visibility);
+    if (plan.encrypt) {
       try {
-        const leaders = leadersFor(accounts, issue.target);
-        const pubKeys = await loadLeaderPublicKeys(leaders.map((leader) => leader.id));
-        const recipients = leaders
-          .filter((leader) => pubKeys[leader.id])
-          .map((leader) => ({ accountId: leader.id, publicJwk: pubKeys[leader.id] }));
+        const recipientAccounts = [...leadersFor(accounts, issue.target)];
+        if (plan.includeAuthor) {
+          const me = accounts.find(
+            (account) => account.email.toLowerCase() === currentUser?.email.toLowerCase(),
+          );
+          if (me) recipientAccounts.push(me);
+        }
+        // 작성자가 대상 리더를 겸할 수 있으니 accountId 로 중복 제거한다.
+        const uniqueIds = Array.from(new Set(recipientAccounts.map((account) => account.id)));
+        const pubKeys = await loadLeaderPublicKeys(uniqueIds);
+        const recipients = uniqueIds
+          .filter((id) => pubKeys[id])
+          .map((id) => ({ accountId: id, publicJwk: pubKeys[id] }));
         if (recipients.length > 0) {
           const enc = await encryptForRecipients(
             JSON.stringify({ body: issue.body, expectedChange: issue.expectedChange }),
@@ -434,8 +446,8 @@ export function App() {
           };
         }
       } catch (error) {
-        // 암호화 실패 시 평문으로 조용히 새지 않는다 — 폴백은 '대상 리더 키 없음'일 때만.
-        console.warn('익명 접수 암호화 실패, 평문 폴백.', error);
+        // 암호화 실패 시 평문으로 조용히 새지 않는다 — 폴백은 '수신자 키 없음'일 때만.
+        console.warn('접수 암호화 실패, 평문 폴백.', error);
       }
     }
     const next: Issue = {
@@ -1700,6 +1712,9 @@ export function App() {
       {active === 'intake' && (
         <Intake
           currentUser={currentUser}
+          myAccountId={
+            accounts.find((account) => account.email.toLowerCase() === currentUser?.email.toLowerCase())?.id ?? ''
+          }
           identity={identity}
           issues={issues}
           partLeaders={accounts
