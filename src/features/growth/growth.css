@@ -1,0 +1,46 @@
+.growth-panel { display: flex; flex-direction: column; gap: 14px; }
+
+.growth-tabs { display: flex; gap: 8px; }
+.growth-tabs button {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: var(--radius);
+  border: 1px solid var(--color-border); background: var(--color-surface);
+  color: var(--color-muted); font-weight: 600; cursor: pointer;
+}
+.growth-tabs button.active { background: var(--tint-primary); color: var(--tint-primary-ink); border-color: var(--color-primary); }
+
+.growth-h { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; font-size: var(--text-heading); }
+.growth-empty { color: var(--color-muted); font-size: var(--text-body); }
+
+.growth-newgoal { display: flex; flex-wrap: wrap; gap: 8px; }
+.growth-newgoal input, .growth-newgoal select { flex: 1 1 160px; }
+
+.growth-goal, .growth-comp {
+  border: 1px solid var(--color-border); border-radius: var(--radius);
+  padding: 12px; display: flex; flex-direction: column; gap: 8px; background: var(--color-surface);
+}
+.growth-goal-head, .growth-comp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.growth-goal-detail { color: var(--color-muted); font-size: var(--text-body); margin: 0; }
+.growth-goal-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--text-meta); color: var(--color-muted); }
+
+.growth-status { font-size: var(--text-meta); font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--tint-neutral); color: var(--tint-neutral-ink); }
+.growth-status.s-완료 { background: var(--tint-success); color: var(--tint-success-ink); }
+.growth-status.s-진행중 { background: var(--tint-primary); color: var(--tint-primary-ink); }
+
+.growth-progress { display: flex; align-items: center; gap: 10px; }
+.growth-progress input[type='range'] { flex: 1; accent-color: var(--color-primary); }
+
+.growth-levels { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.growth-levels .lv {
+  width: 34px; height: 34px; border-radius: var(--radius);
+  border: 1px solid var(--color-border); background: var(--color-surface);
+  color: var(--color-ink); font-weight: 700; cursor: pointer;
+}
+.growth-levels .lv.active { background: var(--color-primary); color: var(--color-on-primary, var(--color-surface)); border-color: var(--color-primary); }
+.growth-leaderlv { font-size: var(--text-meta); color: var(--color-muted); }
+
+.growth-evidence, .growth-comment { width: 100%; }
+.growth-comment { min-height: 60px; }
+
+.growth-spark { color: var(--color-primary); }
+.growth-spark-empty { font-size: var(--text-meta); color: var(--color-muted); }

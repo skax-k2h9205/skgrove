@@ -13,6 +13,7 @@ export type Section =
   | 'connect'
   | 'memory'
   | 'metrics'
+  | 'growth'
   | 'accounts'
   | 'system'
   | 'notifications'
@@ -562,4 +563,45 @@ export type MarketBid = {
   name: string; // 입찰자 실명
   amount: number; // 나눔이면 0
   createdAt: string; // ISO. 동액일 때와 선착순의 순서 근거
+};
+
+// ── 커리어 관리(성장 카드) ──
+// 팀 공용 역량 세트(v1 고정). 개인이 자가 레벨을 매기고 리더가 합의한다.
+export const competencies = ['문제정의·기획', '실행·개발', '협업·소통', '도메인 전문성', 'AI 활용', '학습·성장'] as const;
+export type Competency = (typeof competencies)[number];
+export type GoalStatus = '진행중' | '완료' | '보류';
+
+// 성장 목표(단기). 개인이 세우고 진척을 갱신, 리더가 코멘트로 정렬한다.
+export type GrowthGoal = {
+  id: string;
+  ownerEmail: string;
+  title: string;
+  detail: string;
+  due: string; // 'YYYY-MM-DD' 또는 빈 문자열(무기한)
+  progress: number; // 0–100
+  status: GoalStatus;
+  leaderComment: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// 역량 레벨(장기). 자가 레벨 + 리더 합의 레벨.
+export type CompetencyLevel = {
+  id: string;
+  ownerEmail: string;
+  competency: Competency;
+  selfLevel: number; // 1–5
+  leaderLevel?: number; // 1–5, 리더 합의 전엔 없음
+  evidence: string;
+  updatedAt: string;
+};
+
+// 역량 레벨 변경 이력(성장 곡선용).
+export type CompetencyLogEntry = {
+  id: string;
+  ownerEmail: string;
+  competency: Competency;
+  level: number; // 1–5
+  by: 'self' | 'leader';
+  at: string;
 };

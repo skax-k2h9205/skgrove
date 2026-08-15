@@ -60,6 +60,7 @@ import { LeaderInbox } from './features/leader/LeaderInbox';
 import { Meetings } from './features/meetings/Meetings';
 import { Memory } from './features/memory/Memory';
 import { Metrics } from './features/metrics/Metrics';
+import { GrowthCard } from './features/growth/GrowthCard';
 import { NotificationCenter } from './features/notifications/NotificationCenter';
 import { Profiles } from './features/profiles/Profiles';
 import { deleteIssue, loadIssues, makeIssueId, saveIssues } from './issueStore';
@@ -1804,6 +1805,7 @@ export function App() {
       {active === 'connect' && <Connect members={connectMembers} />}
       {active === 'memory' && <Memory currentUser={currentUser} />}
       {active === 'metrics' && <Metrics currentUser={currentUser} />}
+      {active === 'growth' && <GrowthCard currentUser={currentUser} accounts={accounts} />}
       {active === 'accounts' && isTeamLeader(currentUser) && <AccountManagement accounts={accounts} onAccountsChange={persistAccounts} onDelete={isAdmin(currentUser) ? removeAccount : undefined} currentEmail={currentUser.email} />}
       {active === 'system' && isConnectioner(currentUser) && (
         <SystemManagement settings={notifySettings} onSettingsChange={persistNotifySettings} />

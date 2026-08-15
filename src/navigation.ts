@@ -12,6 +12,7 @@ import {
   Settings,
   Shuffle,
   Sparkles,
+  Sprout,
   Store,
   UserRound,
   UsersRound,
@@ -45,6 +46,7 @@ export const sections: AppSection[] = [
   { id: 'memory', label: '팀 추억', icon: Sparkles, owner: '김수정' },
   { id: 'humor', label: '유~머게시판', icon: Laugh, owner: '공통' },
   { id: 'market', label: '이음장터', icon: Store, owner: '공통' },
+  { id: 'growth', label: '성장 · 커리어', icon: Sprout, owner: '공통' },
   { id: 'metrics', label: '파트지수 / 리포트', icon: BarChart3, owner: '김수정' },
   { id: 'notifications', label: '알림 / 메시지', icon: Bell, owner: '김승현' },
   { id: 'accounts', label: '계정 관리', icon: UsersRound, owner: '팀리더' },
@@ -78,6 +80,6 @@ export const navGroups: NavGroup[] = [
   },
   {
     title: '살펴보기 · 관리',
-    items: ['metrics', 'profiles', 'notifications', 'accounts', 'system'].map((id) => bySection(id as Section)),
+    items: ['growth', 'metrics', 'profiles', 'notifications', 'accounts', 'system'].map((id) => bySection(id as Section)),
   },
 ];
