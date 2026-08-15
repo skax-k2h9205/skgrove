@@ -47,6 +47,7 @@ import { supabase } from './supabaseClient';
 import { encryptForRecipients } from './crypto/issueCrypto';
 import { loadLeaderPublicKeys } from './crypto/leaderKeyStore';
 import { identityFromSession, resolveAccount, type AuthIdentity } from './authLink';
+import { setCurrentTenantId } from './tenantContext';
 import { AgendaBoard } from './features/agenda/AgendaBoard';
 import type { AgendaDraft } from './features/agenda/AgendaForm';
 import { AccountManagement } from './features/auth/AccountManagement';
@@ -1474,6 +1475,7 @@ export function App() {
     setActive('dashboard');
     setSelectedCanId(null);
     setCurrentUser(user);
+    setCurrentTenantId(user.tenantId ?? null); // 쓰기 스탬핑·읽기 스코핑의 기준
     saveSession(user); // 새로고침해도 로그인 유지
   };
 
@@ -1495,6 +1497,12 @@ export function App() {
       sub.subscription.unsubscribe();
     };
   }, []);
+
+  // currentUser(로그인·세션복원·로그아웃) 변화에 tenantContext 를 항상 동기화한다.
+  // 새로고침으로 세션이 복원되는 경로에서도 tenant_id 스탬핑 기준이 유지되도록.
+  useEffect(() => {
+    setCurrentTenantId(currentUser?.tenantId ?? null);
+  }, [currentUser]);
 
   const startSlackLogin = () => {
     setSlackError('');
@@ -1523,8 +1531,11 @@ export function App() {
     );
   };
 
-  // 첫 슬랙 로그인(신규 @sk.com) — 파트 1회 선택 후 자동 활성 팀원으로 생성하고 입장.
+  // 신규 가입(이메일 코드 인증 완료 or 첫 슬랙 로그인) — 자동 활성 팀원으로 생성하고 입장.
+  // 테넌트는 가입 시 초대코드로 정해져 metadata(identity.tenantId)로 넘어온다.
   const createSlackAccount = (identity: AuthIdentity, part: TeamPart) => {
+    // 쓰기 스탬핑이 이 계정 생성(persistAccounts→saveAccounts)에도 걸리도록 먼저 세팅.
+    if (identity.tenantId) setCurrentTenantId(identity.tenantId);
     const account: ManagedAccount = {
       id: makeAccountId(),
       name: identity.name,
@@ -1536,10 +1547,18 @@ export function App() {
       connectioner: false,
       authUid: identity.uid,
       slackUserId: identity.slackUserId,
+      tenantId: identity.tenantId,
     };
     persistAccounts([...accounts, account]);
     setSlackNewUser(null);
-    handleLogin({ name: account.name, email: account.email, role: account.role, part, connectioner: false });
+    handleLogin({
+      name: account.name,
+      email: account.email,
+      role: account.role,
+      part,
+      connectioner: false,
+      tenantId: identity.tenantId,
+    });
   };
 
   const cancelSlackLogin = () => {
@@ -1605,6 +1624,7 @@ export function App() {
       onLogout={() => {
         clearSession();
         setCurrentUser(null);
+        setCurrentTenantId(null);
         // Slack 세션까지 정리 — 안 하면 다음 렌더에서 세션이 다시 잡혀 자동 재로그인된다.
         setPendingSlack(null);
         setSlackNewUser(null);

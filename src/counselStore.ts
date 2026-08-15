@@ -5,6 +5,7 @@
 // 못한다(대나무숲·안건과 같은 신뢰 모델). 사용자가 이 한계를 인지하고 DB 저장을 택함.
 import { supabase } from './supabaseClient';
 import type { CounselMessage } from './types';
+import { getCurrentTenantId } from './tenantContext';
 
 const KEY = 'skgrove:counselMessages';
 const TABLE = 'counsel_messages';
@@ -85,7 +86,7 @@ export async function loadCounselMessages(author: string): Promise<CounselMessag
 export async function insertCounselMessage(message: CounselMessage): Promise<void> {
   writeLocal([...readLocal(), message]);
   if (!supabase) return;
-  const { error } = await supabase.from(TABLE).insert(toRow(message));
+  const { error } = await supabase.from(TABLE).insert({ ...toRow(message), tenant_id: getCurrentTenantId() });
   if (error) {
     console.warn('Supabase counsel insert failed. Local fallback is still updated.', error);
   }

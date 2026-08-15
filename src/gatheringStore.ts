@@ -8,6 +8,7 @@ import { normalizeTeamPart } from './auth';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { Gathering, GatheringCost, GatheringKind, GatheringPoster, GatheringSignup, TeamPart } from './types';
+import { getCurrentTenantId } from './tenantContext';
 
 const GATHERINGS_KEY = 'skgrove:gatherings';
 const SIGNUPS_KEY = 'skgrove:gatheringSignups';
@@ -179,6 +180,7 @@ export async function insertSignup(signup: GatheringSignup): Promise<boolean> {
     gathering_id: signup.gatheringId,
     name: signup.name,
     created_at: signup.createdAt,
+    tenant_id: getCurrentTenantId(),
   });
   if (error) {
     console.warn('Supabase signup insert failed.', error);

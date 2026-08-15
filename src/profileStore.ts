@@ -1,6 +1,7 @@
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { CurrentUser, Profile } from './types';
+import { getCurrentTenantId } from './tenantContext';
 
 const PROFILE_STORAGE_KEY = 'skgrove:profiles';
 const PROFILE_USER_KEY_PREFIX = 'skgrove:profile:';
@@ -76,9 +77,10 @@ export async function saveProfileForUser(profile: Profile, currentUser: CurrentU
 
   if (!supabase) return;
 
-  const { error } = await supabase.from(PROFILE_TABLE).upsert(profileToRow(profile, currentUser.email), {
-    onConflict: 'profile_key',
-  });
+  const { error } = await supabase.from(PROFILE_TABLE).upsert(
+    { ...profileToRow(profile, currentUser.email), tenant_id: getCurrentTenantId() },
+    { onConflict: 'profile_key' },
+  );
 
   if (error) {
     console.warn('Supabase user profile save failed. Local fallback is still updated.', error);

@@ -7,6 +7,7 @@
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { GatheringPoster, MarketBid, MarketItem, MarketKind } from './types';
+import { getCurrentTenantId } from './tenantContext';
 
 const ITEMS_KEY = 'skgrove:marketItems';
 const BIDS_KEY = 'skgrove:marketBids';
@@ -180,6 +181,7 @@ export async function insertMarketBid(bid: MarketBid): Promise<boolean> {
     name: bid.name,
     amount: bid.amount,
     created_at: bid.createdAt,
+    tenant_id: getCurrentTenantId(),
   });
   if (error) {
     console.warn('Supabase market bid insert failed.', error);

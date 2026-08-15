@@ -603,6 +603,15 @@ h1 {
   border-color: var(--color-slack);
 }
 
+/* 초대코드가 유효할 때 그 팀 이름을 확인해주는 작은 안내. */
+.field-ok {
+  color: var(--color-primary-strong);
+  display: block;
+  font-size: var(--text-micro);
+  font-weight: 600;
+  margin-top: 4px;
+}
+
 /* Slack 로그인과 이메일 백업 사이 구분선. 가운데 라벨을 얇은 선이 감싼다. */
 .login-divider {
   align-items: center;

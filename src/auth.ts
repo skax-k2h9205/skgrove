@@ -28,6 +28,11 @@ export function isConnectioner(user: CurrentUser) {
   return user.connectioner === true;
 }
 
+// 플랫폼 오너 = 전 테넌트 관제(테넌트 개설 등) 최상위 권한. 커넥셔너(테넌트 관리자)와 별개.
+export function isPlatformOwner(user: CurrentUser) {
+  return user.platformOwner === true;
+}
+
 export function isLeader(user: CurrentUser) {
   return isConnectioner(user) || user.role === '파트리더' || user.role === '팀리더';
 }

@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { HeartHandshake, LogIn, UserPlus, KeyRound, ShieldCheck, Slack } from 'lucide-react';
 import { teamParts, isCompanyEmail } from '../../auth';
 import { supabase } from '../../supabaseClient';
+import { fetchTenantByJoinCode, type Tenant } from '../../tenantStore';
 import type { TeamPart } from '../../types';
 
 // 새 비밀번호의 최소 길이. 너무 짧으면 금방 뚫린다.
@@ -32,6 +33,9 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [part, setPart] = useState<TeamPart>('TEST혁신파트');
+  // 가입 초대코드 + 그 코드로 확정된 테넌트(팀). 파트 선택지도 이 팀 것으로 바뀐다.
+  const [joinCode, setJoinCode] = useState('');
+  const [resolvedTenant, setResolvedTenant] = useState<Tenant | null>(null);
   const [code, setCode] = useState('');
   const [newPw, setNewPw] = useState('');
   const [newPw2, setNewPw2] = useState('');
@@ -46,6 +50,16 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
     setCode('');
   };
 
+  // 초대코드를 입력/이탈하면 그 팀을 조회해 파트 선택지를 그 팀 것으로 바꾼다.
+  const resolveTenant = async () => {
+    const t = await fetchTenantByJoinCode(joinCode);
+    setResolvedTenant(t);
+    if (t && t.parts.length && !t.parts.includes(part)) setPart(t.parts[0] as TeamPart);
+  };
+
+  // 가입 파트 선택지: 확정된 팀의 파트, 없으면 기본(SK) 파트.
+  const partOptions: readonly string[] = resolvedTenant?.parts.length ? resolvedTenant.parts : teamParts;
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (busy) return;
@@ -56,8 +70,9 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
     setError('');
     setNotice('');
     const em = email.trim().toLowerCase();
-    const needEmail = view === 'login' || view === 'signup' || view === 'reset';
-    if (needEmail && !isCompanyEmail(em)) {
+    // 로그인/재설정은 기존 사내(@sk.com) 게이트 유지. 가입은 초대코드로 정해진 팀의
+    // allowedDomain 규칙을 따르므로 여기서 걸지 않는다(가입 분기에서 검사).
+    if ((view === 'login' || view === 'reset') && !isCompanyEmail(em)) {
       setError('사내메일은 @sk.com 계정만 사용할 수 있어요.');
       return;
     }
@@ -79,6 +94,17 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
           setError('이름을 입력해주세요.');
           return;
         }
+        // 초대코드로 팀 확정(이탈 시 이미 잡아뒀으면 재사용).
+        const tenant = resolvedTenant ?? (await fetchTenantByJoinCode(joinCode));
+        if (!tenant) {
+          setError('초대코드가 올바르지 않아요. 팀 관리자에게 코드를 확인해 주세요.');
+          setResolvedTenant(null);
+          return;
+        }
+        if (tenant.allowedDomain && !em.endsWith(`@${tenant.allowedDomain}`)) {
+          setError(`이 팀은 @${tenant.allowedDomain} 이메일만 가입할 수 있어요.`);
+          return;
+        }
         if (password.length < MIN_PASSWORD_LENGTH) {
           setError(`비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상이어야 해요.`);
           return;
@@ -86,7 +112,8 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
         const { data, error: e } = await supabase.auth.signUp({
           email: em,
           password,
-          options: { data: { full_name: name.trim(), part } },
+          // 이름·파트·테넌트를 metadata 로 넘겨, 확인 후 첫 로그인 때 그 팀 계정으로 생성.
+          options: { data: { full_name: name.trim(), part, tenant_id: tenant.id } },
         });
         if (e) {
           setError(e.message);
@@ -205,10 +232,22 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
         )}
 
         {view === 'signup' && (
-          <label>
-            이름
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="이선민" />
-          </label>
+          <>
+            <label>
+              초대코드
+              <input
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                onBlur={resolveTenant}
+                placeholder="팀 관리자에게 받은 코드"
+              />
+              {resolvedTenant && <span className="field-ok">{resolvedTenant.name}으로 가입합니다</span>}
+            </label>
+            <label>
+              이름
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="이선민" />
+            </label>
+          </>
         )}
 
         {/* 이메일: 코드 입력 단계에서는 읽기전용으로 어떤 계정인지만 보여준다. */}
@@ -267,7 +306,7 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
             <label>
               소속 파트
               <select value={part} onChange={(e) => setPart(e.target.value as TeamPart)}>
-                {teamParts.map((item) => (
+                {partOptions.map((item) => (
                   <option key={item}>{item}</option>
                 ))}
               </select>
