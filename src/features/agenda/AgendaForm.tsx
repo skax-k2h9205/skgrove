@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AlertTriangle, EyeOff, FilePlus2, Send, ShieldCheck } from 'lucide-react';
 import { PanelHeader } from '../../components/PanelHeader';
 import { MIN_OPTIONS, VoteMethodEditor, validateVoteOptions } from './VoteMethodEditor';
-import { teamParts } from '../../auth';
+import { useTenantParts } from '../../tenantParts';
 import type { Agenda, Identity, TeamPart, VoteType } from '../../types';
 
 export type AgendaDraft = Pick<
@@ -19,13 +19,13 @@ type AgendaFormProps = {
 };
 
 const categories = ['회의문화', '협업', '업무방식', '갈등', '성장/피드백', '복지/분위기', '기타'];
-// auth.teamParts에는 '전체'가 없다. 안건은 팀 전체 대상이 기본이라 앞에 붙여 쓴다.
-const agendaParts: TeamPart[] = ['전체', ...teamParts];
 
 const DEFAULT_VOTING_DAYS = 7;
 const addDays = (days: number) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 
 export function AgendaForm({ onSubmit, onCancel }: AgendaFormProps) {
+  // 안건은 팀 전체 대상이 기본이라 '전체'를 앞에 붙인다. 파트는 현재 팀 것.
+  const agendaParts = ['전체', ...useTenantParts()];
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState(categories[0]);

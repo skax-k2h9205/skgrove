@@ -27,7 +27,9 @@ export type Urgency = '낮음' | '보통' | '높음';
 // 객관식은 받아들이고 말고가 아니라 "어느 쪽으로 정해졌는가"를 묻는다.
 export type AgendaStatus = '투표중' | '통과' | '부결' | '결정됨';
 export type UserRole = '팀원' | '파트리더' | '팀리더';
-export type TeamPart = '전체' | 'TEST혁신파트' | 'ITS혁신파트' | 'PM혁신파트';
+// 파트는 테넌트(팀)마다 다르므로 고정 유니온이 아니라 문자열이다.
+// '전체'는 어느 테넌트에서나 "팀 전원"을 뜻하는 특수값으로 계속 쓴다.
+export type TeamPart = string;
 export type AccountStatus = '승인 대기' | '활성' | '비활성';
 export type IssueStatus = '접수' | '검토중' | '답변완료' | '1on1 제안' | '액션아이템' | '안건화' | '보류' | '회수' | '종료';
 

@@ -1,5 +1,6 @@
 import { KeyRound, ShieldCheck, UserCheck, UsersRound } from 'lucide-react';
-import { teamParts, userRoles } from '../../auth';
+import { userRoles } from '../../auth';
+import { useTenantParts } from '../../tenantParts';
 import { PanelHeader } from '../../components/PanelHeader';
 import type { AccountStatus, ManagedAccount, TeamPart, UserRole } from '../../types';
 
@@ -13,6 +14,9 @@ type AccountManagementProps = {
 const ROLE_ORDER: Record<UserRole, number> = { 팀리더: 0, 파트리더: 1, 팀원: 2 };
 
 export function AccountManagement({ accounts, onAccountsChange, onDelete, currentEmail }: AccountManagementProps) {
+  const parts = useTenantParts();
+  // 팀리더 → 다른 역할로 내릴 때 '전체'는 구체 파트가 필요하다. 이 팀의 첫 파트로 채운다.
+  const normalizePart = (part: TeamPart): TeamPart => (part === '전체' ? parts[0] ?? part : part);
   const removeAccount = (account: ManagedAccount) => {
     if (!onDelete) return;
     if (window.confirm(`'${account.name}'(${account.email}) 계정을 삭제할까요? 되돌릴 수 없습니다.`)) {
@@ -130,7 +134,7 @@ export function AccountManagement({ accounts, onAccountsChange, onDelete, curren
                   value={account.part}
                   onChange={(event) => updatePart(account.id, event.target.value as TeamPart)}
                 >
-                  {teamParts.map((part) => (
+                  {parts.map((part) => (
                     <option key={part}>{part}</option>
                   ))}
                 </select>
@@ -171,6 +175,3 @@ export function AccountManagement({ accounts, onAccountsChange, onDelete, curren
   );
 }
 
-function normalizePart(part: TeamPart): TeamPart {
-  return part === '전체' ? 'TEST혁신파트' : part;
-}
