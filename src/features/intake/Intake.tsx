@@ -17,10 +17,14 @@ import { EmptyState } from '../../components/EmptyState';
 import { PanelHeader } from '../../components/PanelHeader';
 import type { CurrentUser, Identity, Issue, IssueVisibility, Urgency } from '../../types';
 import { ReviewGate } from './ReviewGate';
+import { EncryptedIssueBody, LeaderKeySetup } from '../leader/AnonCrypto';
+import { loadLeaderKeyRecord } from '../../crypto/leaderKeyStore';
 
 type IntakeProps = {
   identity: Identity;
   currentUser: CurrentUser;
+  // 로그인 계정의 id. 실명 '리더만 보기' 암호화 글의 작성자 키 설정·본문 복호화에 쓴다.
+  myAccountId: string;
   issues: Issue[];
   // 특정 파트리더에게 바로 보낼 수 있게 활성 파트리더 목록을 받는다.
   partLeaders: { name: string; part: string }[];
@@ -43,7 +47,7 @@ const steps: Array<{ id: IntakeStep; label: string }> = [
   { id: 'complete', label: '접수 완료' },
 ];
 
-export function Intake({ identity, currentUser, issues, partLeaders, onIdentityChange, onIssueUpdate, onSubmitIssue }: IntakeProps) {
+export function Intake({ identity, currentUser, myAccountId, issues, partLeaders, onIdentityChange, onIssueUpdate, onSubmitIssue }: IntakeProps) {
   const [step, setStep] = useState<IntakeStep>('scope');
   const [target, setTarget] = useState<Target>('팀리더');
   const [visibility, setVisibility] = useState<IssueVisibility>('리더만 보기');
@@ -71,8 +75,12 @@ export function Intake({ identity, currentUser, issues, partLeaders, onIdentityC
   const [reviewReady, setReviewReady] = useState(false);
   // 방금 접수가 암호화되어 저장됐는지(완료 화면 안내용).
   const [receiptEncrypted, setReceiptEncrypted] = useState(false);
-  // 익명 글은 대상 리더만 복호화하므로 외부 AI 검토를 하지 않는다(본문이 서버로 안 감).
-  const skipReview = identity === '익명';
+  // 실명 '리더만 보기' 제출 시 작성자 본인 키가 없으면 키 설정 모달을 띄운다(암호화 수신자에 본인 포함).
+  const [needKeySetup, setNeedKeySetup] = useState(false);
+  // 실명 '리더만 보기'는 본문을 [대상 리더 + 작성자]로 암호화한다 — 익명글처럼 서버로 평문이 안 간다.
+  const encryptedNamed = identity === '실명' && visibility === '리더만 보기';
+  // 암호화 글(익명 전체 / 실명 '리더만 보기')은 본문이 서버로 안 가므로 외부 AI 검토를 생략한다.
+  const skipReview = identity === '익명' || encryptedNamed;
 
   const currentStepIndex = steps.findIndex((item) => item.id === step);
   const myIssues = issues.filter(
@@ -91,6 +99,15 @@ export function Intake({ identity, currentUser, issues, partLeaders, onIdentityC
     // 버튼이 잠겨 있어도 다른 경로로 호출될 수 있으니 여기서 한 번 더 막는다.
     // 익명은 외부 AI 검토를 건너뛰므로 reviewReady 게이트를 적용하지 않는다.
     if ((!skipReview && !reviewReady) || !title.trim() || !body.trim()) return;
+    // 실명 '리더만 보기'는 작성자도 복호화해야 하므로 본인 키가 필요하다.
+    // 없으면 키 설정 모달을 띄우고 멈춘다(설정 완료 후 재제출).
+    if (encryptedNamed && myAccountId) {
+      const myKey = await loadLeaderKeyRecord(myAccountId);
+      if (!myKey) {
+        setNeedKeySetup(true);
+        return;
+      }
+    }
     const nextAnonymousCode = identity === '익명' ? makeAnonymousAccessCode() : undefined;
     const createdIssue = await onSubmitIssue({
       title: title.trim(),
@@ -196,6 +213,22 @@ export function Intake({ identity, currentUser, issues, partLeaders, onIdentityC
 
   return (
     <section className="screen intake-screen">
+      {/* 실명 '리더만 보기' 제출 시 작성자 본인 키가 없으면 여기서 만들고 재제출한다.
+          이 키가 있어야 작성자도 자기 암호화 본문을 '내 접수'에서 다시 볼 수 있다. */}
+      {needKeySetup && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <LeaderKeySetup
+              accountId={myAccountId}
+              intro="이 글은 대상 리더와 나만 볼 수 있게 암호화됩니다. 열람용 키를 먼저 만들어 주세요."
+              onDone={() => {
+                setNeedKeySetup(false);
+                void submit();
+              }}
+            />
+          </div>
+        </div>
+      )}
       <div className="intake-main">
         {/* 익명성 보장은 이 화면의 존재 이유인데 안내가 본문에 묻혀 있었다.
             문구 자체는 제품 약속이라 그대로 두고 위계만 올린다. */}
@@ -461,11 +494,15 @@ export function Intake({ identity, currentUser, issues, partLeaders, onIdentityC
             </div>
 
             {skipReview ? (
-              // 익명 접수: 본문을 대상 리더 공개키로 암호화하므로 외부 AI로 보내지 않는다(검토 생략).
+              // 암호화 접수(익명 전체 / 실명 리더만보기): 본문을 수신자 공개키로 암호화하므로 외부 AI로 보내지 않는다(검토 생략).
               <div className="submit-notes">
                 <ShieldCheck size={16} />
                 <div>
-                  <p>익명 접수는 대상 리더만 열어볼 수 있도록 <strong>암호화되어 저장</strong>됩니다. 운영자도 내용을 볼 수 없어요.</p>
+                  {identity === '익명' ? (
+                    <p>익명 접수는 대상 리더만 열어볼 수 있도록 <strong>암호화되어 저장</strong>됩니다. 운영자도 내용을 볼 수 없어요.</p>
+                  ) : (
+                    <p>이 글은 대상 리더와 나만 열어볼 수 있도록 <strong>암호화되어 저장</strong>됩니다. 운영자도 내용을 볼 수 없어요.</p>
+                  )}
                   <p>암호화 글은 외부 AI 다듬기 검토를 하지 않습니다. 제목엔 민감 정보를 넣지 말아주세요.</p>
                 </div>
               </div>
@@ -515,11 +552,13 @@ export function Intake({ identity, currentUser, issues, partLeaders, onIdentityC
             <CheckCircle2 size={42} />
             <p className="eyebrow">접수 완료</p>
             <h2>{receiptId}</h2>
-            {receiptAccessCode && (
+            {(receiptAccessCode || receiptEncrypted) && (
               <p className="intake-enc-badge">
                 <ShieldCheck size={15} />
                 {receiptEncrypted
-                  ? '본문이 대상 리더 공개키로 암호화되어 저장됐어요. 운영자도 내용을 볼 수 없습니다.'
+                  ? receiptAccessCode
+                    ? '본문이 대상 리더 공개키로 암호화되어 저장됐어요. 운영자도 내용을 볼 수 없습니다.'
+                    : '본문이 대상 리더와 나만 볼 수 있게 암호화되어 저장됐어요. 운영자도 내용을 볼 수 없습니다.'
                   : '대상 리더가 아직 암호화 키를 설정하지 않아 이번 글은 암호화되지 않았어요.'}
               </p>
             )}
@@ -600,18 +639,27 @@ export function Intake({ identity, currentUser, issues, partLeaders, onIdentityC
                     {isExpanded && (
                       <div className="submission-detail">
                         {/* 내가 쓴 본문·기대 변화를 먼저 보여준다. 예전에는 리더 답변만 렌더돼
-                            정작 작성자가 자기가 뭘 냈는지 다시 볼 수 없었다. */}
-                        {issue.body && (
+                            정작 작성자가 자기가 뭘 냈는지 다시 볼 수 없었다.
+                            암호화 글(실명 리더만보기)은 작성자 본인 키로 복호화해서 보여준다. */}
+                        {issue.encrypted ? (
                           <div className="submission-own">
-                            <p className="submission-own-label">작성한 내용</p>
-                            <p className="submission-own-body">{issue.body}</p>
+                            <EncryptedIssueBody issue={issue} accountId={myAccountId} />
                           </div>
-                        )}
-                        {issue.expectedChange && (
-                          <div className="submission-own">
-                            <p className="submission-own-label">기대 변화</p>
-                            <p className="submission-own-body">{issue.expectedChange}</p>
-                          </div>
+                        ) : (
+                          <>
+                            {issue.body && (
+                              <div className="submission-own">
+                                <p className="submission-own-label">작성한 내용</p>
+                                <p className="submission-own-body">{issue.body}</p>
+                              </div>
+                            )}
+                            {issue.expectedChange && (
+                              <div className="submission-own">
+                                <p className="submission-own-label">기대 변화</p>
+                                <p className="submission-own-body">{issue.expectedChange}</p>
+                              </div>
+                            )}
+                          </>
                         )}
                         {/* 보류·종료는 결과만 통보하면 무시당한 것으로 읽힌다. 리더가 남긴 사유를 함께 보여준다. */}
                         {issue.statusReason && (
