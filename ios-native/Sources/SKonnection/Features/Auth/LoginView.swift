@@ -41,22 +41,27 @@ struct LoginView: View {
     private var form: some View {
         ZStack {
             Theme.Palette.page.ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Space.x5) {
-                    header
-                    fields
-                    if let error { banner(error, tint: Theme.Palette.tintDanger, ink: Theme.Palette.danger) }
-                    if let notice { banner(notice, tint: Theme.Palette.tintPrimary, ink: Theme.Palette.tintPrimaryInk) }
-                    primaryButton
-                    footerLinks
+            // 세로 중앙정렬: 콘텐츠가 화면보다 짧으면 가운데(Spacer), 길면(가입·인증 단계·키보드)
+            // 스크롤된다. 배경만 전체를 채우고 콘텐츠는 상단 세이프에어리어를 존중한다.
+            GeometryReader { geo in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: Theme.Space.x5)
+                        VStack(alignment: .leading, spacing: Theme.Space.x5) {
+                            header
+                            fields
+                            if let error { banner(error, tint: Theme.Palette.tintDanger, ink: Theme.Palette.danger) }
+                            if let notice { banner(notice, tint: Theme.Palette.tintPrimary, ink: Theme.Palette.tintPrimaryInk) }
+                            primaryButton
+                            footerLinks
+                        }
+                        Spacer(minLength: Theme.Space.x5)
+                    }
+                    .padding(.horizontal, Theme.Space.x5)
+                    .frame(minHeight: geo.size.height)
                 }
-                .padding(Theme.Space.x5)
-                .padding(.top, Theme.Space.x4)
-                .frame(maxWidth: .infinity)
             }
         }
-        // 콘텐츠는 상단 세이프에어리어(상태바·다이나믹 아일랜드)를 존중한다.
-        // 배경색만 전체를 채우고(위 page.ignoresSafeArea), 헤더가 상태바와 겹치지 않게 한다.
     }
 
     // MARK: - 단계별 입력
