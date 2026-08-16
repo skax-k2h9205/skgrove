@@ -12049,6 +12049,16 @@ button.notif-row {
   max-height: 52vh;
   width: 100%;
 }
+/* 사다리 2D 무대. coffee-draw-canvas 와 같은 틀을 쓴다(GatheringBoard 가 서로 바꿔 낀다). */
+.ladder-draw-canvas {
+  aspect-ratio: 4 / 5;
+  background: var(--surface-dark);
+  border-radius: var(--radius);
+  display: block;
+  margin: 0 auto;
+  max-height: 52vh;
+  width: 100%;
+}
 .coffee-pick-result {
   display: grid;
   gap: var(--space-2);
