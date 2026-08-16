@@ -172,6 +172,10 @@ export function mountLadder(
   return {
     start(onDone) {
       if (disposed) return;
+      // 재진입 방지: 같은 핸들에 start 가 다시 불리면(예: 같은 명단·당첨자로 재추첨),
+      // 앞서 예약된 프레임을 먼저 끊는다 — 안 그러면 두 루프가 같은 캔버스에 겹쳐 그리고
+      // onDone 도 두 번 울린다.
+      cancelAnimationFrame(frame);
       const startedAt = performance.now();
       const tick = () => {
         const elapsed = (performance.now() - startedAt) / 1000;
