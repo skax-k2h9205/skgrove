@@ -73,6 +73,9 @@ private fun SectionBody(
         "캔미팅 · 티미팅" -> MeetingsSection(container, modifier)
         "파트지수 · 리포트" -> MetricsSection(container, modifier)
         "성장 · 커리어" -> com.hyubs.skonnection.feature.growth.GrowthSection(container, currentEmail, modifier)
+        "조 뽑기" -> com.hyubs.skonnection.feature.connect.ConnectSection(container, modifier)
+        "마이페이지" -> com.hyubs.skonnection.feature.mypage.MyPageSection(container, currentEmail, modifier)
+        "시스템 관리" -> com.hyubs.skonnection.feature.system.SystemSection(container, modifier)
         else -> EmptyBox("‘$section’ 화면은 곧 제공됩니다.", modifier)
     }
 }

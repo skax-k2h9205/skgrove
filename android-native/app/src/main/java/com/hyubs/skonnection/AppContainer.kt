@@ -39,6 +39,8 @@ class AppContainer(context: Context) {
     val actionRepository = ActionRepository(supabase)
     val notificationRepository = NotificationRepository(supabase)
     val profileRepository = ProfileRepository(supabase)
+    val connectRepository = com.hyubs.skonnection.data.ConnectRepository(supabase)
+    val systemRepository = com.hyubs.skonnection.data.SystemRepository(supabase)
     val memoryRepository = MemoryRepository(supabase)
     val meetingRepository = MeetingRepository(supabase)
     val chatRepository = ChatRepository(httpClient)
