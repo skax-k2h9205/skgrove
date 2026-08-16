@@ -483,6 +483,10 @@ export type GatheringPoster = {
   source: 'ai' | 'local'; // 폴백으로 만든 것인지 표시 — 나중에 재생성 판단 근거
 };
 
+// 커피내기 게임 종류. roulette·ladder 는 운(패자 선확정), reaction·timing·tap 은 실력(최악 점수가 패자).
+export type CoffeeGame = 'roulette' | 'ladder' | 'reaction' | 'timing' | 'tap';
+export type CoffeeScore = { name: string; score: number };
+
 export type Gathering = {
   id: string;
   kind: GatheringKind;
@@ -506,6 +510,11 @@ export type Gathering = {
   coffeePickedAt?: string | null; // ISO. 언제 뽑았는지(표시용)
   // 뽑은 순간의 후보 전원(실명). 재추첨은 막고, 이 풀을 결과에 박제해 "이 명단에서 나왔다"를 증명한다.
   coffeePool?: string[] | null;
+  // 어떤 게임으로 뽑았는가. 없음/undefined = 옛 레코드 = 'roulette'(하위 호환). 결과 카드 문구를 가른다.
+  coffeeGame?: CoffeeGame | null;
+  // 실력 게임(reaction/timing/tap)에서 전원이 남긴 점수. 최악이 패자. 운 게임에서는 null.
+  // coffeePool 이 '누가 후보였나'라면 이건 '어떻게 정해졌나'의 증거다.
+  coffeeScores?: CoffeeScore[] | null;
   canceled: boolean;
 };
 
