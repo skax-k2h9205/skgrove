@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hyubs.skonnection.AppContainer
@@ -106,11 +107,49 @@ private fun IssuesSection(
       }
     }
 
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var keySetupTarget by remember { mutableStateOf<String?>(null) }
+    var pendingSubmit by remember { mutableStateOf<(() -> Unit)?>(null) }
+
     if (composing) {
         IssueComposeDialog(
             onDismiss = { onComposingChange(false) },
             onSubmit = { t, cat, tgt, urg, body, exp, vis, anon ->
-                vm.submit(t, cat, tgt, urg, body, exp, vis, anon) { onComposingChange(false) }
+                val doSubmit = { vm.submit(t, cat, tgt, urg, body, exp, vis, anon) { onComposingChange(false) } }
+                // 실명 '리더만 보기'는 작성자도 복호화하도록 본인 키가 필요하다 — 없으면 키 설정 먼저(iOS 게이트).
+                if (!anon && vis == "리더만 보기") {
+                    scope.launch {
+                        val aid = c.currentUser?.id
+                        val hasKey = aid != null &&
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { c.leaderKeysStore.loadRecord(aid) } != null
+                        if (aid != null && !hasKey) {
+                            onComposingChange(false)
+                            pendingSubmit = doSubmit
+                            keySetupTarget = aid
+                        } else doSubmit()
+                    }
+                } else doSubmit()
+            },
+        )
+    }
+
+    // 실명 '리더만 보기' 제출 게이트 — 작성자 본인 키를 만든 뒤 대기 중이던 제출을 이어간다.
+    keySetupTarget?.let { aid ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { keySetupTarget = null; pendingSubmit = null },
+            confirmButton = {},
+            title = { androidx.compose.material3.Text("암호화 키 설정") },
+            text = {
+                KeySetupCard(
+                    accountId = aid,
+                    store = c.leaderKeysStore,
+                    intro = "이 글은 대상 리더와 나만 볼 수 있게 암호화됩니다. 열람용 키를 먼저 만들어 주세요.",
+                    onDone = {
+                        keySetupTarget = null
+                        pendingSubmit?.invoke()
+                        pendingSubmit = null
+                    },
+                )
             },
         )
     }
