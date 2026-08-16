@@ -70,14 +70,27 @@ fun CoffeeGameSheet(
     LaunchedEffect(gatheringId) {
         photos = runCatching { repo.loadPhotos() }.getOrDefault(emptyMap())
         while (true) {
-            runCatching { repo.load(gatheringId) }.getOrNull()?.let { game = it }
+            runCatching { repo.load(gatheringId) }.getOrNull()?.let { loaded ->
+                // 단조성 가드: 이미 진행된 로컬 상태를 stale 로드가 되돌리지 않게 한다.
+                // (돌리는 중인데 아직 커밋 안 된 옛 READY 로드가 덮어써 재-스핀 되는 것을 막음.)
+                val cur = game
+                if (cur == null || phaseRank(loaded.phase) >= phaseRank(cur.phase) || loaded.startedAtMs > cur.startedAtMs) {
+                    game = loaded
+                }
+            }
             kotlinx.coroutines.delay(2000)
         }
     }
-    // 프레임 클록 — spinning 동안 매 프레임 벽시계 갱신(관전자도 같은 순간 같은 그림).
+    // 프레임 클록 — spinning 동안에만 매 프레임 벽시계 갱신(관전자도 같은 순간 같은 그림).
+    // ready/done/null 에서는 t 가 상수라 티커 불필요 → 배터리·불필요 recomposition 방지.
     LaunchedEffect(game?.phase) {
-        while (true) { withFrameNanos { }; nowMs = System.currentTimeMillis() }
+        if (game?.phase == CoffeeGamePhase.SPINNING) {
+            while (true) { withFrameNanos { }; nowMs = System.currentTimeMillis() }
+        }
     }
+
+    // 같은 seed 로 finish 가 두 번 불려 onWinner 가 중복 호출되지 않게 잠근다.
+    var finishedSeed by remember { mutableStateOf<ULong?>(null) }
 
     fun push(g: CoffeeGame) { game = g; scope.launch { runCatching { repo.push(g) } } }
     fun open(kind: CoffeeGameKind) =
@@ -90,6 +103,8 @@ fun CoffeeGameSheet(
     fun finish() {
         val g = game ?: return
         if (g.phase != CoffeeGamePhase.SPINNING) return
+        if (finishedSeed == g.seed) return   // 같은 판은 한 번만 확정
+        finishedSeed = g.seed
         val done = g.copy(phase = CoffeeGamePhase.DONE, winner = g.winnerName)
         push(done)
         if (done.winner.isNotBlank()) onWinner(done.winner)
@@ -213,6 +228,13 @@ private fun Picker(count: Int, onPick: (CoffeeGameKind) -> Unit) {
             }
         }
     }
+}
+
+/** 게임 진행 순서(단조성 가드용): ready < spinning < done. */
+private fun phaseRank(p: CoffeeGamePhase) = when (p) {
+    CoffeeGamePhase.READY -> 0
+    CoffeeGamePhase.SPINNING -> 1
+    CoffeeGamePhase.DONE -> 2
 }
 
 @Composable

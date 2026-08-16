@@ -70,7 +70,9 @@ class AuthViewModel(private val container: AppContainer) : ViewModel() {
         // 신규: 이름·파트가 있으면 바로 생성, 파트만 없으면(신규 Slack) 파트 선택으로.
         if (id.name.isNullOrBlank()) return Resolution.Failed("계정 정보가 부족해요. 가입할 때 이름과 소속 파트를 함께 입력해 주세요.")
         if (id.part.isNullOrBlank()) return Resolution.NeedsPart(id)
-        runCatching { container.accountRepository.create(id.name, id.email, id.part, id.uid) }
+        // 계정 생성이 성공했을 때만 세션을 저장한다(실패 시 계정 없는 채로 로그인되는 것 방지).
+        val created = runCatching { container.accountRepository.create(id.name, id.email, id.part, id.uid) }.isSuccess
+        if (!created) return Resolution.Failed("계정 생성에 실패했어요. 네트워크를 확인하고 다시 시도해주세요.")
         container.sessionStore.save(id.email)
         return Resolution.Ok
     }
@@ -87,8 +89,9 @@ class AuthViewModel(private val container: AppContainer) : ViewModel() {
         val id = _state.value.needsPartFor ?: return
         viewModelScope.launch {
             busy()
+            val created = runCatching { container.accountRepository.create(id.name ?: "팀원", id.email, part, id.uid) }.isSuccess
+            if (!created) { _state.value = _state.value.copy(loading = false, error = "계정 생성에 실패했어요. 다시 시도해주세요.") ; return@launch }
             _state.value = _state.value.copy(needsPartFor = null)
-            runCatching { container.accountRepository.create(id.name ?: "팀원", id.email, part, id.uid) }
             container.sessionStore.save(id.email)
             done()
         }

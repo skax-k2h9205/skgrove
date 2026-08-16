@@ -12,6 +12,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.hyubs.skonnection.auth.AuthViewModel
 import com.hyubs.skonnection.feature.BrandSplash
 import com.hyubs.skonnection.feature.MainScaffold
@@ -20,7 +23,9 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun RootScreen(container: AppContainer) {
-    val vm = remember { AuthViewModel(container) }
+    // 라이프사이클이 소유하는 ViewModel — 화면 회전 등으로 재생성돼도 이전 인스턴스가
+    // onCleared 로 정리돼 viewModelScope 가 취소된다(누수·Slack 코드 이중 수집 방지).
+    val vm: AuthViewModel = viewModel(factory = viewModelFactory { initializer { AuthViewModel(container) } })
     val state by vm.state.collectAsStateWithLifecycle()
 
     // 시작 브랜드 스플래시를 잠깐 보여준 뒤 앱으로 전환한다(iOS SplashView 와 동일 톤).

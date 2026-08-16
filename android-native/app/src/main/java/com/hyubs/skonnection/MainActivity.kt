@@ -36,5 +36,8 @@ class MainActivity : ComponentActivity() {
         if (data.scheme != "skonnection" || data.host != "login-callback") return
         val code = data.getQueryParameter("code") ?: return
         (application as SKonnectionApp).container.pendingSlackCode.value = code
+        // 소비한 코드를 지워, 화면 회전 등으로 액티비티가 재생성돼도 만료된 코드가 재실행되지 않게 한다.
+        intent.data = null
+        setIntent(intent)
     }
 }

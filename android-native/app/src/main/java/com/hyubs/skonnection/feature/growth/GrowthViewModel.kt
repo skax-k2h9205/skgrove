@@ -30,7 +30,10 @@ class GrowthViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     private fun today() = java.time.LocalDate.now().toString()
-    private fun makeId(prefix: String) = "$prefix-" + System.currentTimeMillis().toString(36).uppercase()
+    // 같은 밀리초에 두 번(예: setSelfLevel→appendLog) 불려도 id 가 겹치지 않게 랜덤 꼬리를 붙인다.
+    private fun makeId(prefix: String) =
+        "$prefix-" + System.currentTimeMillis().toString(36).uppercase() + "-" +
+            kotlin.random.Random.nextInt(46656).toString(36).uppercase()
 
     fun levelFor(ownerEmail: String, competency: String): CompetencyLevel? =
         _levels.value.firstOrNull { it.ownerEmail.equals(ownerEmail, true) && it.competency == competency }
