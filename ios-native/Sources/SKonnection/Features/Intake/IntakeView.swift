@@ -19,13 +19,45 @@ struct IntakeView: View {
     @State private var findings: [ReviewFinding] = []
     @State private var reviewError: String?
 
+    // 실명 '리더만 보기' 암호화용 — 내 계정 id(작성자 수신자·본문 복호화), 키 설정 게이트.
+    @State private var myAccountId: String?
+    @State private var keySetupTarget: KeySetupTarget?
+    @State private var pendingIssue: Issue?
+
+    private var encryptedNamed: Bool { identity == .named && visibility == .leaderOnly }
+
     var body: some View {
         ScreenScaffold(title: "대나무숲 접수", showUserChip: false) {
             anonymityBanner
             formCard
             myList
         }
+        .task {
+            // 내 계정 id 를 미리 확보(작성자 수신자 포함·'내 접수' 복호화에 필요).
+            if myAccountId == nil, let email = session.currentUser?.email.lowercased() {
+                let roster = await AuthLink.fetchRoster()
+                myAccountId = roster.first { $0.email.lowercased() == email }?.id
+            }
+        }
+        .sheet(item: $keySetupTarget) { target in
+            NavigationStack {
+                LeaderKeySetupView(accountId: target.id) {
+                    // 키 생성 완료 → 대기 중이던 접수를 암호화해 저장.
+                    keySetupTarget = nil
+                    if let issue = pendingIssue {
+                        pendingIssue = nil
+                        Task { await finishSubmit(issue, authorAccountId: target.id) }
+                    }
+                }
+                .padding(Theme.Space.x4)
+                .navigationTitle("암호화 키 설정")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
     }
+
+    /// 실명 '리더만 보기' 키 설정 시트 대상(String 을 Identifiable 로 감싼다).
+    private struct KeySetupTarget: Identifiable { let id: String }
 
     // 익명성 안내 — 이 화면의 존재 이유라 맨 위에 둔다.
     private var anonymityBanner: some View {
@@ -75,6 +107,14 @@ struct IntakeView: View {
                 }.pickerStyle(.menu).tint(Theme.Palette.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            // 실명 '리더만 보기'는 대상 리더 + 나만 열람하도록 암호화된다(운영자 불가독).
+            if encryptedNamed {
+                Label("이 글은 대상 리더와 나만 볼 수 있게 암호화되어 저장돼요. 운영자도 내용을 볼 수 없어요.",
+                      systemImage: "lock.shield.fill")
+                    .font(.footnote).foregroundStyle(Theme.Palette.tintPrimaryInk)
+                    .padding(Theme.Space.x3).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.Palette.tintPrimary, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
+            }
 
             if let code = justSubmitted {
                 Text("접수됐어요 · 접수번호 \(code)")
@@ -108,8 +148,9 @@ struct IntakeView: View {
             Button(action: reviewAndSubmit) {
                 HStack {
                     if reviewing { ProgressView().tint(.white) }
-                    Label(findings.isEmpty ? "AI 검토 후 접수하기" : "다시 검토하고 접수",
-                          systemImage: "sparkles")
+                    let willEncrypt = AnonEncrypt.plan(identity: identity, visibility: visibility).encrypt
+                    Label(willEncrypt ? "암호화하여 접수하기" : (findings.isEmpty ? "AI 검토 후 접수하기" : "다시 검토하고 접수"),
+                          systemImage: willEncrypt ? "lock.fill" : "sparkles")
                 }
                 .font(.headline).frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
             }
@@ -137,7 +178,7 @@ struct IntakeView: View {
             VStack(alignment: .leading, spacing: Theme.Space.x2) {
                 Text("내 접수").font(.headline).foregroundStyle(Theme.Palette.ink)
                 ForEach(mine) { issue in
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: Theme.Space.x2) {
                         HStack {
                             Text(issue.title).font(.subheadline.bold()).foregroundStyle(Theme.Palette.ink)
                             Spacer()
@@ -145,6 +186,10 @@ struct IntakeView: View {
                         }
                         Text("\(issue.id) · \(issue.category) · \(issue.identity.rawValue)")
                             .font(.caption).foregroundStyle(Theme.Palette.muted)
+                        // 암호화 글(실명 리더만보기)은 작성자 본인 키로 복호화해서 보여준다.
+                        if issue.encrypted == true {
+                            EncryptedIssueBody(issue: issue, accountId: myAccountId ?? "")
+                        }
                     }
                     .padding(Theme.Space.x3)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -173,6 +218,11 @@ struct IntakeView: View {
     /// 접수 전 AI 검토. 지적이 있으면 카드로 보여주고 멈추고, 없으면 바로 접수.
     private func reviewAndSubmit() {
         guard !title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        // 암호화 글(익명 / 실명 '리더만 보기')은 본문을 외부 AI로 보내지 않는다 — 바로 접수(웹과 동일).
+        if AnonEncrypt.plan(identity: identity, visibility: visibility).encrypt {
+            doSubmit()
+            return
+        }
         reviewError = nil
         reviewing = true
         Task {
@@ -214,12 +264,38 @@ struct IntakeView: View {
         findings = []
         title = ""; detail = ""; expectedChange = ""
         Haptics.success()
-        // 익명이면 대상 리더 공개키로 본문을 암호화한 뒤 저장한다(운영자 불가독).
-        // 키 없으면 평문 폴백. 실명은 그대로.
+        // 익명 / 실명 '리더만 보기'면 수신자 공개키로 본문을 암호화해 저장(운영자 불가독).
+        // 실명 '리더만 보기'는 작성자도 복호화하도록 본인을 수신자에 넣는다 — 본인 키가
+        // 없으면 키 설정 시트를 먼저 띄우고, 완료 후 finishSubmit 으로 이어간다.
         Task {
-            let prepared = await AnonEncrypt.encryptIfAnonymous(issue)
-            store.submit(prepared)
+            if issue.identity == .named && issue.visibility == .leaderOnly {
+                let aid: String?
+                if let cached = myAccountId { aid = cached } else { aid = await resolveMyAccountId() }
+                if let aid {
+                    myAccountId = aid
+                    let hasKey = await LeaderKeysStore.loadRecord(aid) != nil
+                    if !hasKey {
+                        pendingIssue = issue
+                        keySetupTarget = KeySetupTarget(id: aid)
+                        return
+                    }
+                }
+                await finishSubmit(issue, authorAccountId: aid)
+                return
+            }
+            await finishSubmit(issue, authorAccountId: nil)
         }
+    }
+
+    private func finishSubmit(_ issue: Issue, authorAccountId: String?) async {
+        let prepared = await AnonEncrypt.encryptIfNeeded(issue, authorAccountId: authorAccountId)
+        store.submit(prepared)
+    }
+
+    private func resolveMyAccountId() async -> String? {
+        guard let email = session.currentUser?.email.lowercased() else { return nil }
+        let roster = await AuthLink.fetchRoster()
+        return roster.first { $0.email.lowercased() == email }?.id
     }
 }
 
