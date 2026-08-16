@@ -15,6 +15,8 @@ data class AuthUiState(
     val notice: String? = null,
     val loggedInEmail: String? = null,
     val sessionResolved: Boolean = false,
+    /** 신규 Slack 사용자(파트 미상) — 값이 있으면 파트 선택 화면을 띄운다. */
+    val needsPartFor: SupabaseAuth.Identity? = null,
 )
 
 /**
@@ -46,25 +48,55 @@ class AuthViewModel(private val container: AppContainer) : ViewModel() {
     private fun fail(msg: String) { _state.value = _state.value.copy(loading = false, error = msg) }
     private fun done(notice: String? = null) { _state.value = _state.value.copy(loading = false, notice = notice) }
 
-    /** 인증 성공 → accounts 해석(없으면 가입 정보로 생성) → 세션 저장. 문제 있으면 오류 문구 반환. */
-    private suspend fun resolveAndSession(id: SupabaseAuth.Identity): String? {
+    /** resolveAndSession 결과 — Ok(로그인), Failed(오류), NeedsPart(신규 Slack, 파트 선택 필요). */
+    private sealed interface Resolution {
+        data object Ok : Resolution
+        data class Failed(val message: String) : Resolution
+        data class NeedsPart(val id: SupabaseAuth.Identity) : Resolution
+    }
+
+    /** 인증 성공 → accounts 해석(없으면 가입 정보로 생성) → 세션 저장. */
+    private suspend fun resolveAndSession(id: SupabaseAuth.Identity): Resolution {
         val accounts = runCatching { container.accountRepository.loadAll() }.getOrDefault(emptyList())
         val acc = accounts.firstOrNull { it.email.equals(id.email, ignoreCase = true) }
         if (acc != null) {
             when (acc.status) {
-                "비활성" -> return "비활성 계정이에요. 팀리더에게 계정 상태 확인을 요청해주세요."
-                "승인 대기" -> return "아직 승인 대기 중인 계정이에요. 팀리더가 활성 처리하면 로그인할 수 있어요."
+                "비활성" -> return Resolution.Failed("비활성 계정이에요. 팀리더에게 계정 상태 확인을 요청해주세요.")
+                "승인 대기" -> return Resolution.Failed("아직 승인 대기 중인 계정이에요. 팀리더가 활성 처리하면 로그인할 수 있어요.")
             }
             container.sessionStore.save(acc.email)
-            return null
+            return Resolution.Ok
         }
-        // 신규: 가입 시 받은 이름·파트로 계정 생성
-        if (!id.name.isNullOrBlank() && !id.part.isNullOrBlank()) {
-            runCatching { container.accountRepository.create(id.name, id.email, id.part, id.uid) }
+        // 신규: 이름·파트가 있으면 바로 생성, 파트만 없으면(신규 Slack) 파트 선택으로.
+        if (id.name.isNullOrBlank()) return Resolution.Failed("계정 정보가 부족해요. 가입할 때 이름과 소속 파트를 함께 입력해 주세요.")
+        if (id.part.isNullOrBlank()) return Resolution.NeedsPart(id)
+        runCatching { container.accountRepository.create(id.name, id.email, id.part, id.uid) }
+        container.sessionStore.save(id.email)
+        return Resolution.Ok
+    }
+
+    /** resolveAndSession 결과를 UI 상태로 반영. */
+    private fun applyResolution(r: Resolution) = when (r) {
+        is Resolution.Ok -> done()
+        is Resolution.Failed -> fail(r.message)
+        is Resolution.NeedsPart -> _state.value = _state.value.copy(loading = false, error = null, notice = null, needsPartFor = r.id)
+    }
+
+    /** 신규 Slack 사용자가 파트를 고르면 그 파트로 계정을 만들고 로그인시킨다. */
+    fun confirmSlackPart(part: String) {
+        val id = _state.value.needsPartFor ?: return
+        viewModelScope.launch {
+            busy()
+            _state.value = _state.value.copy(needsPartFor = null)
+            runCatching { container.accountRepository.create(id.name ?: "팀원", id.email, part, id.uid) }
             container.sessionStore.save(id.email)
-            return null
+            done()
         }
-        return "계정 정보가 부족해요. 가입할 때 이름과 소속 파트를 함께 입력해 주세요."
+    }
+
+    /** 파트 선택을 취소하면 프롬프트를 닫고 로그인 화면으로 돌아간다. */
+    fun cancelSlackPart() {
+        _state.value = _state.value.copy(needsPartFor = null, loading = false)
     }
 
     fun login(email: String, password: String) {
@@ -73,8 +105,7 @@ class AuthViewModel(private val container: AppContainer) : ViewModel() {
             busy()
             try {
                 val id = container.supabaseAuth.signInEmail(email.trim(), password)
-                val err = resolveAndSession(id)
-                if (err != null) fail(err) else done()
+                applyResolution(resolveAndSession(id))
             } catch (e: SupabaseAuth.AuthException) {
                 fail(e.message ?: "로그인에 실패했어요.")
             } catch (t: Throwable) {
@@ -94,8 +125,7 @@ class AuthViewModel(private val container: AppContainer) : ViewModel() {
                 if (needOtp) { done("메일로 6자리 인증 코드를 보냈어요."); onNeedOtp() }
                 else {
                     val id = container.supabaseAuth.signInEmail(email.trim(), password)
-                    val err = resolveAndSession(id.copy(name = name.trim(), part = part))
-                    if (err != null) fail(err) else done()
+                    applyResolution(resolveAndSession(id.copy(name = name.trim(), part = part)))
                 }
             } catch (e: SupabaseAuth.AuthException) {
                 fail(if (e.alreadyRegistered) "이미 가입된 사내메일이에요. 로그인하거나 비밀번호 찾기를 이용해주세요." else (e.message ?: "가입에 실패했어요."))
@@ -111,8 +141,7 @@ class AuthViewModel(private val container: AppContainer) : ViewModel() {
             busy()
             try {
                 val id = container.supabaseAuth.verifySignupOTP(email.trim(), code.trim())
-                val err = resolveAndSession(id.copy(name = id.name ?: name.trim(), part = id.part ?: part))
-                if (err != null) fail(err) else done()
+                applyResolution(resolveAndSession(id.copy(name = id.name ?: name.trim(), part = id.part ?: part)))
             } catch (e: SupabaseAuth.AuthException) {
                 fail(e.message ?: "인증에 실패했어요.")
             } catch (t: Throwable) {
@@ -174,8 +203,7 @@ class AuthViewModel(private val container: AppContainer) : ViewModel() {
                     ?: return@launch fail("Slack 로그인이 만료됐어요. 다시 시도해주세요.")
                 val id = container.supabaseAuth.exchangeSlackCode(code, verifier)
                 if (id.email.isBlank()) return@launch fail("Slack 계정에서 이메일을 확인하지 못했어요.")
-                val err = resolveAndSession(id)
-                if (err != null) fail(err) else done()
+                applyResolution(resolveAndSession(id))
             } catch (e: SupabaseAuth.AuthException) {
                 fail(e.message ?: "Slack 로그인에 실패했어요.")
             } catch (t: Throwable) {

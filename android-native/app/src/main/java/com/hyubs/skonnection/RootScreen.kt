@@ -35,6 +35,13 @@ fun RootScreen(container: AppContainer) {
             !state.sessionResolved -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
+            state.needsPartFor != null ->
+                com.hyubs.skonnection.feature.auth.SlackPartPrompt(
+                    identity = state.needsPartFor!!,
+                    busy = state.loading,
+                    onConfirm = { part -> vm.confirmSlackPart(part) },
+                    onCancel = { vm.cancelSlackPart() },
+                )
             state.loggedInEmail == null ->
                 LoginScreen(vm = vm, state = state)
             else ->
