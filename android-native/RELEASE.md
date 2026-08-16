@@ -27,6 +27,20 @@ Kotlin/Compose 네이티브 앱.
 | 개인정보처리방침 | https://hyub0216.github.io/app-legal-pages/skonnection/privacy.html |
 | 지원 | https://hyub0216.github.io/app-legal-pages/skonnection/support.html |
 
+## 스토어 그래픽 자산 (Play Console 업로드용)
+| 자산 | 파일 | 규격 |
+|---|---|---|
+| 앱 아이콘(하이라이트) | `store/play-icon-512.png` | 512×512 PNG (iOS 앱 아이콘과 동일 브랜드) |
+| 피처 그래픽 | `store/play-feature-graphic-1024x500.png` | 1024×500 PNG |
+| 스크린샷 | `store/screenshots/` | 네이티브 1080×2400 8종(로그인·홈·성장·진단·조뽑기·마이페이지·시스템·커피게임) |
+
+## 릴리스 규정 준수 감사 (통과)
+- `targetSdk=35`(Play 최소 34 충족), `minSdk=26`.
+- release 빌드에 `android:debuggable` 없음, `extractNativeLibs=false`, 네이티브 라이브러리 없음.
+- 권한: `INTERNET`만(+androidx 자동 `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`).
+- `allowBackup=false`(로그인 세션 앱 — 기기 이전 시 stale 세션 유입 방지).
+- adaptive 아이콘(background+foreground+monochrome). minSdk26이라 레거시 PNG 폴백 불필요.
+
 ## 스토어 등록 정보 (한국어)
 - **앱 이름(30자)**: SKonnection — 팀을 잇는 곳
 - **간단한 설명(80자)**: 대나무숲·안건투표·성장카드·조뽑기까지, 팀 문화를 한 곳에서. SK ITS 혁신팀 전용.
