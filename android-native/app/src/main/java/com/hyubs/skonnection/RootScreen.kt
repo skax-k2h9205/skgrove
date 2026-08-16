@@ -36,7 +36,7 @@ fun RootScreen(container: AppContainer) {
                 CircularProgressIndicator()
             }
             state.loggedInEmail == null ->
-                LoginScreen(loading = state.loading, error = state.error, onLogin = vm::login)
+                LoginScreen(vm = vm, state = state)
             else ->
                 MainScaffold(container = container, currentEmail = state.loggedInEmail, onLogout = vm::logout)
         }

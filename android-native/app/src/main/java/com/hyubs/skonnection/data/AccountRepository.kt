@@ -14,6 +14,18 @@ private data class AccountPatch(
     @SerialName("is_connectioner") val isConnectioner: Boolean,
 )
 
+/** 신규 가입 계정 insert 바디. */
+@Serializable
+private data class NewAccount(
+    val id: String,
+    val name: String,
+    val email: String,
+    val role: String,
+    val part: String,
+    val status: String,
+    @SerialName("auth_uid") val authUid: String?,
+)
+
 /** 선택 가능한 권한·파트·상태. 웹 auth.ts / types.ts와 같은 목록. */
 val userRoles = listOf("팀원", "파트리더", "팀리더")
 val teamParts = listOf("TEST혁신파트", "ITS혁신파트", "PM혁신파트")
@@ -45,6 +57,16 @@ class AccountRepository(private val supabase: SupabaseClient) {
             query = "select=*&order=joined_at.asc",
             deserializer = ListSerializer(AccountRow.serializer()),
         ).map { it.toAccount() }
+
+    /** 신규 가입 계정 생성(이메일 OTP 인증 후). 웹 authLink.createAccount 대응 — 팀원·활성. */
+    suspend fun create(name: String, email: String, part: String, authUid: String?) {
+        val id = "USR-" + System.currentTimeMillis().toString(36).uppercase()
+        supabase.insert(
+            "accounts",
+            NewAccount(id = id, name = name, email = email, role = "팀원", part = part, status = "활성", authUid = authUid),
+            NewAccount.serializer(),
+        )
+    }
 
     /** 권한·파트·상태·커넥셔너 변경을 accounts 테이블에 반영(팀 공유). */
     suspend fun update(account: Account) = supabase.patch(

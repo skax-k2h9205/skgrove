@@ -27,6 +27,7 @@ import io.ktor.client.engine.okhttp.OkHttp
 class AppContainer(context: Context) {
     private val httpClient = HttpClient(OkHttp)
     val supabase = SupabaseClient(httpClient)
+    val supabaseAuth = com.hyubs.skonnection.net.SupabaseAuth(httpClient)
     val accountRepository = AccountRepository(supabase)
     val humorRepository = HumorRepository(supabase)
     val gatheringRepository = GatheringRepository(supabase)
