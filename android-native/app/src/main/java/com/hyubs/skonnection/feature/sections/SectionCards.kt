@@ -111,7 +111,13 @@ fun PollBar(label: String, votes: Int, pct: Int, leading: Boolean, color: Color)
 
 /** 접수/리더관리함 카드 — 아바타 + 제목 + 상태/긴급도 배지 + 분류·대상 + 본문 미리보기. */
 @Composable
-fun IssueCard(title: String, status: String, urgency: String, category: String, target: String, submitter: String, body: String) {
+fun IssueCard(
+    title: String, status: String, urgency: String, category: String, target: String, submitter: String, body: String,
+    // 암호화 접수면 body 대신 복호화 UI를 그린다(작성자 본인만 열람). null이면 평문 카드.
+    encryptedIssue: com.hyubs.skonnection.data.Issue? = null,
+    myAccountId: String = "",
+    store: com.hyubs.skonnection.data.LeaderKeysStore? = null,
+) {
     SkCard(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -123,7 +129,9 @@ fun IssueCard(title: String, status: String, urgency: String, category: String, 
                 if (status.isNotBlank()) StatusBadge(status)
             }
             Text(title.ifBlank { "(제목 없음)" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
-            if (body.isNotBlank()) {
+            if (encryptedIssue?.encrypted == true && store != null) {
+                EncryptedIssueBody(issue = encryptedIssue, myAccountId = myAccountId, store = store)
+            } else if (body.isNotBlank()) {
                 Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2, modifier = Modifier.padding(top = 4.dp))
             }

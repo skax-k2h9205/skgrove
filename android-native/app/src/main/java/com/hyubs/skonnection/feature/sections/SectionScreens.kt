@@ -98,6 +98,7 @@ private fun IssuesSection(
                     IssueCard(
                         title = i.title, status = i.status, urgency = i.urgency,
                         category = i.category, target = i.target, submitter = i.submitter, body = i.body,
+                        encryptedIssue = i, myAccountId = c.currentUser?.id ?: "", store = c.leaderKeysStore,
                     )
                 }
             }

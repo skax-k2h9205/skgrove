@@ -137,6 +137,8 @@ fun LeaderSection(c: AppContainer, modifier: Modifier = Modifier) {
                 LeaderIssueCard(
                     issue = issue,
                     overdueDays = if (issue.isResponseOverdue(today)) issue.daysSinceCreated(today) else null,
+                    myAccountId = c.currentUser?.id ?: "",
+                    store = c.leaderKeysStore,
                     onAction = { action -> actionTarget = issue to action },
                     onPromote = { promoteTarget = issue },
                 )
@@ -218,6 +220,8 @@ private fun Banner(color: Color, content: @Composable () -> Unit) {
 private fun LeaderIssueCard(
     issue: Issue,
     overdueDays: Int?,
+    myAccountId: String,
+    store: com.hyubs.skonnection.data.LeaderKeysStore,
     onAction: (LeaderAction) -> Unit,
     onPromote: () -> Unit,
 ) {
@@ -233,7 +237,9 @@ private fun LeaderIssueCard(
             }
             Text(issue.title.ifBlank { "(제목 없음)" }, style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
-            if (issue.body.isNotBlank()) {
+            if (issue.encrypted) {
+                EncryptedIssueBody(issue = issue, myAccountId = myAccountId, store = store)
+            } else if (issue.body.isNotBlank()) {
                 Text(issue.body, style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2,
                     modifier = Modifier.padding(top = 4.dp))
