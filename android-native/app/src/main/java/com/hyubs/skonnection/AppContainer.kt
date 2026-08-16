@@ -33,6 +33,7 @@ class AppContainer(context: Context) {
     val gatheringRepository = GatheringRepository(supabase)
     val marketRepository = MarketRepository(supabase)
     val leaderKeysStore = com.hyubs.skonnection.data.LeaderKeysStore(supabase)
+    val growthRepository = com.hyubs.skonnection.data.GrowthRepository(supabase)
     val issueRepository = IssueRepository(supabase, leaderKeysStore)
     val agendaRepository = AgendaRepository(supabase)
     val actionRepository = ActionRepository(supabase)

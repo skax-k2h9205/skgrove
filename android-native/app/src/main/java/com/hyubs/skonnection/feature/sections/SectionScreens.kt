@@ -72,6 +72,7 @@ private fun SectionBody(
         "팀 추억" -> MemoriesSection(container, modifier)
         "캔미팅 · 티미팅" -> MeetingsSection(container, modifier)
         "파트지수 · 리포트" -> MetricsSection(container, modifier)
+        "성장 · 커리어" -> com.hyubs.skonnection.feature.growth.GrowthSection(container, currentEmail, modifier)
         else -> EmptyBox("‘$section’ 화면은 곧 제공됩니다.", modifier)
     }
 }
