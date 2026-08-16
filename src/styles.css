@@ -11376,6 +11376,41 @@ button.notif-row {
   opacity: 0.7;
   margin: 0;
 }
+.coffee-pick-setup {
+  display: grid;
+  gap: 10px;
+}
+.coffee-game-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.coffee-game-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-sunken);
+  cursor: pointer;
+  text-align: left;
+}
+.coffee-game-chip strong {
+  font-size: 13px;
+}
+.coffee-game-chip span {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.coffee-game-chip.on {
+  border-color: var(--color-primary);
+  background: var(--tint-primary);
+}
+.coffee-game-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
 
 /* --- 홈의 내 모임 줄 --------------------------------------------
    '오늘의 팀 연결' 패널 맨 위. 아래 고정 링크(.quick-card-list)와 생김새가

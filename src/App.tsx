@@ -150,6 +150,7 @@ import type {
   CanOpinion,
   CanResultGroup,
   CanSession,
+  CoffeeGame,
   CurrentUser,
   Gathering,
   GatheringSignup,
@@ -1166,7 +1167,9 @@ export function App() {
 
   // 번개 커피뽑기: 주최자만, 1회 확정(잠김). 당첨자는 여기서 뽑아 즉시 저장한다 —
   // 도는 연출과 결정을 분리해 모두가 같은 결과(저장값)를 본다.
-  const drawCoffeePick = (gathering: Gathering) => {
+  // game 은 어떤 연출(룰렛/사다리)을 태울지에만 관여한다 — 운 게임은 결과와 무관하게 균등 random.
+  // (실력 게임은 Phase B: 여기서 바로 확정하지 않고 board 가 러너를 띄운 뒤 점수로 패자를 정한다.)
+  const drawCoffeePick = (gathering: Gathering, game: CoffeeGame) => {
     if (!currentUser || gathering.host !== currentUser.name) return;
     if (gathering.coffeePick) return; // 잠김
     const candidates = coffeeCandidates(gathering, gatheringSignups);
@@ -1177,7 +1180,7 @@ export function App() {
     persistGatherings(
       gatherings.map((item) =>
         item.id === gathering.id
-          ? { ...item, coffeePick: winner, coffeePickedAt: new Date().toISOString(), coffeePool: pool }
+          ? { ...item, coffeeGame: game, coffeePick: winner, coffeePickedAt: new Date().toISOString(), coffeePool: pool }
           : item,
       ),
     );

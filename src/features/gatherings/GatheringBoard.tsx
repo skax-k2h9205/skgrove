@@ -18,7 +18,10 @@ import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
 import { ProfilesContext } from '../../profilesContext';
 import { CoffeeDrawCanvas } from './CoffeeDrawCanvas';
+import { CoffeeGamePicker } from './CoffeeGamePicker';
 import type { CoffeeMember } from './coffeeStage';
+import { COFFEE_GAMES, gameMeta } from './games/coffeeGames';
+import { LadderDrawCanvas } from './LadderDrawCanvas';
 import {
   belowMinimum,
   canDrawCoffee,
@@ -32,10 +35,13 @@ import {
   spotsLeft,
   timeUntil,
 } from '../../gatheringRules';
-import type { CurrentUser, Gathering, GatheringSignup, GatheringStatus } from '../../types';
+import type { CoffeeGame, CurrentUser, Gathering, GatheringSignup, GatheringStatus } from '../../types';
 import { localPoster } from '../../aiPoster';
 import { GatheringForm, type GatheringDraft } from './GatheringForm';
 import { PosterFrame, PosterThumb } from './PosterFrame';
+
+// Phase A 는 운 게임만 뽑기 화면에 노출한다(실력 게임은 Phase B 러너가 붙은 뒤).
+const LUCK_GAMES = COFFEE_GAMES.filter((g) => g.kind === 'luck');
 
 type GatheringBoardProps = {
   gatherings: Gathering[];
@@ -47,7 +53,7 @@ type GatheringBoardProps = {
   onJoin: (gathering: Gathering) => void;
   onLeave: (gathering: Gathering) => void;
   onCancelGathering: (gathering: Gathering) => void;
-  onDrawCoffee: (gathering: Gathering) => void;
+  onDrawCoffee: (gathering: Gathering, game: CoffeeGame) => void;
   /** 팀리더 권한. 남의 모임도 삭제할 수 있다. */
   canModerate: boolean;
   /** 완전 삭제(모임 + 신청 기록). 주최자 또는 팀리더만 호출한다. */
@@ -180,6 +186,9 @@ export function GatheringBoard({
     justDrewRef.current = false;
     setSpinning(true); // 당첨자·후보가 state 에 도착한 시점 — 이제 무대를 돌린다.
   }, [selected?.coffeePick]);
+
+  // 커피내기 게임 선택(뽑기 전 UI 상태). 뽑히고 나면 selected.coffeeGame 이 진실이 된다.
+  const [pickedGame, setPickedGame] = useState<CoffeeGame>('roulette');
 
   // 뽑는 순간 박제된 후보(coffeePool)를 3D 원반 멤버로. 색·사진은 라이브 디렉토리에서.
   const coffeePool = selected?.coffeePool ?? [];
@@ -351,18 +360,33 @@ export function GatheringBoard({
             {selected.kind === 'flash' && !selected.canceled && selected.coffeeDraw && (
               <div className="coffee-pick">
                 {spinning && selected.coffeePick ? (
-                  <CoffeeDrawCanvas
-                    members={coffeeMembers}
-                    winner={selected.coffeePick}
-                    spinning={spinning}
-                    onLanded={() => setSpinning(false)}
-                  >
-                    {/* WebGL·모션 불가 시 폴백: 이름은 감춰 긴장을 남긴다 */}
-                    <div className="coffee-roulette">
-                      <Coffee size={20} />
-                      <span>커피 담당 뽑는 중…</span>
-                    </div>
-                  </CoffeeDrawCanvas>
+                  selected.coffeeGame === 'ladder' ? (
+                    <LadderDrawCanvas
+                      members={coffeeMembers}
+                      winner={selected.coffeePick}
+                      spinning={spinning}
+                      onLanded={() => setSpinning(false)}
+                    >
+                      {/* WebGL·모션 불가 시 폴백: 이름은 감춰 긴장을 남긴다 */}
+                      <div className="coffee-roulette">
+                        <Coffee size={20} />
+                        <span>커피 담당 뽑는 중…</span>
+                      </div>
+                    </LadderDrawCanvas>
+                  ) : (
+                    <CoffeeDrawCanvas
+                      members={coffeeMembers}
+                      winner={selected.coffeePick}
+                      spinning={spinning}
+                      onLanded={() => setSpinning(false)}
+                    >
+                      {/* WebGL·모션 불가 시 폴백: 이름은 감춰 긴장을 남긴다 */}
+                      <div className="coffee-roulette">
+                        <Coffee size={20} />
+                        <span>커피 담당 뽑는 중…</span>
+                      </div>
+                    </CoffeeDrawCanvas>
+                  )
                 ) : selected.coffeePick ? (
                   <div className="coffee-pick-result">
                     <div className="coffee-result-hero">
@@ -374,7 +398,10 @@ export function GatheringBoard({
                       </span>
                       <strong className="coffee-result-name">{selected.coffeePick}</strong>
                       {selected.coffeePickedAt && (
-                        <span className="coffee-result-meta">{formatPickedAt(selected.coffeePickedAt)} · 재추첨 없이 확정</span>
+                        <span className="coffee-result-meta">
+                          {formatPickedAt(selected.coffeePickedAt)} · {gameMeta(selected.coffeeGame ?? 'roulette').name} ·
+                          재추첨 없이 확정
+                        </span>
                       )}
                     </div>
                     {/* 뽑은 순간의 후보 전원을 박제해 보여준다 — 재추첨이 막혀 있어 이 명단에서 공정하게 나온 것이 증명된다. */}
@@ -393,17 +420,20 @@ export function GatheringBoard({
                   </div>
                 ) : isHost ? (
                   canDrawCoffee(selected, signups) ? (
-                    <button
-                      className="primary-button coffee"
-                      onClick={() => {
-                        justDrewRef.current = true;
-                        onDrawCoffee(selected);
-                      }}
-                      type="button"
-                    >
-                      <Coffee size={18} />
-                      커피 살 사람 룰렛 돌리기
-                    </button>
+                    <div className="coffee-pick-setup">
+                      <CoffeeGamePicker value={pickedGame} onChange={setPickedGame} games={LUCK_GAMES} />
+                      <button
+                        className="primary-button coffee"
+                        onClick={() => {
+                          justDrewRef.current = true;
+                          onDrawCoffee(selected, pickedGame);
+                        }}
+                        type="button"
+                      >
+                        <Coffee size={18} />
+                        {gameMeta(pickedGame).name}(으)로 커피 뽑기
+                      </button>
+                    </div>
                   ) : (
                     <p className="coffee-pick-hint">
                       <Coffee size={15} /> 확정 2명부터 커피 담당을 뽑을 수 있어요
