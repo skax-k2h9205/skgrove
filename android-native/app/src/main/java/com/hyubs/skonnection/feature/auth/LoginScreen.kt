@@ -103,6 +103,25 @@ fun LoginScreen(vm: AuthViewModel, state: AuthUiState) {
             )
         }
 
+        // Slack 로그인 — 로그인 단계에서만. 브라우저 왕복 후 딥링크로 돌아온다.
+        if (phase == Phase.Login) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            OutlinedButton(
+                onClick = {
+                    vm.startSlackLogin { url ->
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }
+                    }
+                },
+                enabled = !state.loading,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) { Text("Slack으로 로그인") }
+        }
+
         // 화면 전환 링크
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.Center) {
             when (phase) {

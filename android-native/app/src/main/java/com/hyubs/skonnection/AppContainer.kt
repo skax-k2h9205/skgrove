@@ -47,6 +47,9 @@ class AppContainer(context: Context) {
     val counselRepository = CounselRepository(supabase)
     val sessionStore = SessionStore(context.applicationContext)
 
+    /** Slack 로그인 딥링크(skonnection://login-callback?code=..)로 돌아온 인가 코드. MainActivity가 넣고 AuthViewModel이 소비. */
+    val pendingSlackCode = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
     /**
      * 현재 로그인 사용자. 세션은 이메일만 보관하므로 로그인 직후 accounts 에서
      * 계정을 찾아 캐싱한다. 쓰기 인터랙션(작성자·투표자·입찰자 이름, 삭제 권한)에서 쓴다.

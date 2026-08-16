@@ -36,7 +36,12 @@ class SupabaseAuth(private val http: HttpClient) {
     @Serializable private data class PasswordReq(val password: String)
 
     // ── 응답 DTO ──
-    @Serializable private data class Meta(@SerialName("full_name") val fullName: String? = null, val part: String? = null)
+    @Serializable private data class Meta(
+        @SerialName("full_name") val fullName: String? = null,
+        val part: String? = null,
+        val name: String? = null,
+        @SerialName("preferred_username") val preferredUsername: String? = null,
+    )
     @Serializable private data class User(val id: String = "", val email: String? = null, @SerialName("user_metadata") val meta: Meta? = null)
     @Serializable private data class AuthResp(
         @SerialName("access_token") val accessToken: String? = null,
@@ -113,8 +118,54 @@ class SupabaseAuth(private val http: HttpClient) {
         if (!put.status.isSuccess()) throw AuthException("비밀번호 변경에 실패했어요.")
     }
 
+    // ── Slack(OIDC) 로그인 — 웹 startSlackLogin · iOS signInWithSlack 규약 이식 ──
+    // supabase-swift 가 자동 처리하던 PKCE·브라우저 왕복·토큰 교환을 gotrue REST 로 직접 구현한다.
+
+    /** PKCE 한 쌍. verifier 는 콜백까지 보관, challenge 는 authorize URL 에 싣는다. */
+    data class Pkce(val verifier: String, val challenge: String)
+
+    /** code_verifier(랜덤 32B base64url) + code_challenge(SHA-256 → base64url). */
+    fun newPkce(): Pkce {
+        val bytes = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+        val enc = java.util.Base64.getUrlEncoder().withoutPadding()
+        val verifier = enc.encodeToString(bytes)
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII))
+        return Pkce(verifier, enc.encodeToString(digest))
+    }
+
+    /** Slack 로그인 authorize URL. redirect_to/딥링크는 Supabase Redirect URLs 허용목록과 같아야 한다. */
+    fun slackAuthorizeUrl(challenge: String): String {
+        val redirect = java.net.URLEncoder.encode(SLACK_REDIRECT, "UTF-8")
+        return "$base/authorize?provider=slack_oidc&flow_type=pkce" +
+            "&redirect_to=$redirect&code_challenge=$challenge&code_challenge_method=s256&scopes=openid+email+profile" +
+            (if (SLACK_TEAM_ID.isNotBlank()) "&team=$SLACK_TEAM_ID" else "")
+    }
+
+    @Serializable private data class PkceExchangeReq(@SerialName("auth_code") val authCode: String, @SerialName("code_verifier") val codeVerifier: String)
+
+    /** 브라우저에서 돌아온 code 를 세션으로 교환(grant_type=pkce) → 신원 반환. */
+    suspend fun exchangeSlackCode(code: String, verifier: String): Identity {
+        val resp = postJson("token?grant_type=pkce",
+            json.encodeToString(PkceExchangeReq.serializer(), PkceExchangeReq(code, verifier)))
+        val r = json.decodeFromString(AuthResp.serializer(), resp.bodyAsText())
+        if (!resp.status.isSuccess() || r.accessToken == null) {
+            throw AuthException(r.errorDescription ?: r.msg ?: "Slack 로그인에 실패했어요.")
+        }
+        val u = r.user
+        val meta = u?.meta ?: r.meta
+        val email = (u?.email ?: r.email ?: "").trim().lowercase()
+        val name = meta?.fullName ?: meta?.name ?: meta?.preferredUsername
+            ?: email.substringBefore("@").ifBlank { "팀원" }
+        return Identity(email = email, uid = (u?.id ?: r.id ?: "").lowercase(), name = name, part = meta?.part)
+    }
+
     companion object {
         private val EMAIL = Regex("^[^\\s@]+@sk\\.com$", RegexOption.IGNORE_CASE)
         fun isCompanyEmail(email: String) = EMAIL.matches(email.trim())
+
+        /** Supabase Redirect URLs 허용목록 + Manifest 딥링크 intent-filter 와 같아야 한다. */
+        const val SLACK_REDIRECT = "skonnection://login-callback"
+        /** 단일 워크스페이스 힌트(비밀 아님, 웹 VITE_SLACK_TEAM_ID 기본값과 동일). */
+        private const val SLACK_TEAM_ID = "T07BDCWME6M"
     }
 }

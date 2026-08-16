@@ -34,6 +34,12 @@ class AuthViewModel(private val container: AppContainer) : ViewModel() {
                 _state.value = _state.value.copy(loggedInEmail = email, sessionResolved = true)
             }
         }
+        // Slack 딥링크로 돌아온 인가 코드를 감시 → 세션 교환.
+        viewModelScope.launch {
+            container.pendingSlackCode.collect { code ->
+                if (!code.isNullOrBlank()) { container.pendingSlackCode.value = null; completeSlackLogin(code) }
+            }
+        }
     }
 
     private fun busy() { _state.value = _state.value.copy(loading = true, error = null, notice = null) }
@@ -139,6 +145,41 @@ class AuthViewModel(private val container: AppContainer) : ViewModel() {
                 fail(e.message ?: "재설정에 실패했어요.")
             } catch (t: Throwable) {
                 fail("네트워크 오류로 재설정에 실패했어요.")
+            }
+        }
+    }
+
+    /** "Slack으로 로그인" — PKCE 를 만들어 보관하고 authorize URL 을 launch(브라우저)로 넘긴다. */
+    fun startSlackLogin(launch: (String) -> Unit) {
+        viewModelScope.launch {
+            busy()
+            try {
+                val pkce = container.supabaseAuth.newPkce()
+                container.sessionStore.saveSlackVerifier(pkce.verifier)
+                launch(container.supabaseAuth.slackAuthorizeUrl(pkce.challenge))
+                // 브라우저로 넘어가므로 로딩 표시는 콜백 전까지 유지하지 않는다.
+                _state.value = _state.value.copy(loading = false)
+            } catch (t: Throwable) {
+                fail("Slack 로그인을 시작하지 못했어요.")
+            }
+        }
+    }
+
+    /** 딥링크로 돌아온 code → 세션 교환 → 계정 해석. */
+    fun completeSlackLogin(code: String) {
+        viewModelScope.launch {
+            busy()
+            try {
+                val verifier = container.sessionStore.takeSlackVerifier()
+                    ?: return@launch fail("Slack 로그인이 만료됐어요. 다시 시도해주세요.")
+                val id = container.supabaseAuth.exchangeSlackCode(code, verifier)
+                if (id.email.isBlank()) return@launch fail("Slack 계정에서 이메일을 확인하지 못했어요.")
+                val err = resolveAndSession(id)
+                if (err != null) fail(err) else done()
+            } catch (e: SupabaseAuth.AuthException) {
+                fail(e.message ?: "Slack 로그인에 실패했어요.")
+            } catch (t: Throwable) {
+                fail("네트워크 오류로 Slack 로그인에 실패했어요.")
             }
         }
     }
