@@ -34,12 +34,16 @@ class IssuesViewModel(private val c: AppContainer) : ViewModel() {
     ) {
         val me = c.currentUser
         viewModelScope.launch {
+            // 암호화 수신자(대상 리더 + 작성자) 해석에 계정 목록·내 계정 id가 필요하다.
+            val accounts = runCatching { c.accountRepository.loadAll() }.getOrDefault(emptyList())
+            val authorId = accounts.firstOrNull { it.email.equals(me?.email, ignoreCase = true) }?.id
             runCatching {
                 c.issueRepository.create(
                     title = title.trim(), category = category, target = target, urgency = urgency,
                     body = body.trim(), expectedChange = expectedChange.trim(), visibility = visibility,
                     anonymous = anonymous,
                     submitterName = me?.name, submitterEmail = me?.email, submitterPart = me?.part,
+                    accounts = accounts, authorAccountId = authorId,
                 )
             }
             refresh()

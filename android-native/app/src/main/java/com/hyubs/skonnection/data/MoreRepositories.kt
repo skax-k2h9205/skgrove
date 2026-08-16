@@ -1,5 +1,6 @@
 package com.hyubs.skonnection.data
 
+import com.hyubs.skonnection.core.IssueCrypto
 import com.hyubs.skonnection.net.SupabaseClient
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -21,6 +22,11 @@ private data class NewIssue(
     @SerialName("submitter_email") val submitterEmail: String?,
     @SerialName("submitter_part") val submitterPart: String?,
     @SerialName("created_at") val createdAt: String,
+    // 암호화 접수: encrypted=true면 body/expected_change는 빈 문자열, 실제 내용은 enc_*.
+    val encrypted: Boolean = false,
+    @SerialName("enc_payload") val encPayload: String? = null,
+    @SerialName("enc_keys") val encKeys: List<IssueCrypto.RecipientKey>? = null,
+    @SerialName("enc_alg") val encAlg: String? = null,
 )
 
 /**
@@ -46,29 +52,46 @@ private data class StatusPatch(val status: String)
 private fun appendEntry(existing: String, addition: String) =
     if (existing.isBlank()) addition else "$existing\n\n$addition"
 
-class IssueRepository(private val supabase: SupabaseClient) {
+class IssueRepository(
+    private val supabase: SupabaseClient,
+    private val leaderKeys: LeaderKeysStore,
+) {
     suspend fun loadAll(): List<Issue> =
         supabase.select("issues", "select=*&order=created_at.desc", ListSerializer(IssueRow.serializer()))
             .map { it.toIssue() }
 
-    /** 대나무숲 접수 제출(웹 submitIssue 규칙: status '접수'). */
+    /**
+     * 대나무숲 접수 제출(웹 submitIssue 규칙: status '접수').
+     * 익명 / 실명 '리더만 보기'는 본문을 수신자(대상 리더 [+작성자]) 공개키로 E2E 암호화해
+     * body/expected_change 는 비우고 암호문만 저장한다(운영자 불가독). 수신자 키가 없으면 평문 폴백.
+     */
     suspend fun create(
         title: String, category: String, target: String, urgency: String,
         body: String, expectedChange: String, visibility: String, anonymous: Boolean,
         submitterName: String?, submitterEmail: String?, submitterPart: String?,
+        accounts: List<Account> = emptyList(), authorAccountId: String? = null,
     ) {
         val id = "SOOP-" + System.currentTimeMillis().toString(36).uppercase()
+        val identity = if (anonymous) "익명" else "실명"
+        val enc = AnonEncrypt.encryptIfNeeded(
+            leaderKeys, accounts, identity, visibility, target, body, expectedChange, authorAccountId,
+        )
         supabase.insert(
             "issues",
             NewIssue(
-                id = id, title = title, category = category,
-                author = if (anonymous) "익명" else "실명",
+                id = id, title = title, category = category, author = identity,
                 target = target, status = "접수", urgency = urgency,
-                body = body, expectedChange = expectedChange, visibility = visibility,
+                body = if (enc != null) "" else body,
+                expectedChange = if (enc != null) "" else expectedChange,
+                visibility = visibility,
                 submitterName = if (anonymous) null else submitterName,
                 submitterEmail = if (anonymous) null else submitterEmail,
                 submitterPart = if (anonymous) null else submitterPart,
                 createdAt = java.time.Instant.now().toString(),
+                encrypted = enc != null,
+                encPayload = enc?.payload,
+                encKeys = enc?.keys,
+                encAlg = enc?.alg,
             ),
             NewIssue.serializer(),
         )

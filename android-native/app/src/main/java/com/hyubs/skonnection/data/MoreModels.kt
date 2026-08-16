@@ -1,5 +1,6 @@
 package com.hyubs.skonnection.data
 
+import com.hyubs.skonnection.core.IssueCrypto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -30,6 +31,12 @@ data class IssueRow(
     @SerialName("status_reason") val statusReason: String? = null,
     @SerialName("action_item") val actionItem: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
+    // ── E2E 암호화(익명 전체 / 실명 리더만보기) ── encrypted면 body/expected_change는 빈 문자열,
+    // 실제 내용은 enc_payload/enc_keys에. 대상 리더(+실명은 작성자)만 복호화(운영자 불가독).
+    val encrypted: Boolean? = null,
+    @SerialName("enc_payload") val encPayload: String? = null,
+    @SerialName("enc_keys") val encKeys: List<IssueCrypto.RecipientKey>? = null,
+    @SerialName("enc_alg") val encAlg: String? = null,
 )
 
 data class Issue(
@@ -38,6 +45,8 @@ data class Issue(
     val identity: String, val expectedChange: String, val visibility: String,
     val leaderReply: String, val oneOnOneNote: String, val reason: String,
     val actionItem: String, val createdAt: String,
+    val encrypted: Boolean = false, val encPayload: String = "",
+    val encKeys: List<IssueCrypto.RecipientKey> = emptyList(), val encAlg: String = "",
 ) {
     /**
      * 리더의 응답이 하나도 없는 상태(웹 issueRules.isAwaitingResponse).
@@ -70,6 +79,8 @@ fun IssueRow.toIssue() = Issue(
     identity = author ?: "익명", expectedChange = expectedChange ?: "", visibility = visibility ?: "",
     leaderReply = leaderReply ?: "", oneOnOneNote = oneOnOneNote ?: "", reason = statusReason ?: "",
     actionItem = actionItem ?: "", createdAt = createdAt ?: "",
+    encrypted = encrypted ?: false, encPayload = encPayload ?: "",
+    encKeys = encKeys ?: emptyList(), encAlg = encAlg ?: "",
 )
 
 /** 미응답 건 중 가장 오래 기다린 일수. 없으면 null(웹 issueRules.oldestWaitingDays). */
