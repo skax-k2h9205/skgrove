@@ -115,6 +115,7 @@ import {
   uploadGatheringImage,
 } from './gatheringStore';
 import { coffeeCandidates, splitRoster } from './gatheringRules';
+import { resolveSkillLoser } from './features/gatherings/games/coffeeGames';
 import {
   bidBlockedReason,
   canEditMarketItem,
@@ -151,6 +152,7 @@ import type {
   CanResultGroup,
   CanSession,
   CoffeeGame,
+  CoffeeScore,
   CurrentUser,
   Gathering,
   GatheringSignup,
@@ -1186,6 +1188,28 @@ export function App() {
     );
   };
 
+  const commitCoffeeSkillResult = (gathering: Gathering, game: CoffeeGame, scores: CoffeeScore[]) => {
+    if (!currentUser || gathering.host !== currentUser.name) return;
+    if (gathering.coffeePick) return; // 잠김
+    if (scores.length < 2) return;
+    const loser = resolveSkillLoser(game, scores);
+    const pool = scores.map((s) => s.name);
+    persistGatherings(
+      gatherings.map((item) =>
+        item.id === gathering.id
+          ? {
+              ...item,
+              coffeeGame: game,
+              coffeePick: loser,
+              coffeePickedAt: new Date().toISOString(),
+              coffeePool: pool,
+              coffeeScores: scores,
+            }
+          : item,
+      ),
+    );
+  };
+
   const cancelGathering = (gathering: Gathering) => {
     // 대기자도 그 시간을 비워두고 있었을 수 있다. 확정·대기를 가리지 않고 알린다.
     const applicants = gatheringSignups.filter((s) => s.gatheringId === gathering.id).map((s) => s.name);
@@ -1744,6 +1768,7 @@ export function App() {
           imagePendingIds={imagePendingIds}
           onCancelGathering={cancelGathering}
           onDrawCoffee={drawCoffeePick}
+          onCoffeeSkillResult={commitCoffeeSkillResult}
           canModerate={isAdmin(currentUser)}
           onDelete={deleteGathering}
           focusId={focusFor('gatherings')}

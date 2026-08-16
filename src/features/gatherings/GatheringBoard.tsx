@@ -35,7 +35,7 @@ import {
   spotsLeft,
   timeUntil,
 } from '../../gatheringRules';
-import type { CoffeeGame, CurrentUser, Gathering, GatheringSignup, GatheringStatus } from '../../types';
+import type { CoffeeGame, CoffeeScore, CurrentUser, Gathering, GatheringSignup, GatheringStatus } from '../../types';
 import { localPoster } from '../../aiPoster';
 import { GatheringForm, type GatheringDraft } from './GatheringForm';
 import { PosterFrame, PosterThumb } from './PosterFrame';
@@ -54,6 +54,8 @@ type GatheringBoardProps = {
   onLeave: (gathering: Gathering) => void;
   onCancelGathering: (gathering: Gathering) => void;
   onDrawCoffee: (gathering: Gathering, game: CoffeeGame) => void;
+  /** B4에서 실력 게임 러너 완료 시 호출 */
+  onCoffeeSkillResult: (gathering: Gathering, game: CoffeeGame, scores: CoffeeScore[]) => void;
   /** 팀리더 권한. 남의 모임도 삭제할 수 있다. */
   canModerate: boolean;
   /** 완전 삭제(모임 + 신청 기록). 주최자 또는 팀리더만 호출한다. */
@@ -125,6 +127,7 @@ export function GatheringBoard({
   onLeave,
   onCancelGathering,
   onDrawCoffee,
+  onCoffeeSkillResult,
   canModerate,
   onDelete,
   imagePendingIds,
