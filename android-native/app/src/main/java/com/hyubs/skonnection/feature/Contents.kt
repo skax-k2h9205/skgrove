@@ -180,7 +180,8 @@ fun GatheringsContent(
         androidx.activity.compose.BackHandler { detail = null }
         val roster = signups[g.id].orEmpty()
         GatheringDetailView(
-            g = g, count = roster.size,
+            container = container,
+            g = g, count = roster.size, roster = roster, myName = vm.currentName,
             joined = vm.currentName != null && roster.contains(vm.currentName),
             onToggleJoin = { vm.toggleJoin(g) },
             isAdmin = vm.isAdmin,
@@ -208,11 +209,15 @@ fun GatheringsContent(
 
 @Composable
 private fun GatheringDetailView(
-    g: com.hyubs.skonnection.data.Gathering, count: Int, joined: Boolean,
+    container: AppContainer,
+    g: com.hyubs.skonnection.data.Gathering, count: Int, roster: List<String>, myName: String?, joined: Boolean,
     onToggleJoin: () -> Unit, isAdmin: Boolean, onDelete: () -> Unit, onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
+    var showCoffee by remember { mutableStateOf(false) }
+    var coffeePick by remember(g.id) { mutableStateOf(g.coffeePick) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     Column(modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
             androidx.compose.material3.IconButton(onClick = onBack) {
@@ -254,8 +259,46 @@ private fun GatheringDetailView(
                 } else {
                     androidx.compose.material3.Button(onClick = onToggleJoin, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) { Text("신청하기") }
                 }
+
+                // 커피 내기 게임 — 커피 모임에서만. 주최자는 시작, 나머지는 관전.
+                if (g.isCoffee) {
+                    val isHost = myName != null && g.host == myName
+                    when {
+                        coffeePick.isNotBlank() -> Text(
+                            "☕ 오늘 커피는 ${coffeePick}님!",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = com.hyubs.skonnection.ui.theme.Sk.Heart,
+                            modifier = Modifier.padding(top = 14.dp),
+                        )
+                        roster.size >= 2 && isHost -> androidx.compose.material3.Button(
+                            onClick = { showCoffee = true },
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = com.hyubs.skonnection.ui.theme.Sk.Heart),
+                            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                        ) { Text("커피 내기 게임 시작") }
+                        roster.size >= 2 -> androidx.compose.material3.OutlinedButton(
+                            onClick = { showCoffee = true },
+                            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                        ) { Text("커피 내기 같이 보기") }
+                        else -> Text("2명 이상 신청하면 커피 내기를 돌릴 수 있어요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
+                    }
+                }
             }
         }
+    }
+
+    if (showCoffee) {
+        com.hyubs.skonnection.feature.coffee.CoffeeGameSheet(
+            container = container,
+            gatheringId = g.id,
+            isHost = myName != null && g.host == myName,
+            hostName = g.host,
+            participantNames = roster,
+            onWinner = { name ->
+                coffeePick = name
+                scope.launch { runCatching { container.gatheringRepository.setCoffeePick(g.id, name) } }
+            },
+            onDismiss = { showCoffee = false },
+        )
     }
     if (confirmDelete) {
         AlertDialog(

@@ -19,6 +19,9 @@ private data class NewSignup(
     @SerialName("created_at") val createdAt: String,
 )
 
+@Serializable
+private data class CoffeePickPatch(@SerialName("coffee_pick") val coffeePick: String)
+
 /** 함께하기 그룹(모임·장터) 리포지토리. */
 class GatheringRepository(private val supabase: SupabaseClient) {
     suspend fun loadAll(): List<Gathering> =
@@ -46,6 +49,10 @@ class GatheringRepository(private val supabase: SupabaseClient) {
         val encodedName = java.net.URLEncoder.encode(name, "UTF-8")
         supabase.delete("gathering_signups", "gathering_id=eq.$gatheringId&name=eq.$encodedName")
     }
+
+    /** 커피 내기 당첨자 확정 — 웹·iOS와 같은 gatherings.coffee_pick 에 남긴다. */
+    suspend fun setCoffeePick(gatheringId: String, name: String) =
+        supabase.patch("gatherings", gatheringId, CoffeePickPatch(name), CoffeePickPatch.serializer())
 
     suspend fun create(
         kind: String, title: String, place: String, description: String,

@@ -19,6 +19,7 @@ data class GatheringRow(
     val cost: String? = null,
     @SerialName("image_url") val imageUrl: String? = null,
     val host: String? = null,
+    @SerialName("coffee_pick") val coffeePick: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
 )
 
@@ -34,7 +35,11 @@ data class Gathering(
     val cost: String,
     val imageUrl: String,
     val host: String,
-)
+    val coffeePick: String = "",
+) {
+    /** 커피 내기 모임인가(웹·iOS가 kind="커피"로 만든다). */
+    val isCoffee: Boolean get() = kind == "커피"
+}
 
 fun GatheringRow.toGathering() = Gathering(
     id = id,
@@ -48,4 +53,5 @@ fun GatheringRow.toGathering() = Gathering(
     cost = cost ?: "",
     imageUrl = imageUrl ?: "",
     host = host ?: "",
+    coffeePick = coffeePick ?: "",
 )
