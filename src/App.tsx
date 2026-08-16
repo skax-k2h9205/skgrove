@@ -66,6 +66,7 @@ import { Metrics } from './features/metrics/Metrics';
 import { GrowthCard } from './features/growth/GrowthCard';
 import { NotificationCenter } from './features/notifications/NotificationCenter';
 import { Profiles } from './features/profiles/Profiles';
+import { ChangePassword } from './features/auth/ChangePassword';
 import { deleteIssue, loadIssues, makeIssueId, saveIssues } from './issueStore';
 import { deliverDm, deliverToSlack, sendAnnouncement } from './notificationDelivery';
 import {
@@ -1863,7 +1864,10 @@ export function App() {
         <Profiles mode="directory" currentUser={currentUser} onProfilesChange={setProfileDirectory} />
       )}
       {active === 'mypage' && (
-        <Profiles mode="mine" currentUser={currentUser} onProfilesChange={setProfileDirectory} />
+        <>
+          <Profiles mode="mine" currentUser={currentUser} onProfilesChange={setProfileDirectory} />
+          <ChangePassword />
+        </>
       )}
       {active === 'connect' && <Connect members={connectMembers} />}
       {active === 'memory' && <Memory currentUser={currentUser} />}

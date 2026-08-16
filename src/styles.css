@@ -654,6 +654,26 @@ h1 {
   }
 }
 
+/* 마이페이지 비밀번호 변경 카드. */
+.change-password {
+  margin-top: var(--space-3);
+  max-width: 420px;
+}
+.change-password h3 {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+.change-password-lead {
+  color: var(--color-muted);
+  font-size: var(--text-meta);
+  margin: 4px 0 var(--space-3);
+}
+.change-password form {
+  display: grid;
+  gap: var(--space-3);
+}
+
 /* 초대코드가 유효할 때 그 팀 이름을 확인해주는 작은 안내. */
 .field-ok {
   color: var(--color-primary-strong);
