@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { retrieveRuleChunks, knowledgeFromChunks } from './retrieve.js';
+import { retrieveRuleChunks, knowledgeFromChunks, retrieveCases } from './retrieve.js';
 
 const ok = (chunks: unknown) =>
   vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, chunks }) }) as unknown as Response);
@@ -61,6 +61,42 @@ describe('retrieveRuleChunks', () => {
     const init = fetchImpl.mock.calls[0][1] as RequestInit;
     const body = JSON.parse(init.body as string);
     expect(body.matchCount).toBe(20);
+  });
+});
+
+describe('retrieveCases', () => {
+  const okCases = (chunks: unknown) =>
+    vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, chunks }) }) as unknown as Response);
+
+  it('성공 시 CaseBrief 로 변환한다(issue→대나무숲, agenda→안건)', async () => {
+    const rows = [
+      { source: 'issue', refId: 'SOOP-1', title: '회의 갈등', status: '검토중', snippet: '요약' },
+      { source: 'agenda', refId: 'AG-2', title: '재택 규칙', status: '투표중', snippet: '설명' },
+    ];
+    const out = await retrieveCases('회의에서 힘들어요', {
+      functionsUrl: 'https://x', anonKey: 'a', tenantId: 'T1', fetchImpl: okCases(rows),
+    });
+    expect(out).toEqual([
+      { source: '대나무숲', id: 'SOOP-1', title: '회의 갈등', status: '검토중', snippet: '요약' },
+      { source: '안건', id: 'AG-2', title: '재택 규칙', status: '투표중', snippet: '설명' },
+    ]);
+  });
+
+  it('요청 body 에 scope:cases·tenantId·기본 matchCount 6 이 실린다', async () => {
+    const f = okCases([{ source: 'issue', refId: 'S', title: 't', status: 's', snippet: 'n' }]);
+    await retrieveCases('q', { functionsUrl: 'https://x', anonKey: 'a', tenantId: 'T1', fetchImpl: f });
+    const init = f.mock.calls[0][1] as { body: string };
+    const sent = JSON.parse(init.body);
+    expect(sent.scope).toBe('cases');
+    expect(sent.tenantId).toBe('T1');
+    expect(sent.matchCount).toBe(6);
+  });
+
+  it('빈 결과·오류·env 누락은 null(폴백 신호)', async () => {
+    expect(await retrieveCases('q', { functionsUrl: 'https://x', anonKey: 'a', tenantId: 'T1', fetchImpl: okCases([]) })).toBeNull();
+    const boom = vi.fn(async () => { throw new Error('net'); });
+    expect(await retrieveCases('q', { functionsUrl: 'https://x', anonKey: 'a', tenantId: 'T1', fetchImpl: boom })).toBeNull();
+    expect(await retrieveCases('q', { functionsUrl: '', anonKey: 'a', tenantId: 'T1' })).toBeNull();
   });
 });
 

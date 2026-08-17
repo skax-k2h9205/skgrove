@@ -17,6 +17,7 @@ import {
   type ChatTurn,
 } from '../../aiChat';
 import { insertCounselMessage, loadCounselMessages } from '../../counselStore';
+import { getCurrentTenantId } from '../../tenantContext';
 import type { CounselMessage, CurrentUser, Agenda, Issue, Profile } from '../../types';
 import { findSimilarCases } from './similarCases';
 import { Markdownish } from './Markdownish';
@@ -170,6 +171,7 @@ export function ChatWidget({ currentUser, profiles, issues, agendas }: ChatWidge
             self: briefOf(selfProfile),
             partner: briefOf(profiles.find((p) => p.name === partner)),
             cases: findSimilarCases(lastAsked, issues, agendas),
+            tenantId: getCurrentTenantId() ?? undefined,
           }
         : { mode, messages: turns };
 
