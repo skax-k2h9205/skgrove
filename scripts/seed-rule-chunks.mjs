@@ -1,26 +1,53 @@
-// 로컬 src/content/*.md 를 청킹해 reindex-rules Edge Function 으로 보내 색인한다.
-// 사용: supabase link 후 →  node scripts/seed-rule-chunks.mjs
-//   내부적으로 chunks.json 을 만들고 `supabase functions invoke reindex-rules --body @chunks.json` 를 실행한다.
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+// 로컬 src/content/*.md 를 청킹해 배포된 reindex-rules Edge Function 에 직접 POST 한다.
+// supabase CLI 불필요(v2.109에서 functions invoke 제거됨). anon 키는 공개 키라 사용 무방
+// (함수는 verify_jwt 로 유효 JWT만 통과시키고, 내부 쓰기는 함수 안의 service_role 로 수행).
+// 설정: SUPABASE_URL / SUPABASE_ANON_KEY 환경변수, 없으면 .env.demo.local 의 VITE_* 값을 읽는다.
+// 사용: node scripts/seed-rule-chunks.mjs
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { chunkMarkdown } from '../supabase/functions/_shared/chunk.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const CONTENT = join(HERE, '..', 'src', 'content');
+const ROOT = join(HERE, '..');
 
+function envFromFile(file, key) {
+  try {
+    const text = readFileSync(join(ROOT, file), 'utf8');
+    const m = text.match(new RegExp(`^\\s*${key}\\s*=\\s*(.*)\\s*$`, 'm'));
+    return m ? m[1].replace(/^["']|["']$/g, '') : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const SUPABASE_URL =
+  process.env.SUPABASE_URL || envFromFile('.env.demo.local', 'VITE_SUPABASE_URL') || envFromFile('.env.ios.local', 'VITE_SUPABASE_URL');
+const ANON_KEY =
+  process.env.SUPABASE_ANON_KEY || envFromFile('.env.demo.local', 'VITE_SUPABASE_ANON_KEY') || envFromFile('.env.ios.local', 'VITE_SUPABASE_ANON_KEY');
+
+if (!SUPABASE_URL || !ANON_KEY) {
+  console.error('SUPABASE_URL / SUPABASE_ANON_KEY 를 찾지 못했습니다(.env.demo.local 또는 환경변수).');
+  process.exit(1);
+}
+
+const CONTENT = join(ROOT, 'src', 'content');
 const chunks = [];
 for (const f of readdirSync(CONTENT).filter((f) => f.endsWith('.md')).sort()) {
-  const md = readFileSync(join(CONTENT, f), 'utf8');
-  chunks.push(...chunkMarkdown(md, f));
+  chunks.push(...chunkMarkdown(readFileSync(join(CONTENT, f), 'utf8'), f));
 }
 if (chunks.length === 0) {
   console.error('청크가 없습니다. src/content/*.md 확인.');
   process.exit(1);
 }
-const out = join(HERE, '..', 'chunks.json');
-writeFileSync(out, JSON.stringify({ chunks }));
-console.log(`청크 ${chunks.length}개 → ${out}. reindex-rules 호출...`);
-execFileSync('supabase', ['functions', 'invoke', 'reindex-rules', '--body', `@${out}`], { stdio: 'inherit' });
-console.log('완료.');
+
+console.log(`청크 ${chunks.length}개 → reindex-rules POST...`);
+const res = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/reindex-rules`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ANON_KEY}` },
+  body: JSON.stringify({ chunks }),
+});
+const data = await res.json().catch(() => null);
+console.log('HTTP', res.status, JSON.stringify(data));
+if (!res.ok || !data?.ok) process.exit(1);
+console.log(`완료: ${data.inserted}개 색인.`);
