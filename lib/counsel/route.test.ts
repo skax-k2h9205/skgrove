@@ -15,6 +15,10 @@ describe('detectCrisis', () => {
     expect(detectCrisis('오늘 팀장님 때문에 힘들었어요')).toBe(false);
   });
 
+  it('부정구절과 독립 위기신호가 섞이면 감지한다(전체 무효화 금지)', () => {
+    expect(detectCrisis('죽고 싶지 않아요. 근데 어제 자해했어요.')).toBe(true);
+  });
+
   it('빈 입력은 false', () => {
     expect(detectCrisis('')).toBe(false);
     expect(detectCrisis(undefined as unknown as string)).toBe(false); // 방어적: undefined 도 안전
