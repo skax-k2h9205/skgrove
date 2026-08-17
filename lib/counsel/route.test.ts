@@ -19,6 +19,15 @@ describe('detectCrisis', () => {
     expect(detectCrisis('죽고 싶지 않아요. 근데 어제 자해했어요.')).toBe(true);
   });
 
+  it('다른 부정 변형도 오탐하지 않는다', () => {
+    expect(detectCrisis('죽고 싶진 않아')).toBe(false);
+    expect(detectCrisis('죽고 싶은 건 아니야')).toBe(false);
+  });
+
+  it('반복된 부정구절이 있어도 독립 위기신호는 감지한다', () => {
+    expect(detectCrisis('죽고 싶지 않아. 정말 죽고 싶지 않다고. 근데 자해했어.')).toBe(true);
+  });
+
   it('빈 입력은 false', () => {
     expect(detectCrisis('')).toBe(false);
     expect(detectCrisis(undefined as unknown as string)).toBe(false); // 방어적: undefined 도 안전

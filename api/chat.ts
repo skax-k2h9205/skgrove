@@ -8,7 +8,7 @@
 //
 // 이미지·검토와 같은 OPENROUTER_API_KEY 를 재사용한다 — 비밀은 서버에만, 새 설정 불필요.
 // 룰 모드 지식은 프론트가 body.knowledge 로 실어 보낸다.
-// 페르소나는 scripts/chat-proxy.mjs 와 동일하게 유지할 것(런타임이 달라 두 벌).
+// 페르소나·시스템 프롬프트 조립은 lib/counsel/persona.js 단일 출처를 서버(여기)와 로컬 프록시(chat-proxy.mjs)가 공유한다.
 
 import { buildSystemContent } from '../lib/counsel/persona.js';
 import { detectCrisis, CRISIS_RESPONSE } from '../lib/counsel/route.js';
@@ -45,9 +45,6 @@ function buildMessages(body: ChatBody) {
 // Vercel 은 default export 를 (req,res) 로 호출해 반환 Response 를 버린다(→ 응답 없음 → 504).
 // api/ai.ts·version.ts 처럼 메서드별 named export 를 써야 Web Response 를 제대로 보낸다.
 export async function POST(request: Request): Promise<Response> {
-  const apiKey = env('OPENROUTER_API_KEY');
-  if (!apiKey) return Response.json({ ok: false, reason: 'OPENROUTER_API_KEY not configured' });
-
   let body: ChatBody;
   try {
     body = (await request.json()) as ChatBody;
@@ -60,6 +57,9 @@ export async function POST(request: Request): Promise<Response> {
   if (detectCrisis(lastUser)) {
     return Response.json({ ok: true, text: CRISIS_RESPONSE });
   }
+
+  const apiKey = env('OPENROUTER_API_KEY');
+  if (!apiKey) return Response.json({ ok: false, reason: 'OPENROUTER_API_KEY not configured' });
 
   const model = env('OPENROUTER_MODEL') || 'anthropic/claude-haiku-4.5';
   try {
