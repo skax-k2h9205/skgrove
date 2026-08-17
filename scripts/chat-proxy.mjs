@@ -14,6 +14,8 @@ import { createServer } from 'node:http';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { buildSystemContent } from '../lib/counsel/persona.js';
+import { detectCrisis, CRISIS_RESPONSE } from '../lib/counsel/route.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -50,45 +52,12 @@ function knowledge() {
   }
 }
 
-const PERSONA = [
-  '너는 SK의 팀 문화 서비스 "SKonnection" 안의 마음상담 챗봇이다.',
-  '오은영 선생님처럼 따뜻하되 직설적인 관계 코칭을 한다. 한국어로, 존댓말로 답한다.',
-  '항상 이 골격을 따른다: (1) 감정을 인정·요약한다 (2) 나와 상대의 성향을 상대의 언어로',
-  '번역해 오해를 풀어준다 (3) 오늘 할 수 있는 작은 다음 한 걸음을 1개 제안한다.',
-  '특정인을 깎아내리지 않는다. 의료·심리 진단은 하지 않는다. 자·타해 등 위기 신호가',
-  '보이면 조언 대신 전문 상담창구(예: 자살예방상담 109, 사내 EAP) 안내로 전환한다.',
-  '답 끝에 근거를 짧게 밝힌다 — 예: "(근거: OO님 성향 \'기준형 설계자\', 유사사례 SOOP-142)".',
-  // 사례를 안 주면 모델이 지시를 지키려고 없는 번호(예: SKC-089)를 만들어낸다. 실제로 확인된 동작이다.
-  '단, 아래 [팀의 유사 사례]에 실제로 제시된 건만 인용한다. 사례가 제공되지 않았으면',
-  '사례 번호를 지어내지 말고 성향 근거만 밝히거나 근거 표기를 생략한다.',
-].join(' ');
-
-const RULE_PERSONA = [
-  '너는 팀 운영·예산·근태·AI 도구·KPI 규칙과 SK하이닉스 출입·보안 절차를 안내하는 챗봇이다.',
-  '한국어 존댓말로 답한다. 아래 제공된 문서들에 근거해서만 답한다.',
-  '팀 운영 문서의 "챗봇 답변 규칙"을 지킨다: 관련 규정부터, 금액·기간·절차는 정확한 수치와',
-  '함께, 원칙/권고/가능/필수를 구분, 문서에 없는 승인·예외를 지어내지 말고 승인권자(팀장/',
-  '파트장/담당 BR) 협의가 필요하다고 안내, 프로젝트비/조직비·개인 L/A·팀 CL/AI·프로젝트코드·',
-  '공통 KPI/파트 KPI 를 혼동하지 않는다. 하이닉스 절차는 일정·담당자·URL 이 바뀔 수 있으므로',
-  '정확한 내용은 담당자 확인이 필요하다고 덧붙인다. 어느 문서에서 왔는지 간단히 밝힌다.',
-].join(' ');
-
 function buildMessages(body) {
-  const { mode, messages = [], self, partner, cases, knowledge: sent } = body;
-  const system = [];
-  if (mode === 'rule') {
-    system.push(RULE_PERSONA);
-    // 프론트가 실어 보낸 지식을 우선 쓰고, 없으면 디스크에서 읽는다(서버리스와 규약 일치).
-    system.push('\n\n[지식 문서]\n' + (sent || knowledge()));
-  } else {
-    system.push(PERSONA);
-    if (self) system.push('\n\n[상담을 요청한 사람의 성향]\n' + JSON.stringify(self, null, 2));
-    if (partner) system.push('\n\n[갈등 상대의 성향]\n' + JSON.stringify(partner, null, 2));
-    if (Array.isArray(cases) && cases.length) {
-      system.push('\n\n[팀의 유사 사례(대나무숲·안건)]\n' + cases.map((c) => `- [${c.source} ${c.id}] ${c.title} (${c.status}): ${c.snippet}`).join('\n'));
-    }
-  }
-  return [{ role: 'system', content: system.join('') }, ...messages.map((m) => ({ role: m.role, content: m.content }))];
+  const { messages = [] } = body;
+  // 룰 모드는 프론트가 실어 보낸 지식을 우선 쓰고, 없으면 디스크에서 읽는다(서버리스와 규약 일치).
+  const knowledgeText = body.mode === 'rule' ? (body.knowledge || knowledge()) : body.knowledge;
+  const content = buildSystemContent({ ...body, knowledge: knowledgeText });
+  return [{ role: 'system', content }, ...messages.map((m) => ({ role: m.role, content: m.content }))];
 }
 
 const server = createServer(async (req, res) => {
@@ -109,16 +78,24 @@ const server = createServer(async (req, res) => {
     Connection: 'keep-alive',
   });
 
-  if (!API_KEY) {
-    sse({ error: 'OPENROUTER_API_KEY 미설정 — .env.ai.local 을 확인하세요.' });
-    return res.end();
-  }
-
   let body;
   try {
     body = JSON.parse(raw);
   } catch {
     sse({ error: '잘못된 요청 형식' });
+    return res.end();
+  }
+
+  // 위기 신호는 LLM 호출 없이 즉시 안전 응답을 흘려보내고 종료(서버리스와 동일 동작).
+  const lastUser = [...(body.messages ?? [])].reverse().find((m) => m.role === 'user')?.content ?? '';
+  if (detectCrisis(lastUser)) {
+    sse({ token: CRISIS_RESPONSE });
+    sse({ done: true });
+    return res.end();
+  }
+
+  if (!API_KEY) {
+    sse({ error: 'OPENROUTER_API_KEY 미설정 — .env.ai.local 을 확인하세요.' });
     return res.end();
   }
 
