@@ -31,16 +31,22 @@ struct CaseBrief: Encodable {
     let snippet: String
 }
 
+/// 서버 사례 의미검색(Phase 2)에 넘기는 테넌트. iOS 는 아직 테넌트 개념이 없고
+/// 실제 데이터도 전부 기본 테넌트라, 웹 tenantStore.DEFAULT_TENANT_ID 와 같은 값을 쓴다.
+/// 이 값을 보내야 서버가 pgvector 사례검색을 하고, 안 보내면 아래 cases(로컬 키워드)로 폴백한다.
+private let defaultTenantId = "00000000-0000-0000-0000-000000000001"
+
 private struct ChatRequest: Encodable {
     let mode: String            // "counsel" | "rule"
     let messages: [Wire]
     let selfBrief: FaceBrief?   // 나의 성향(상담 모드)
     let partner: FaceBrief?     // 갈등 상대의 성향
-    let cases: [CaseBrief]?     // 팀 유사 사례
+    let cases: [CaseBrief]?     // 팀 유사 사례(서버 검색 실패 시 폴백으로 쓰임)
+    let tenantId: String?       // 서버 사례 의미검색 스코프
     struct Wire: Encodable { let role: String; let content: String }
     // 'self' 는 Swift 예약어라 프로퍼티명은 selfBrief, JSON 키는 self 로 매핑.
     enum CodingKeys: String, CodingKey {
-        case mode, messages, partner, cases
+        case mode, messages, partner, cases, tenantId
         case selfBrief = "self"
     }
 }
@@ -62,7 +68,8 @@ enum ChatService {
             messages: history.map { .init(role: $0.role.rawValue, content: $0.content) },
             selfBrief: counsel ? selfBrief : nil,
             partner: counsel ? partner : nil,
-            cases: counsel ? cases : nil
+            cases: counsel ? cases : nil,
+            tenantId: counsel ? defaultTenantId : nil
         )
         let res: ChatResponse = try await APIClient().post("api/chat", body: req)
         guard res.ok, let text = res.text, !text.isEmpty else {
