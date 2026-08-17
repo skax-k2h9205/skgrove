@@ -69,6 +69,7 @@ export type ChatRequest = {
   partner?: FaceBrief;
   cases?: CaseBrief[];
   knowledge?: string; // 룰 모드 지식(프론트가 번들해 실어 보냄)
+  tenantId?: string; // 서버 사례 의미검색용 — 없으면 서버가 클라 cases 사용
 };
 
 // reason:'aborted' 는 사용자가 취소한 것이다. 실패가 아니므로 화면에 에러를 띄우면 안 된다.

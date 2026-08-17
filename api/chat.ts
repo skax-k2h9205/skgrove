@@ -12,7 +12,7 @@
 
 import { buildSystemContent } from '../lib/counsel/persona.js';
 import { detectCrisis, CRISIS_RESPONSE } from '../lib/counsel/route.js';
-import { retrieveRuleChunks, knowledgeFromChunks } from '../lib/counsel/retrieve.js';
+import { retrieveRuleChunks, retrieveCases, knowledgeFromChunks } from '../lib/counsel/retrieve.js';
 
 type FaceBrief = Record<string, unknown>;
 type CaseBrief = { source: string; id: string; title: string; status: string; snippet: string };
@@ -24,6 +24,7 @@ type ChatBody = {
   partner?: FaceBrief;
   cases?: CaseBrief[];
   knowledge?: string;
+  tenantId?: string;
 };
 
 // LLM 완성까지 시간이 걸리므로 함수 최대 실행시간을 넉넉히(이미지 함수와 동일).
@@ -71,6 +72,15 @@ export async function POST(request: Request): Promise<Response> {
       const functionsUrl = supabaseUrl.replace('.supabase.co', '.functions.supabase.co');
       const chunks = await retrieveRuleChunks(lastUser, { functionsUrl, anonKey });
       if (chunks) effectiveBody = { ...body, knowledge: knowledgeFromChunks(chunks) };
+    }
+  } else if (body.mode !== 'rule') {
+    // 상담 모드: 서버 의미검색으로 유사사례 교체(Phase 2). 실패·미설정·tenantId 없음 → 클라 cases 폴백.
+    const supabaseUrl = env('SUPABASE_URL');
+    const anonKey = env('SUPABASE_ANON_KEY');
+    if (supabaseUrl && anonKey && lastUser && body.tenantId) {
+      const functionsUrl = supabaseUrl.replace('.supabase.co', '.functions.supabase.co');
+      const found = await retrieveCases(lastUser, { functionsUrl, anonKey, tenantId: body.tenantId });
+      if (found) effectiveBody = { ...effectiveBody, cases: found };
     }
   }
 
