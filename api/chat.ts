@@ -12,6 +12,7 @@
 
 import { buildSystemContent } from '../lib/counsel/persona.js';
 import { detectCrisis, CRISIS_RESPONSE } from '../lib/counsel/route.js';
+import { retrieveRuleChunks, knowledgeFromChunks } from '../lib/counsel/retrieve.js';
 
 type FaceBrief = Record<string, unknown>;
 type CaseBrief = { source: string; id: string; title: string; status: string; snippet: string };
@@ -61,6 +62,18 @@ export async function POST(request: Request): Promise<Response> {
   const apiKey = env('OPENROUTER_API_KEY');
   if (!apiKey) return Response.json({ ok: false, reason: 'OPENROUTER_API_KEY not configured' });
 
+  // 룰 모드: 관련 룰 청크만 의미검색으로 주입(Phase 1b). 실패/미설정이면 body.knowledge(전체) 폴백.
+  let effectiveBody = body;
+  if (body.mode === 'rule') {
+    const supabaseUrl = env('SUPABASE_URL');
+    const anonKey = env('SUPABASE_ANON_KEY');
+    if (supabaseUrl && anonKey && lastUser) {
+      const functionsUrl = supabaseUrl.replace('.supabase.co', '.functions.supabase.co');
+      const chunks = await retrieveRuleChunks(lastUser, { functionsUrl, anonKey });
+      if (chunks) effectiveBody = { ...body, knowledge: knowledgeFromChunks(chunks) };
+    }
+  }
+
   const model = env('OPENROUTER_MODEL') || 'anthropic/claude-haiku-4.5';
   try {
     const upstream = await fetch(OPENROUTER, {
@@ -70,7 +83,7 @@ export async function POST(request: Request): Promise<Response> {
         'Content-Type': 'application/json',
         'X-Title': 'SKonnection',
       },
-      body: JSON.stringify({ model, messages: buildMessages(body) }),
+      body: JSON.stringify({ model, messages: buildMessages(effectiveBody) }),
     });
     const data = (await upstream.json().catch(() => null)) as
       | { choices?: { message?: { content?: string } }[]; error?: { message?: string } }
