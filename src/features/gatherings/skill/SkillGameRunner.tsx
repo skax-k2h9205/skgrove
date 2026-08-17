@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import type { JSX } from 'react';
-import type { CoffeeGame, CoffeeScore } from '../../../types';
+import type { CoffeeScore } from '../../../types';
 
 export type SkillGameComponent = (props: { onScore: (score: number) => void }) => JSX.Element;
 
 type Props = {
   members: string[];
-  game: CoffeeGame;
   Play: SkillGameComponent;
   onComplete: (scores: CoffeeScore[]) => void;
   onCancel: () => void;

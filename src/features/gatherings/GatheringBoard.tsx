@@ -240,6 +240,14 @@ export function GatheringBoard({
   // 실력 게임 러너가 지금 화면을 차지하고 있는지. 완료·취소되면 꺼진다.
   const [runningSkill, setRunningSkill] = useState(false);
 
+  // 이 둘은 보드 레벨 state라 선택된 모임이 바뀌어도 저절로 안 꺼진다. '그만두기'를 거치지
+  // 않고(뒤로가기 등으로) 다른 모임으로 넘어가면, 그 모임에서 시작하지도 않은 게임이 그대로
+  // 떠 있을 수 있어 — 선택된 모임 id가 바뀔 때마다 확실히 초기화한다.
+  useEffect(() => {
+    setRunningSkill(false);
+    setPickedGame('roulette');
+  }, [selected?.id]);
+
   // 뽑는 순간 박제된 후보(coffeePool)를 3D 원반 멤버로. 색·사진은 라이브 디렉토리에서.
   const coffeePool = selected?.coffeePool ?? [];
   const coffeeMembers = useMemo<CoffeeMember[]>(
@@ -449,24 +457,27 @@ export function GatheringBoard({
                       <strong className="coffee-result-name">{selected.coffeePick}</strong>
                       {selected.coffeePickedAt && (
                         <span className="coffee-result-meta">
-                          {formatPickedAt(selected.coffeePickedAt)} · {gameMeta(selected.coffeeGame ?? 'roulette').name} ·
-                          재추첨 없이 확정
+                          {formatPickedAt(selected.coffeePickedAt)} · {gameMeta(selected.coffeeGame ?? 'roulette').name} ·{' '}
+                          {selected.coffeeScores && selected.coffeeScores.length > 0 ? '점수로 확정' : '재추첨 없이 확정'}
                         </span>
                       )}
                     </div>
-                    {/* 뽑은 순간의 후보 전원을 박제해 보여준다 — 재추첨이 막혀 있어 이 명단에서 공정하게 나온 것이 증명된다. */}
-                    {selected.coffeePool && selected.coffeePool.length > 0 && (
-                      <div className="coffee-result-pool">
-                        <span className="coffee-pool-label">후보 {selected.coffeePool.length}명 중에서 공정하게 뽑혔어요</span>
-                        <div className="coffee-pool-chips">
-                          {selected.coffeePool.map((name) => (
-                            <span className={name === selected.coffeePick ? 'won' : ''} key={name}>
-                              {name}
-                            </span>
-                          ))}
+                    {/* 뽑은 순간의 후보 전원을 박제해 보여준다 — 재추첨이 막혀 있어 이 명단에서 공정하게 나온 것이 증명된다.
+                        단, 실력 게임 결과는 아래 점수판이 같은 명단을 이미 보여주므로 운 결과에서만 띄운다. */}
+                    {(!selected.coffeeScores || selected.coffeeScores.length === 0) &&
+                      selected.coffeePool &&
+                      selected.coffeePool.length > 0 && (
+                        <div className="coffee-result-pool">
+                          <span className="coffee-pool-label">후보 {selected.coffeePool.length}명 중에서 공정하게 뽑혔어요</span>
+                          <div className="coffee-pool-chips">
+                            {selected.coffeePool.map((name) => (
+                              <span className={name === selected.coffeePick ? 'won' : ''} key={name}>
+                                {name}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
                     {/* 실력 게임 결과 — 운이 아니라 점수로 정해졌다는 증거를 그대로 남긴다. */}
                     {selected.coffeeScores && selected.coffeeScores.length > 0 && (
                       <CoffeeScoreboard
@@ -479,7 +490,6 @@ export function GatheringBoard({
                 ) : runningSkill ? (
                   <SkillGameRunner
                     members={confirmed.map((s) => s.name)}
-                    game={pickedGame}
                     Play={SKILL_PLAY[pickedGame]!}
                     onComplete={(scores) => {
                       setRunningSkill(false);
