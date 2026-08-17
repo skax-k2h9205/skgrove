@@ -41,13 +41,25 @@ if (chunks.length === 0) {
   process.exit(1);
 }
 
-console.log(`청크 ${chunks.length}개 → reindex-rules POST...`);
-const res = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/reindex-rules`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ANON_KEY}` },
-  body: JSON.stringify({ chunks }),
-});
-const data = await res.json().catch(() => null);
-console.log('HTTP', res.status, JSON.stringify(data));
-if (!res.ok || !data?.ok) process.exit(1);
-console.log(`완료: ${data.inserted}개 색인.`);
+console.log(`청크 ${chunks.length}개 → reindex-rules 배치 POST...`);
+
+const BATCH = 8; // 임베딩 CPU 한도(WORKER_RESOURCE_LIMIT) 회피 — 작은 배치로 나눠 보낸다.
+const url = `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/reindex-rules`;
+let inserted = 0;
+for (let i = 0; i < chunks.length; i += BATCH) {
+  const batch = chunks.slice(i, i + BATCH);
+  const mode = i === 0 ? 'replace' : 'append';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ANON_KEY}` },
+    body: JSON.stringify({ chunks: batch, mode }),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.ok) {
+    console.error(`배치 ${i / BATCH + 1} 실패: HTTP ${res.status} ${JSON.stringify(data)}`);
+    process.exit(1);
+  }
+  inserted += data.inserted;
+  console.log(`배치 ${i / BATCH + 1}/${Math.ceil(chunks.length / BATCH)} (${mode}): +${data.inserted} (누적 ${inserted})`);
+}
+console.log(`완료: ${inserted}개 색인.`);

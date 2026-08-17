@@ -1,12 +1,14 @@
-// 룰 청크 재색인: 요청 본문의 청크들을 gte-small 로 임베딩해 rule_chunks 를 통째로 교체한다.
-// 서비스롤 컨텍스트로 실행(쓰기). 호출: supabase functions invoke reindex-rules --body @chunks.json
+// 룰 청크 재색인: 요청 본문의 청크들을 gte-small 로 임베딩해 rule_chunks 에 넣는다.
+// 임베딩은 CPU 를 많이 써서 한 번에 많은 청크를 보내면 WORKER_RESOURCE_LIMIT 이 난다(실측).
+// 그래서 호출자가 작은 배치로 나눠 보내고, 첫 배치는 mode:'replace'(전체 삭제 후 삽입),
+// 이후 배치는 mode:'append'(삽입만) 로 호출한다.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const model = new Supabase.ai.Session('gte-small');
 
 Deno.serve(async (req) => {
   try {
-    const { chunks } = await req.json();
+    const { chunks, mode = 'replace' } = await req.json();
     if (!Array.isArray(chunks) || chunks.length === 0) {
       return Response.json({ ok: false, reason: 'chunks required' }, { status: 400 });
     }
@@ -19,11 +21,13 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
-    const del = await supabase.from('rule_chunks').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    if (del.error) return Response.json({ ok: false, reason: del.error.message });
+    if (mode === 'replace') {
+      const del = await supabase.from('rule_chunks').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (del.error) return Response.json({ ok: false, reason: del.error.message });
+    }
     const ins = await supabase.from('rule_chunks').insert(rows);
     if (ins.error) return Response.json({ ok: false, reason: ins.error.message });
-    return Response.json({ ok: true, inserted: rows.length });
+    return Response.json({ ok: true, inserted: rows.length, mode });
   } catch (e) {
     return Response.json({ ok: false, reason: String(e) });
   }
