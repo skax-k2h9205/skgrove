@@ -7,8 +7,8 @@ const model = new Supabase.ai.Session('gte-small');
 
 Deno.serve(async (req) => {
   try {
-    const { query, matchCount, countOnly = false, scope = 'rules', tenantId = null } = await req.json();
-    const k = matchCount ?? (scope === 'cases' ? 6 : 20);
+    const { query, matchCount, countOnly = false, scope = 'rules', tenantId = null, minSimilarity } = await req.json();
+    const k = Math.min(Math.max(1, matchCount ?? (scope === 'cases' ? 6 : 20)), 50);
     // 시드 후 전체 개수 검증용. HNSW ef_search 캡(기본 40) 탓에 LIMIT 로는 40행까지만
     // 세어져서, service_role 로 정확한 count 를 직접 돌려준다(임베딩·검색 불필요).
     if (countOnly) {
@@ -17,9 +17,9 @@ Deno.serve(async (req) => {
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
       );
       const table = scope === 'cases' ? 'case_embeddings' : 'rule_chunks';
-      const { count, error } = await supabase
-        .from(table)
-        .select('*', { count: 'exact', head: true });
+      let countQuery = supabase.from(table).select('*', { count: 'exact', head: true });
+      if (scope === 'cases' && tenantId) countQuery = countQuery.eq('tenant_id', tenantId);
+      const { count, error } = await countQuery;
       if (error) return Response.json({ ok: false, reason: error.message });
       return Response.json({ ok: true, total: count ?? 0 });
     }
@@ -35,14 +35,16 @@ Deno.serve(async (req) => {
     );
 
     if (scope === 'cases') {
+      const minSim = typeof minSimilarity === 'number' ? minSimilarity : Number(Deno.env.get('CASE_MIN_SIMILARITY') ?? '0');
       const { data, error } = await supabase.rpc('match_case_chunks', {
         query_embedding: embedding,
         p_tenant: tenantId,
         match_count: k,
+        p_min_similarity: minSim,
       });
       if (error) return Response.json({ ok: false, reason: error.message });
-      const chunks = (data ?? []).map((r: { source: string; ref_id: string; title: string; status: string; snippet: string }) => ({
-        source: r.source, refId: r.ref_id, title: r.title, status: r.status, snippet: r.snippet,
+      const chunks = (data ?? []).map((r: { source: string; ref_id: string; title: string; status: string; snippet: string; similarity: number }) => ({
+        source: r.source, refId: r.ref_id, title: r.title, status: r.status, snippet: r.snippet, similarity: r.similarity,
       }));
       return Response.json({ ok: true, chunks });
     }

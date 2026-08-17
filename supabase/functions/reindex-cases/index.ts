@@ -25,14 +25,19 @@ Deno.serve(async (req) => {
       );
       const { data: existing, error: selErr } = await supabase
         .from('case_embeddings').select('ref_id').eq('source', source);
-      if (selErr) return Response.json({ ok: false, reason: selErr.message });
+      if (selErr) return Response.json({ ok: false, reason: selErr.message }, { status: 500 });
       const keep = new Set(keepIds.map(String));
       const extras = (existing ?? []).map((r: { ref_id: string }) => r.ref_id).filter((id: string) => !keep.has(id));
-      if (extras.length > 0) {
-        const del = await supabase.from('case_embeddings').delete().eq('source', source).in('ref_id', extras);
-        if (del.error) return Response.json({ ok: false, reason: del.error.message });
+      // 프로덕션 배치 IN 절 크기를 억제하려고 200개씩 나눠 삭제한다.
+      let deleted = 0;
+      const BATCH = 200;
+      for (let i = 0; i < extras.length; i += BATCH) {
+        const batch = extras.slice(i, i + BATCH);
+        const del = await supabase.from('case_embeddings').delete().eq('source', source).in('ref_id', batch);
+        if (del.error) return Response.json({ ok: false, reason: del.error.message }, { status: 500 });
+        deleted += batch.length;
       }
-      return Response.json({ ok: true, action: 'pruned', deleted: extras.length });
+      return Response.json({ ok: true, action: 'pruned', deleted });
     }
 
     if ((source !== 'issue' && source !== 'agenda') || !refId) {
@@ -44,13 +49,13 @@ Deno.serve(async (req) => {
     );
     const table = source === 'issue' ? 'issues' : 'agendas';
     const { data: row, error } = await supabase.from(table).select('*').eq('id', refId).maybeSingle();
-    if (error) return Response.json({ ok: false, reason: error.message });
+    if (error) return Response.json({ ok: false, reason: error.message }, { status: 500 });
 
     const policy = row ? caseContentOf(source, row) : null;
     if (!policy) {
       // 행이 없거나(삭제) 정책상 제외 — 색인에서 지운다.
       const del = await supabase.from('case_embeddings').delete().eq('source', source).eq('ref_id', refId);
-      if (del.error) return Response.json({ ok: false, reason: del.error.message });
+      if (del.error) return Response.json({ ok: false, reason: del.error.message }, { status: 500 });
       return Response.json({ ok: true, action: row ? 'excluded' : 'deleted' });
     }
 
@@ -61,9 +66,9 @@ Deno.serve(async (req) => {
       title: policy.title, status: policy.status, snippet: policy.snippet, content: policy.content,
       embedding, updated_at: new Date().toISOString(),
     });
-    if (up.error) return Response.json({ ok: false, reason: up.error.message });
+    if (up.error) return Response.json({ ok: false, reason: up.error.message }, { status: 500 });
     return Response.json({ ok: true, action: 'upserted' });
   } catch (e) {
-    return Response.json({ ok: false, reason: String(e) });
+    return Response.json({ ok: false, reason: String(e) }, { status: 500 });
   }
 });

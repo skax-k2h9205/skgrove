@@ -25,12 +25,27 @@ if (!SUPABASE_URL || !ANON_KEY || !REINDEX_SECRET) {
 }
 const BASE = SUPABASE_URL.replace(/\/$/, '');
 
+// PostgREST 는 기본적으로 응답을 1000행으로 잘라 반환한다(설정에 따라 더 낮을 수도 있음).
+// Range 헤더로 페이지네이션하여 짧은 페이지(PAGE 미만)가 나올 때까지 누적한다.
+const PAGE = 1000;
 async function listIds(table) {
-  const res = await fetch(`${BASE}/rest/v1/${table}?select=id`, {
-    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
-  });
-  if (!res.ok) { console.error(`${table} 목록 실패 HTTP ${res.status}`); process.exit(1); }
-  return (await res.json()).map((r) => r.id);
+  const ids = [];
+  let offset = 0;
+  for (;;) {
+    const res = await fetch(`${BASE}/rest/v1/${table}?select=id`, {
+      headers: {
+        apikey: ANON_KEY,
+        Authorization: `Bearer ${ANON_KEY}`,
+        Range: `${offset}-${offset + PAGE - 1}`,
+      },
+    });
+    if (!res.ok) { console.error(`${table} 목록 실패 HTTP ${res.status}`); process.exit(1); }
+    const page = await res.json();
+    ids.push(...page.map((r) => r.id));
+    if (page.length < PAGE) break;
+    offset += PAGE;
+  }
+  return ids;
 }
 
 const RETRY_MS = [1000, 3000];
@@ -69,6 +84,13 @@ for (let i = 0; i < jobs.length; i++) {
 }
 console.log(`완료: upserted ${tally.upserted}, excluded ${tally.excluded}, deleted ${tally.deleted}. 검증 중...`);
 
+// jobs 목록이 페이지네이션 버그 등으로 조용히 짧아지면 이 등식이 깨진다 — 조기 발견용.
+const tallySum = tally.upserted + tally.excluded + tally.deleted;
+if (tallySum !== jobs.length) {
+  console.error(`집계 불일치: tally 합 ${tallySum} !== jobs ${jobs.length}. 목록 조회가 누락됐을 수 있음.`);
+  process.exit(1);
+}
+
 // 원본이 삭제됐는데 색인에 남은 고아 행을 정리한다 — 없으면 검증 등식(total===upserted)이 영원히 어긋난다.
 for (const [source, ids] of [['issue', issues], ['agenda', agendas]]) {
   const res = await fetch(`${BASE}/functions/v1/reindex-cases`, {
@@ -91,8 +113,11 @@ const verify = await fetch(`${BASE}/functions/v1/rag-search`, {
 });
 const vd = await verify.json().catch(() => null);
 const total = verify.ok && vd?.ok ? vd.total : -1;
+// 이 등식(countOnly === upserted)은 위에서 고아 색인을 이미 정리했기 때문에 구조적으로
+// 성립해야 하는 값이다 — 실제 검증은 그 정리(prune)와 tallySum 어서션이 한다. 여기서는
+// 그 구성이 깨지지 않았는지 마지막으로 재확인하는 것뿐이다.
 if (total !== tally.upserted) {
   console.error(`검증 불일치: countOnly ${total} vs upserted ${tally.upserted}. 재실행 필요.`);
   process.exit(1);
 }
-console.log(`검증 완료: ${total}개 색인.`);
+console.log(`검증 완료: ${total}개 색인 (원본 issues ${issues.length} + agendas ${agendas.length}, 페이지네이션 조회).`);

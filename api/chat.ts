@@ -73,7 +73,7 @@ export async function POST(request: Request): Promise<Response> {
       const chunks = await retrieveRuleChunks(lastUser, { functionsUrl, anonKey });
       if (chunks) effectiveBody = { ...body, knowledge: knowledgeFromChunks(chunks) };
     }
-  } else if (body.mode !== 'rule') {
+  } else {
     // 상담 모드: 서버 의미검색으로 유사사례 교체(Phase 2). 실패·미설정·tenantId 없음 → 클라 cases 폴백.
     const supabaseUrl = env('SUPABASE_URL');
     const anonKey = env('SUPABASE_ANON_KEY');
