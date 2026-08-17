@@ -69,6 +69,21 @@ for (let i = 0; i < jobs.length; i++) {
 }
 console.log(`완료: upserted ${tally.upserted}, excluded ${tally.excluded}, deleted ${tally.deleted}. 검증 중...`);
 
+// 원본이 삭제됐는데 색인에 남은 고아 행을 정리한다 — 없으면 검증 등식(total===upserted)이 영원히 어긋난다.
+for (const [source, ids] of [['issue', issues], ['agenda', agendas]]) {
+  const res = await fetch(`${BASE}/functions/v1/reindex-cases`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ANON_KEY}`, 'x-reindex-secret': REINDEX_SECRET },
+    body: JSON.stringify({ prune: true, source, keepIds: ids }),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.ok) {
+    console.error(`${source} 고아 정리 실패: HTTP ${res.status} ${JSON.stringify(data)}`);
+    process.exit(1);
+  }
+  if (data.deleted > 0) console.log(`${source} 고아 ${data.deleted}건 정리.`);
+}
+
 const verify = await fetch(`${BASE}/functions/v1/rag-search`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ANON_KEY}` },

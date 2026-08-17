@@ -11,7 +11,30 @@ Deno.serve(async (req) => {
     return Response.json({ ok: false, reason: 'unauthorized' }, { status: 401 });
   }
   try {
-    const { source, refId } = await req.json();
+    const { source, refId, prune = false, keepIds } = await req.json();
+
+    // 백필 후 고아 정리: keepIds 에 없는 색인 행(원본이 삭제된 사례)을 지운다.
+    // 임베딩이 없어 컴퓨트 부담 없음 — 한 요청으로 처리.
+    if (prune) {
+      if ((source !== 'issue' && source !== 'agenda') || !Array.isArray(keepIds)) {
+        return Response.json({ ok: false, reason: 'prune requires source + keepIds[]' }, { status: 400 });
+      }
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      );
+      const { data: existing, error: selErr } = await supabase
+        .from('case_embeddings').select('ref_id').eq('source', source);
+      if (selErr) return Response.json({ ok: false, reason: selErr.message });
+      const keep = new Set(keepIds.map(String));
+      const extras = (existing ?? []).map((r: { ref_id: string }) => r.ref_id).filter((id: string) => !keep.has(id));
+      if (extras.length > 0) {
+        const del = await supabase.from('case_embeddings').delete().eq('source', source).in('ref_id', extras);
+        if (del.error) return Response.json({ ok: false, reason: del.error.message });
+      }
+      return Response.json({ ok: true, action: 'pruned', deleted: extras.length });
+    }
+
     if ((source !== 'issue' && source !== 'agenda') || !refId) {
       return Response.json({ ok: false, reason: 'source/refId required' }, { status: 400 });
     }
