@@ -12281,6 +12281,46 @@ button.notif-row {
   color: var(--color-cta-ink);
 }
 
+/* --- 타이밍 멈추기 실력 게임 ---------------------------------
+   마커가 0↔1 왕복하는 트랙. 중앙에서 가장 가까울 때 탭하면 우승. */
+.coffee-timing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-5) var(--space-4);
+  box-sizing: border-box;
+}
+.coffee-timing-track {
+  position: relative;
+  width: 100%;
+  height: 80px;
+  background: var(--color-sunken);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+}
+.coffee-timing-center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--color-primary);
+  transform: translateX(-50%);
+  border-radius: var(--radius-sm);
+}
+.coffee-timing-marker {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  transform: translate(-50%, -50%);
+  box-shadow: var(--shadow-float);
+}
+
 /* --- 실력 게임 결과 점수판 -------------------------------------
    커피뽑기 결과 카드 안에 추가로 붙는다(운 게임의 coffee-result-pool 과 같은 자리감). */
 .coffee-scoreboard {
