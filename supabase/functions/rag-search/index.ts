@@ -6,7 +6,20 @@ const model = new Supabase.ai.Session('gte-small');
 
 Deno.serve(async (req) => {
   try {
-    const { query, matchCount = 20 } = await req.json();
+    const { query, matchCount = 20, countOnly = false } = await req.json();
+    // 시드 후 전체 개수 검증용. HNSW ef_search 캡(기본 40) 탓에 LIMIT 로는 40행까지만
+    // 세어져서, service_role 로 정확한 count 를 직접 돌려준다(임베딩·검색 불필요).
+    if (countOnly) {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      );
+      const { count, error } = await supabase
+        .from('rule_chunks')
+        .select('*', { count: 'exact', head: true });
+      if (error) return Response.json({ ok: false, reason: error.message });
+      return Response.json({ ok: true, total: count ?? 0 });
+    }
     if (!query || typeof query !== 'string') {
       return Response.json({ ok: false, reason: 'query required' }, { status: 400 });
     }

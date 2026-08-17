@@ -96,15 +96,15 @@ for (let i = 0; i < chunks.length; i += BATCH) {
 }
 console.log(`완료: ${inserted}개 색인. 검증 중...`);
 
-// 배치가 전부 ok 를 반환해도(예: 응답만 유실) 실제 색인이 어긋날 수 있으니
-// rag-search 로 전체 개수를 다시 확인한다.
+// 배치가 전부 ok 여도 실제 색인이 어긋날 수 있으니 정확한 행 개수로 검증한다.
+// (LIMIT 기반 검증은 HNSW ef_search 캡=40에 걸려 40개 초과를 못 센다 — 실측.)
 const verifyRes = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/rag-search`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ANON_KEY}` },
-  body: JSON.stringify({ query: '전체 색인 검증', matchCount: chunks.length }),
+  body: JSON.stringify({ countOnly: true }),
 });
 const verifyData = await verifyRes.json().catch(() => null);
-const verifiedCount = verifyRes.ok && verifyData?.ok && Array.isArray(verifyData.chunks) ? verifyData.chunks.length : -1;
+const verifiedCount = verifyRes.ok && verifyData?.ok ? verifyData.total : -1;
 if (verifiedCount !== chunks.length) {
   console.error(
     `부분 색인 상태 — 전체 재실행 필요(mode:replace가 처음부터 다시 덮어씀). 기대 ${chunks.length}개, 실제 ${verifiedCount}개.`,
