@@ -24,6 +24,7 @@ import { COFFEE_GAMES, gameMeta } from './games/coffeeGames';
 import { LadderDrawCanvas } from './LadderDrawCanvas';
 import { ReactionGame } from './skill/ReactionGame';
 import { TimingGame } from './skill/TimingGame';
+import { TapGame } from './skill/TapGame';
 import { SkillGameRunner, type SkillGameComponent } from './skill/SkillGameRunner';
 import {
   belowMinimum,
@@ -48,6 +49,7 @@ import { PosterFrame, PosterThumb } from './PosterFrame';
 const SKILL_PLAY: Partial<Record<CoffeeGame, SkillGameComponent>> = {
   reaction: ReactionGame,
   timing: TimingGame,
+  tap: TapGame,
 };
 
 // 픽커에는 운 게임 + 러너가 붙은 실력 게임만 노출한다 — 골랐는데 플레이할 방법이 없는 상태를 막는다.

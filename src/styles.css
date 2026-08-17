@@ -12321,7 +12321,61 @@ button.notif-row {
   box-shadow: var(--shadow-float);
 }
 
-/* --- 실력 게임 결과 점수판 -------------------------------------
+/* --- 광클 실력 게임 ------------------------------------------------
+   5초 동안 몇 번을 탭할 수 있는지. 많을수록 좋음. */
+.coffee-tap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-5) var(--space-4);
+  box-sizing: border-box;
+  min-height: 240px;
+}
+
+.coffee-tap-count {
+  font-size: 72px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.coffee-tap-left {
+  font-size: 16px;
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.coffee-tap-pad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  font-size: 24px;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-cta-ink);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.coffee-tap-pad:active {
+  transform: scale(0.95);
+  opacity: 0.9;
+}
+
+.coffee-tap-pad:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- 실력 게임 결과 점수판-------------------------------------
    커피뽑기 결과 카드 안에 추가로 붙는다(운 게임의 coffee-result-pool 과 같은 자리감). */
 .coffee-scoreboard {
   border-top: 1px solid var(--color-border);
