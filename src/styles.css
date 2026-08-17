@@ -11456,6 +11456,41 @@ button.notif-row {
   opacity: 0.7;
   margin: 0;
 }
+.coffee-pick-setup {
+  display: grid;
+  gap: 10px;
+}
+.coffee-game-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.coffee-game-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-sunken);
+  cursor: pointer;
+  text-align: left;
+}
+.coffee-game-chip strong {
+  font-size: 13px;
+}
+.coffee-game-chip span {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.coffee-game-chip.on {
+  border-color: var(--color-primary);
+  background: var(--tint-primary);
+}
+.coffee-game-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
 
 /* --- 홈의 내 모임 줄 --------------------------------------------
    '오늘의 팀 연결' 패널 맨 위. 아래 고정 링크(.quick-card-list)와 생김새가
@@ -12129,6 +12164,16 @@ button.notif-row {
   max-height: 52vh;
   width: 100%;
 }
+/* 사다리 2D 무대. coffee-draw-canvas 와 같은 틀을 쓴다(GatheringBoard 가 서로 바꿔 낀다). */
+.ladder-draw-canvas {
+  aspect-ratio: 4 / 5;
+  background: var(--surface-dark);
+  border-radius: var(--radius);
+  display: block;
+  margin: 0 auto;
+  max-height: 52vh;
+  width: 100%;
+}
 .coffee-pick-result {
   display: grid;
   gap: var(--space-2);
@@ -12266,6 +12311,185 @@ button.notif-row {
 }
 .coffee-result-pool .coffee-pool-chips {
   justify-content: center;
+}
+
+/* --- 실력 게임: 턴 핸드오프 -------------------------------------
+   "OO님 차례" 카드. 다음 사람에게 폰을 넘기기 전 잠깐 멈추는 화면이라
+   커피 뽑기 결과 카드와 톤을 맞춘다. */
+.coffee-skill-handoff {
+  background: var(--tint-primary);
+  border-radius: var(--radius-lg);
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  padding: var(--space-4);
+  text-align: center;
+}
+.coffee-skill-turn {
+  color: var(--color-ink);
+  font-size: var(--text-display);
+  font-weight: 700;
+  margin: 0;
+}
+.coffee-skill-cancel {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: var(--text-meta);
+  padding: var(--space-1);
+  text-decoration: underline;
+}
+
+/* --- 반응속도 게임: 빨강(대기)/초록(탭!) 전체폭 탭 영역 --------
+   실수로 못 누르게 크게, 색만 보고 반응할 수 있게 톤을 danger/success 로 확실히 나눈다. */
+.coffee-reaction {
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-size: var(--text-display);
+  font-weight: 700;
+  min-height: 160px;
+  width: 100%;
+}
+.coffee-reaction.red {
+  background: var(--color-danger);
+  color: var(--color-cta-ink);
+}
+.coffee-reaction.green {
+  background: var(--color-success);
+  color: var(--color-cta-ink);
+}
+
+/* --- 타이밍 멈추기 실력 게임 ---------------------------------
+   마커가 0↔1 왕복하는 트랙. 중앙에서 가장 가까울 때 탭하면 우승. */
+.coffee-timing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-5) var(--space-4);
+  box-sizing: border-box;
+}
+.coffee-timing-track {
+  position: relative;
+  width: 100%;
+  height: 80px;
+  background: var(--color-sunken);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+}
+.coffee-timing-center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--color-primary);
+  transform: translateX(-50%);
+  border-radius: var(--radius-sm);
+}
+.coffee-timing-marker {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  transform: translate(-50%, -50%);
+  box-shadow: var(--shadow-float);
+}
+
+/* --- 광클 실력 게임 ------------------------------------------------
+   5초 동안 몇 번을 탭할 수 있는지. 많을수록 좋음. */
+.coffee-tap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-5) var(--space-4);
+  box-sizing: border-box;
+  min-height: 240px;
+}
+
+.coffee-tap-count {
+  font-size: 72px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.coffee-tap-left {
+  font-size: 16px;
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.coffee-tap-pad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  font-size: 24px;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-cta-ink);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.coffee-tap-pad:active {
+  transform: scale(0.95);
+  opacity: 0.9;
+}
+
+.coffee-tap-pad:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- 실력 게임 결과 점수판-------------------------------------
+   커피뽑기 결과 카드 안에 추가로 붙는다(운 게임의 coffee-result-pool 과 같은 자리감). */
+.coffee-scoreboard {
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  width: 100%;
+}
+.coffee-scoreboard-list {
+  display: grid;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.coffee-scoreboard-list li {
+  align-items: center;
+  background: var(--color-sunken);
+  border-radius: var(--radius-sm);
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+}
+.coffee-scoreboard-list li.lost {
+  background: var(--tint-danger);
+  color: var(--tint-danger-ink);
+  font-weight: 700;
+}
+.coffee-scoreboard-name {
+  font-size: var(--text-meta);
+}
+.coffee-scoreboard-score {
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ============================================================

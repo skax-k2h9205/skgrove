@@ -18,7 +18,14 @@ import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
 import { ProfilesContext } from '../../profilesContext';
 import { CoffeeDrawCanvas } from './CoffeeDrawCanvas';
+import { CoffeeGamePicker } from './CoffeeGamePicker';
 import type { CoffeeMember } from './coffeeStage';
+import { COFFEE_GAMES, gameMeta } from './games/coffeeGames';
+import { LadderDrawCanvas } from './LadderDrawCanvas';
+import { ReactionGame } from './skill/ReactionGame';
+import { TimingGame } from './skill/TimingGame';
+import { TapGame } from './skill/TapGame';
+import { SkillGameRunner, type SkillGameComponent } from './skill/SkillGameRunner';
 import {
   belowMinimum,
   canDrawCoffee,
@@ -32,10 +39,21 @@ import {
   spotsLeft,
   timeUntil,
 } from '../../gatheringRules';
-import type { CurrentUser, Gathering, GatheringSignup, GatheringStatus } from '../../types';
+import type { CoffeeGame, CoffeeScore, CurrentUser, Gathering, GatheringSignup, GatheringStatus } from '../../types';
 import { localPoster } from '../../aiPoster';
 import { GatheringForm, type GatheringDraft } from './GatheringForm';
 import { PosterFrame, PosterThumb } from './PosterFrame';
+
+// 실력 게임 중 러너가 실제로 붙은 것만. 여기 없으면 아직 플레이 불가 — 픽커에도 노출하지 않는다.
+// Phase C 에서 timing/tap 을 추가하면 픽커가 자동으로 확장된다.
+const SKILL_PLAY: Partial<Record<CoffeeGame, SkillGameComponent>> = {
+  reaction: ReactionGame,
+  timing: TimingGame,
+  tap: TapGame,
+};
+
+// 픽커에는 운 게임 + 러너가 붙은 실력 게임만 노출한다 — 골랐는데 플레이할 방법이 없는 상태를 막는다.
+const availableGames = COFFEE_GAMES.filter((g) => g.kind === 'luck' || SKILL_PLAY[g.id]);
 
 type GatheringBoardProps = {
   gatherings: Gathering[];
@@ -47,7 +65,9 @@ type GatheringBoardProps = {
   onJoin: (gathering: Gathering) => void;
   onLeave: (gathering: Gathering) => void;
   onCancelGathering: (gathering: Gathering) => void;
-  onDrawCoffee: (gathering: Gathering) => void;
+  onDrawCoffee: (gathering: Gathering, game: CoffeeGame) => void;
+  /** B4에서 실력 게임 러너 완료 시 호출 */
+  onCoffeeSkillResult: (gathering: Gathering, game: CoffeeGame, scores: CoffeeScore[]) => void;
   /** 팀리더 권한. 남의 모임도 삭제할 수 있다. */
   canModerate: boolean;
   /** 완전 삭제(모임 + 신청 기록). 주최자 또는 팀리더만 호출한다. */
@@ -109,6 +129,39 @@ function formatPickedAt(iso: string) {
   return new Intl.DateTimeFormat('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date);
 }
 
+// 게임별 점수 단위. 숫자만 봐서는 뭘 뜻하는지 모르니 게임에 맞는 문구를 붙인다.
+function formatSkillScore(game: CoffeeGame, score: number): string {
+  switch (game) {
+    case 'reaction':
+      return `${Math.round(score)}ms`;
+    case 'tap':
+      return `${Math.round(score)}회`;
+    case 'timing':
+      return `${(score * 100).toFixed(0)} 벗어남`;
+    default:
+      return `${score}`;
+  }
+}
+
+// 실력 게임 결과 점수판. 못한 사람(패자)이 위로 오도록 정렬해 왜 저 사람이 커피 담당인지 바로 보이게 한다.
+function CoffeeScoreboard({ game, scores, loser }: { game: CoffeeGame; scores: CoffeeScore[]; loser?: string | null }) {
+  const higherIsBetter = gameMeta(game).higherIsBetter ?? false;
+  const sorted = [...scores].sort((a, b) => (higherIsBetter ? a.score - b.score : b.score - a.score));
+  return (
+    <div className="coffee-scoreboard">
+      <span className="coffee-pool-label">{gameMeta(game).name} 결과</span>
+      <ul className="coffee-scoreboard-list">
+        {sorted.map((s) => (
+          <li className={s.name === loser ? 'lost' : ''} key={s.name}>
+            <span className="coffee-scoreboard-name">{s.name}</span>
+            <span className="coffee-scoreboard-score">{formatSkillScore(game, s.score)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function GatheringBoard({
   gatherings,
   signups,
@@ -119,6 +172,7 @@ export function GatheringBoard({
   onLeave,
   onCancelGathering,
   onDrawCoffee,
+  onCoffeeSkillResult,
   canModerate,
   onDelete,
   imagePendingIds,
@@ -180,6 +234,19 @@ export function GatheringBoard({
     justDrewRef.current = false;
     setSpinning(true); // 당첨자·후보가 state 에 도착한 시점 — 이제 무대를 돌린다.
   }, [selected?.coffeePick]);
+
+  // 커피내기 게임 선택(뽑기 전 UI 상태). 뽑히고 나면 selected.coffeeGame 이 진실이 된다.
+  const [pickedGame, setPickedGame] = useState<CoffeeGame>('roulette');
+  // 실력 게임 러너가 지금 화면을 차지하고 있는지. 완료·취소되면 꺼진다.
+  const [runningSkill, setRunningSkill] = useState(false);
+
+  // 이 둘은 보드 레벨 state라 선택된 모임이 바뀌어도 저절로 안 꺼진다. '그만두기'를 거치지
+  // 않고(뒤로가기 등으로) 다른 모임으로 넘어가면, 그 모임에서 시작하지도 않은 게임이 그대로
+  // 떠 있을 수 있어 — 선택된 모임 id가 바뀔 때마다 확실히 초기화한다.
+  useEffect(() => {
+    setRunningSkill(false);
+    setPickedGame('roulette');
+  }, [selected?.id]);
 
   // 뽑는 순간 박제된 후보(coffeePool)를 3D 원반 멤버로. 색·사진은 라이브 디렉토리에서.
   const coffeePool = selected?.coffeePool ?? [];
@@ -351,18 +418,33 @@ export function GatheringBoard({
             {selected.kind === 'flash' && !selected.canceled && selected.coffeeDraw && (
               <div className="coffee-pick">
                 {spinning && selected.coffeePick ? (
-                  <CoffeeDrawCanvas
-                    members={coffeeMembers}
-                    winner={selected.coffeePick}
-                    spinning={spinning}
-                    onLanded={() => setSpinning(false)}
-                  >
-                    {/* WebGL·모션 불가 시 폴백: 이름은 감춰 긴장을 남긴다 */}
-                    <div className="coffee-roulette">
-                      <Coffee size={20} />
-                      <span>커피 담당 뽑는 중…</span>
-                    </div>
-                  </CoffeeDrawCanvas>
+                  selected.coffeeGame === 'ladder' ? (
+                    <LadderDrawCanvas
+                      members={coffeeMembers}
+                      winner={selected.coffeePick}
+                      spinning={spinning}
+                      onLanded={() => setSpinning(false)}
+                    >
+                      {/* WebGL·모션 불가 시 폴백: 이름은 감춰 긴장을 남긴다 */}
+                      <div className="coffee-roulette">
+                        <Coffee size={20} />
+                        <span>커피 담당 뽑는 중…</span>
+                      </div>
+                    </LadderDrawCanvas>
+                  ) : (
+                    <CoffeeDrawCanvas
+                      members={coffeeMembers}
+                      winner={selected.coffeePick}
+                      spinning={spinning}
+                      onLanded={() => setSpinning(false)}
+                    >
+                      {/* WebGL·모션 불가 시 폴백: 이름은 감춰 긴장을 남긴다 */}
+                      <div className="coffee-roulette">
+                        <Coffee size={20} />
+                        <span>커피 담당 뽑는 중…</span>
+                      </div>
+                    </CoffeeDrawCanvas>
+                  )
                 ) : selected.coffeePick ? (
                   <div className="coffee-pick-result">
                     <div className="coffee-result-hero">
@@ -374,36 +456,69 @@ export function GatheringBoard({
                       </span>
                       <strong className="coffee-result-name">{selected.coffeePick}</strong>
                       {selected.coffeePickedAt && (
-                        <span className="coffee-result-meta">{formatPickedAt(selected.coffeePickedAt)} · 재추첨 없이 확정</span>
+                        <span className="coffee-result-meta">
+                          {formatPickedAt(selected.coffeePickedAt)} · {gameMeta(selected.coffeeGame ?? 'roulette').name} ·{' '}
+                          {selected.coffeeScores && selected.coffeeScores.length > 0 ? '점수로 확정' : '재추첨 없이 확정'}
+                        </span>
                       )}
                     </div>
-                    {/* 뽑은 순간의 후보 전원을 박제해 보여준다 — 재추첨이 막혀 있어 이 명단에서 공정하게 나온 것이 증명된다. */}
-                    {selected.coffeePool && selected.coffeePool.length > 0 && (
-                      <div className="coffee-result-pool">
-                        <span className="coffee-pool-label">후보 {selected.coffeePool.length}명 중에서 공정하게 뽑혔어요</span>
-                        <div className="coffee-pool-chips">
-                          {selected.coffeePool.map((name) => (
-                            <span className={name === selected.coffeePick ? 'won' : ''} key={name}>
-                              {name}
-                            </span>
-                          ))}
+                    {/* 뽑은 순간의 후보 전원을 박제해 보여준다 — 재추첨이 막혀 있어 이 명단에서 공정하게 나온 것이 증명된다.
+                        단, 실력 게임 결과는 아래 점수판이 같은 명단을 이미 보여주므로 운 결과에서만 띄운다. */}
+                    {(!selected.coffeeScores || selected.coffeeScores.length === 0) &&
+                      selected.coffeePool &&
+                      selected.coffeePool.length > 0 && (
+                        <div className="coffee-result-pool">
+                          <span className="coffee-pool-label">후보 {selected.coffeePool.length}명 중에서 공정하게 뽑혔어요</span>
+                          <div className="coffee-pool-chips">
+                            {selected.coffeePool.map((name) => (
+                              <span className={name === selected.coffeePick ? 'won' : ''} key={name}>
+                                {name}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )}
+                    {/* 실력 게임 결과 — 운이 아니라 점수로 정해졌다는 증거를 그대로 남긴다. */}
+                    {selected.coffeeScores && selected.coffeeScores.length > 0 && (
+                      <CoffeeScoreboard
+                        game={selected.coffeeGame ?? pickedGame}
+                        scores={selected.coffeeScores}
+                        loser={selected.coffeePick}
+                      />
                     )}
                   </div>
+                ) : runningSkill ? (
+                  <SkillGameRunner
+                    members={confirmed.map((s) => s.name)}
+                    Play={SKILL_PLAY[pickedGame]!}
+                    onComplete={(scores) => {
+                      setRunningSkill(false);
+                      onCoffeeSkillResult(selected, pickedGame, scores);
+                    }}
+                    onCancel={() => setRunningSkill(false)}
+                  />
                 ) : isHost ? (
                   canDrawCoffee(selected, signups) ? (
-                    <button
-                      className="primary-button coffee"
-                      onClick={() => {
-                        justDrewRef.current = true;
-                        onDrawCoffee(selected);
-                      }}
-                      type="button"
-                    >
-                      <Coffee size={18} />
-                      커피 살 사람 룰렛 돌리기
-                    </button>
+                    <div className="coffee-pick-setup">
+                      <CoffeeGamePicker value={pickedGame} onChange={setPickedGame} games={availableGames} />
+                      <button
+                        className="primary-button coffee"
+                        onClick={() => {
+                          if (gameMeta(pickedGame).kind === 'skill') {
+                            setRunningSkill(true);
+                          } else {
+                            justDrewRef.current = true;
+                            onDrawCoffee(selected, pickedGame);
+                          }
+                        }}
+                        type="button"
+                      >
+                        <Coffee size={18} />
+                        {gameMeta(pickedGame).kind === 'skill'
+                          ? `${gameMeta(pickedGame).name} 시작`
+                          : `${gameMeta(pickedGame).name}(으)로 커피 뽑기`}
+                      </button>
+                    </div>
                   ) : (
                     <p className="coffee-pick-hint">
                       <Coffee size={15} /> 확정 2명부터 커피 담당을 뽑을 수 있어요
