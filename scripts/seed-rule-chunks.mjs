@@ -43,7 +43,7 @@ if (chunks.length === 0) {
 
 console.log(`청크 ${chunks.length}개 → reindex-rules 배치 POST...`);
 
-const BATCH = 8; // 임베딩 CPU 한도(WORKER_RESOURCE_LIMIT) 회피 — 작은 배치로 나눠 보낸다.
+const BATCH = 1; // 임베딩 CPU 한도(WORKER_RESOURCE_LIMIT) 회피 — 실측: 요청당 1개만 안전(3개도 546).
 const url = `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/reindex-rules`;
 let inserted = 0;
 for (let i = 0; i < chunks.length; i += BATCH) {
