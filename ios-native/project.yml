@@ -39,8 +39,6 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen:
           UIColorName: LaunchBG
-          UIImageName: LaunchLogo
-          UIImageRespectsSafeAreaInsets: true
         ITSAppUsesNonExemptEncryption: false
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
