@@ -7,6 +7,12 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 const model = new Supabase.ai.Session('gte-small');
 
 Deno.serve(async (req) => {
+  // 공개 anon 키만으로는 재색인을 못 하게 막는다 — 이 테이블은 LLM 시스템 프롬프트에 주입되므로
+  // 무인증 쓰기는 곧 프롬프트 오염이다. 배포 시 `supabase secrets set REINDEX_SECRET=...` 필요.
+  const secret = Deno.env.get('REINDEX_SECRET');
+  if (!secret || req.headers.get('x-reindex-secret') !== secret) {
+    return Response.json({ ok: false, reason: 'unauthorized' }, { status: 401 });
+  }
   try {
     const { chunks, mode = 'replace' } = await req.json();
     if (!Array.isArray(chunks) || chunks.length === 0) {

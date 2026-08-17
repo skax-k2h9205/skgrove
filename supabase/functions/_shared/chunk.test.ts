@@ -25,4 +25,20 @@ describe('chunkMarkdown', () => {
   it('빈 입력은 빈 배열', () => {
     expect(chunkMarkdown('', 'x.md')).toEqual([]);
   });
+
+  it('루트 레벨 h1 경계는 넘어 병합하지 않는다', () => {
+    const md = '# 문서 A\nA 내용입니다. '.padEnd(60, '가') + '\n\n# 문서 B\n짧다.';
+    const chunks = chunkMarkdown(md, 'd.md');
+    const b = chunks.find((c) => c.content.includes('짧다'));
+    expect(b).toBeTruthy();
+    expect(b!.heading).toContain('문서 B');
+  });
+
+  it('같은 부모 아래 형제 소청크는 병합된다', () => {
+    const md = '# 루트\n## 부모 섹션\n### 긴 섹션\n' + '내용. '.repeat(60) + '\n### 짧은 섹션\n한 줄.';
+    const chunks = chunkMarkdown(md, 'd.md');
+    expect(chunks.some((c) => c.content.includes('한 줄'))).toBe(true);
+    const solo = chunks.find((c) => c.heading.endsWith('짧은 섹션') && c.content.length < 200);
+    expect(solo).toBeUndefined();
+  });
 });

@@ -27,6 +27,41 @@ describe('retrieveRuleChunks', () => {
     const out = await retrieveRuleChunks('q', { functionsUrl: 'https://x', anonKey: 'a', fetchImpl: boom });
     expect(out).toBeNull();
   });
+
+  it('functionsUrl 이 없으면 null', async () => {
+    const out = await retrieveRuleChunks('q', { functionsUrl: '', anonKey: 'a', fetchImpl: ok([]) });
+    expect(out).toBeNull();
+  });
+
+  it('anonKey 가 없으면 null', async () => {
+    const out = await retrieveRuleChunks('q', { functionsUrl: 'https://x', anonKey: '', fetchImpl: ok([]) });
+    expect(out).toBeNull();
+  });
+
+  it('타임아웃 시 null(폴백 신호)', async () => {
+    const hang = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err = new Error('The operation was aborted');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        }),
+    ) as unknown as typeof fetch;
+    const out = await retrieveRuleChunks('q', {
+      functionsUrl: 'https://x', anonKey: 'a', fetchImpl: hang, timeoutMs: 20,
+    });
+    expect(out).toBeNull();
+  });
+
+  it('요청 본문에 matchCount 를 담는다(기본값 20)', async () => {
+    const fetchImpl = ok([{ doc: 'd.md', heading: 'h', content: 'c' }]);
+    await retrieveRuleChunks('q', { functionsUrl: 'https://x', anonKey: 'a', fetchImpl });
+    const init = fetchImpl.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(init.body as string);
+    expect(body.matchCount).toBe(20);
+  });
 });
 
 describe('knowledgeFromChunks', () => {

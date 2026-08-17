@@ -82,7 +82,7 @@ export function chunkMarkdown(md, doc) {
       const cParts = c.heading.split(' > ');
       const prevParts = prev.heading.split(' > ');
       const sameParent = cParts.length > 1 && prevParts.length > 1 && cParts[1] === prevParts[1];
-      if (sameParent || (cParts.length === 1 && prevParts.length === 1)) {
+      if (sameParent || (cParts.length === 1 && prevParts.length === 1 && cParts[0] === prevParts[0])) {
         // 같은 부모 또는 둘 다 루트 레벨
         prev.content += '\n\n' + (c.heading ? `[${c.heading}]\n` : '') + c.content;
       } else {
