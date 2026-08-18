@@ -134,7 +134,8 @@ private struct NoteEditor: View {
     }
 }
 
-private struct ActionCard: View {
+/// 홈 피드 상세에서도 그대로 쓴다 — 목록과 상세가 같은 카드를 보여야 어긋나지 않는다.
+struct ActionCard: View {
     let item: ActionItem
     let onStatus: (ActionStatus) -> Void
 
@@ -205,5 +206,53 @@ private struct ActionCard: View {
         .padding(Theme.Space.x2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tint, in: RoundedRectangle(cornerRadius: Theme.Radius.sm))
+    }
+}
+
+/// 홈 피드에서 액션아이템을 눌렀을 때 여는 상세. 목록과 같은 카드를 쓰되,
+/// 사유가 필요한 전이(보류·취소)는 목록 화면이 맡으므로 여기서는 안내만 하고 넘긴다.
+struct ActionDetailSheet: View {
+    let itemId: String
+    @EnvironmentObject private var store: ActionStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var notice: String?
+
+    private var item: ActionItem? { store.items.first { $0.id == itemId } }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                if let item {
+                    VStack(alignment: .leading, spacing: Theme.Space.x3) {
+                        ActionCard(item: item) { target in transition(item, target) }
+                        if let notice {
+                            Text(notice).font(.footnote).foregroundStyle(Theme.Palette.muted)
+                                .padding(Theme.Space.x3).frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.sm))
+                        }
+                    }
+                    .padding(Theme.Space.x4)
+                } else {
+                    EmptyState(icon: "bolt", title: "액션아이템을 찾을 수 없어요",
+                               message: "이미 정리된 항목일 수 있어요.")
+                        .padding(Theme.Space.x4)
+                }
+            }
+            .navigationTitle("액션아이템")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } } }
+        }
+    }
+
+    private func transition(_ item: ActionItem, _ target: ActionStatus) {
+        // 사유를 받아야 하는 전이는 목록 화면의 메모 입력을 거쳐야 한다 —
+        // 여기서 사유 없이 넘기면 "왜 보류됐는지" 기록이 비게 된다.
+        if target.needsNote {
+            notice = "\(target.rawValue)(으)로 옮기려면 사유가 필요해요. 액션아이템 화면에서 진행해 주세요."
+            return
+        }
+        store.setStatus(item.id, target)
+        notice = nil
+        Haptics.success()
     }
 }

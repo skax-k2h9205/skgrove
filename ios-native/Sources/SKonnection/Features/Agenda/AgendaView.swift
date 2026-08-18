@@ -99,14 +99,16 @@ struct AgendaView: View {
 }
 
 /// 확정 대기 중인 투표 한 건.
-private struct PendingVote {
+/// 목록·상세가 같은 확정 절차를 쓴다.
+struct PendingVote {
     let agendaId: String
     let optionId: String
     let optionLabel: String
     let agendaTitle: String
 }
 
-private struct AgendaCard: View {
+/// 홈 피드 상세에서도 그대로 쓴다 — 목록과 상세가 같은 카드를 보여야 어긋나지 않는다.
+struct AgendaCard: View {
     let agenda: Agenda
     let isLeader: Bool
     let onVote: (String, String) -> Void
@@ -215,5 +217,75 @@ private struct VoteBar: View {
         .buttonStyle(.plain)
         .disabled(!enabled)
         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.md).stroke(Theme.Palette.border))
+    }
+}
+
+/// 홈 피드에서 안건을 눌렀을 때 여는 상세. 목록 화면과 같은 카드·같은 동작(투표 확정,
+/// 리더의 마감·액션 생성)을 쓴다 — 로직을 복사하면 두 화면이 서서히 어긋난다.
+struct AgendaDetailSheet: View {
+    let agendaId: String
+    @EnvironmentObject private var store: AgendaStore
+    @EnvironmentObject private var actions: ActionStore
+    @EnvironmentObject private var session: SessionStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var pending: PendingVote?
+    @State private var toast: String?
+
+    private var agenda: Agenda? { store.agendas.first { $0.id == agendaId } }
+    private var isLeader: Bool { session.currentUser?.role.isLeader == true }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                if let agenda {
+                    VStack(alignment: .leading, spacing: Theme.Space.x3) {
+                        AgendaCard(agenda: agenda, isLeader: isLeader,
+                                   onVote: { optionId, label in
+                                       pending = PendingVote(agendaId: agenda.id, optionId: optionId,
+                                                             optionLabel: label, agendaTitle: agenda.title)
+                                   },
+                                   onClose: { store.close(agendaId: agenda.id); Haptics.success() },
+                                   onMakeAction: {
+                                       actions.createFromAgenda(title: "\(agenda.title) 후속 조치",
+                                                                sourceLabel: "안건 · \(agenda.title)")
+                                       toast = "액션아이템을 만들었어요 — 액션아이템 화면에서 담당·기한을 정하세요."
+                                       Haptics.success()
+                                   })
+                        if let toast {
+                            Text(toast).font(.footnote).foregroundStyle(Theme.Palette.tintSuccessInk)
+                                .padding(Theme.Space.x3).frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Theme.Palette.tintSuccess, in: RoundedRectangle(cornerRadius: Theme.Radius.sm))
+                        }
+                    }
+                    .padding(Theme.Space.x4)
+                } else {
+                    // 목록에서 사라진 뒤(마감·삭제) 열렸을 때 빈 화면으로 두지 않는다.
+                    EmptyState(icon: "checkmark.square", title: "안건을 찾을 수 없어요",
+                               message: "이미 정리된 안건일 수 있어요.")
+                        .padding(Theme.Space.x4)
+                }
+            }
+            .navigationTitle("안건 · 투표")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } } }
+            .confirmationDialog(pending.map { "\"\($0.optionLabel)\"(으)로 투표할까요?" } ?? "",
+                                isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
+                                titleVisibility: .visible) {
+                Button("확정하기", role: .destructive) { commit() }
+                Button("취소", role: .cancel) { pending = nil }
+            } message: {
+                Text("확정 후에는 선택을 바꿀 수 없어요.")
+            }
+        }
+    }
+
+    private func commit() {
+        guard let p = pending else { return }
+        // 목록 화면과 같은 voter_key 규칙(이메일 SHA256) — 다르면 같은 사람이 두 번 투표하게 된다.
+        let key = SHA256.hash(data: Data((session.currentUser?.email ?? "").utf8))
+            .map { String(format: "%02x", $0) }.joined()
+        store.vote(agendaId: p.agendaId, optionId: p.optionId, voterKey: key)
+        pending = nil
+        Haptics.success()
     }
 }

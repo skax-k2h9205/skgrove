@@ -23,6 +23,8 @@ struct HomeView: View {
     @State private var openHumorId: FeedTarget?
     @State private var openMarketId: FeedTarget?
     @State private var openGatheringId: FeedTarget?
+    @State private var openAgendaId: FeedTarget?
+    @State private var openActionId: FeedTarget?
     /// '말하기' 선택지 표시.
     @State private var pickingCompose = false
 
@@ -48,10 +50,10 @@ struct HomeView: View {
                              meta: gatherings.status($0).rawValue, imageURL: URL(string: $0.imageURL), author: $0.host)
             }
         let a = agendas.agendas.prefix(4).map {
-            HomeFeedItem(id: "a:\($0.id)", kind: .agenda, title: $0.title, meta: $0.status.rawValue)
+            HomeFeedItem(id: "a:\($0.id)", refId: $0.id, kind: .agenda, title: $0.title, meta: $0.status.rawValue)
         }
         let ac = actions.items.prefix(4).map {
-            HomeFeedItem(id: "ac:\($0.id)", kind: .action, title: $0.title, meta: $0.status.rawValue)
+            HomeFeedItem(id: "ac:\($0.id)", refId: $0.id, kind: .action, title: $0.title, meta: $0.status.rawValue)
         }
         return roundRobin([Array(h), Array(m), Array(g), Array(a), Array(ac)])
     }
@@ -89,6 +91,8 @@ struct HomeView: View {
         .sheet(item: $openHumorId) { t in HumorDetail(postId: t.id) }
         .sheet(item: $openMarketId) { t in MarketDetailSheet(itemId: t.id) }
         .sheet(item: $openGatheringId) { t in GatheringDetailSheet(gatheringId: t.id) }
+        .sheet(item: $openAgendaId) { t in AgendaDetailSheet(agendaId: t.id) }
+        .sheet(item: $openActionId) { t in ActionDetailSheet(itemId: t.id) }
         .confirmationDialog("무엇을 말할까요?", isPresented: $pickingCompose, titleVisibility: .visible) {
             ForEach(ComposeTarget.allCases) { target in
                 Button(target.label) { onCompose(target) }
@@ -98,13 +102,13 @@ struct HomeView: View {
     }
 
     /// 피드 타일 탭 — 그 글의 상세를 연다. 예전엔 탭만 바꿔 목록으로 떨어뜨렸다.
-    /// 안건·액션은 아직 상세 화면이 없어 해당 탭으로 보낸다.
     private func openFeedItem(_ item: HomeFeedItem) {
         switch item.kind {
         case .humor: openHumorId = FeedTarget(id: item.refId)
         case .market: openMarketId = FeedTarget(id: item.refId)
         case .gathering: openGatheringId = FeedTarget(id: item.refId)
-        case .agenda, .action: onOpen(tabFor(item.kind))
+        case .agenda: openAgendaId = FeedTarget(id: item.refId)
+        case .action: openActionId = FeedTarget(id: item.refId)
         }
     }
 
