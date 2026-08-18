@@ -122,7 +122,7 @@ struct HomeView: View {
                         markViewed(g.id)
                         storyGathering = g
                     } label: {
-                        StoryCircle(icon: storyIcon(g.kind), label: g.title,
+                        StoryCircle(icon: storyIcon(g.kind), label: storyLabel(g),
                                     ringed: !viewedStoryIds.contains(g.id),
                                     imageURL: URL(string: g.imageURL))
                     }
@@ -131,6 +131,11 @@ struct HomeView: View {
             }
             .padding(.vertical, 2)
         }
+    }
+
+    /// 누가 연 모임인지가 참여 결정을 좌우한다 — 제목만으로는 "커피 내기"가 다 똑같아 보인다.
+    private func storyLabel(_ g: Gathering) -> String {
+        g.host.isEmpty ? g.title : "\(g.title)(\(g.host))"
     }
 
     private func storyIcon(_ kind: GatheringKind) -> String {
@@ -179,8 +184,10 @@ private struct StoryCircle: View {
                         }
                     }
             }
+            // 제목(주최자) 라 한 줄로는 잘린다. 두 줄까지 허용해 주최자가 보이게 한다.
             Text(label).font(.caption).foregroundStyle(Theme.Palette.ink)
-                .lineLimit(1).truncationMode(.tail).frame(width: 68)
+                .lineLimit(2).multilineTextAlignment(.center)
+                .truncationMode(.tail).frame(width: 76)
         }
     }
 }

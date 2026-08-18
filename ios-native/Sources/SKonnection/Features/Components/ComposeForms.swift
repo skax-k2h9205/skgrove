@@ -128,9 +128,13 @@ struct GatheringComposeSheet: View {
         }
     }
 
+    /// 커피 내기 모집 시간. 지금으로 열면 만들자마자 '시작됨'이 되어 아무도 신청하지 못하고
+    /// (join 가드) 뽑기 후보도 안 모여 뽑기가 영영 불가능했다. 모집 창을 줘야 흐름이 산다.
+    private static let coffeeWindow: TimeInterval = 10 * 60
+
     private func submit() {
         if isCoffee {
-            onCreate("커피", "커피 내기 ☕", Date(), "탕비실", capacity, "")
+            onCreate("커피", "커피 내기 ☕", Date().addingTimeInterval(Self.coffeeWindow), "탕비실", capacity, "")
         } else {
             onCreate(kind, title, startAt, place, capacity, desc)
         }
