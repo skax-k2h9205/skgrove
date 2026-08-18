@@ -68,7 +68,12 @@ export function buildHomeFeed(sources: HomeFeedSources): HomeFeedItem[] {
         meta: item.status,
       }),
     ),
-    ...sources.gatherings.map(
+    // 스토리 줄에 오르는 번개는 피드에서 뺀다 — 같은 걸 위아래로 두 번 보여주는 꼴이 된다.
+    // 조건을 스토리(!canceled && flash)와 똑같이 맞춘 이유: 취소된 번개는 스토리에 안 뜨므로
+    // 피드에까지 빼 버리면 '취소됨'을 알릴 자리가 홈에서 사라진다.
+    ...sources.gatherings
+      .filter((gathering) => gathering.canceled || gathering.kind !== 'flash')
+      .map(
       (gathering): HomeFeedItem => ({
         id: `gathering:${gathering.id}`,
         section: 'gatherings',

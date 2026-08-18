@@ -9,7 +9,7 @@ const action = (patch: Partial<ActionItem> = {}): ActionItem =>
   ({ id: 'AC1', title: '위키 정리', status: '진행중', createdAt: '2026-08-02', ...patch }) as ActionItem;
 
 const gathering = (patch: Partial<Gathering> = {}): Gathering =>
-  ({ id: 'GAT1', kind: 'flash', title: '점심 번개', createdAt: '2026-08-03', canceled: false, ...patch }) as Gathering;
+  ({ id: 'GAT1', kind: 'callup', title: '점심 공모', createdAt: '2026-08-03', canceled: false, ...patch }) as Gathering;
 
 const humor = (patch: Partial<HumorPost> = {}): HumorPost =>
   ({ id: 'H1', author: '김승현', body: '오늘의 짤', mediaUrl: '', createdAt: '2026-08-04', likedBy: [], ...patch }) as HumorPost;
@@ -37,7 +37,7 @@ describe('buildHomeFeed', () => {
 
   it('도메인 접두어 id·section·kind 를 붙인다', () => {
     const feed = buildHomeFeed({ ...empty, gatherings: [gathering()] });
-    expect(feed[0]).toMatchObject({ id: 'gathering:GAT1', section: 'gatherings', kind: 'gathering', title: '점심 번개' });
+    expect(feed[0]).toMatchObject({ id: 'gathering:GAT1', section: 'gatherings', kind: 'gathering', title: '점심 공모' });
   });
 
   it('최근 HOME_FEED_LIMIT개로 자른다', () => {
@@ -78,5 +78,26 @@ describe('buildHomeFeed', () => {
     });
     expect(feed.find((item) => item.id === 'gathering:G2')?.meta).toBe('취소됨');
     expect(feed.find((item) => item.id === 'market:M2')?.meta).toBe('나눔');
+  });
+});
+
+/*
+  번개는 홈 스토리 줄이 맡는다. 피드에까지 넣으면 같은 모임이 위아래로 두 번 보인다.
+  다만 취소된 번개는 스토리에 안 뜨므로, 피드에서까지 빼면 '취소됨'을 알릴 자리가 없어진다.
+*/
+describe('번개와 스토리 중복', () => {
+  it('모집중 번개는 피드에서 뺀다', () => {
+    const feed = buildHomeFeed({ ...empty, gatherings: [gathering({ id: 'G-FLASH', kind: 'flash' })] });
+    expect(feed.find((item) => item.id === 'gathering:G-FLASH')).toBeUndefined();
+  });
+
+  it('취소된 번개는 피드에 남는다', () => {
+    const feed = buildHomeFeed({ ...empty, gatherings: [gathering({ id: 'G-DEAD', kind: 'flash', canceled: true })] });
+    expect(feed.find((item) => item.id === 'gathering:G-DEAD')?.meta).toBe('취소됨');
+  });
+
+  it('공모는 그대로 피드에 남는다', () => {
+    const feed = buildHomeFeed({ ...empty, gatherings: [gathering({ id: 'G-CALL', kind: 'callup' })] });
+    expect(feed.find((item) => item.id === 'gathering:G-CALL')?.meta).toBe('공모');
   });
 });
