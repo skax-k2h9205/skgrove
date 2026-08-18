@@ -201,7 +201,6 @@ fun HomeGridContent(
         item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(3) }) {
             StoryRow(
                 stories = stories, viewedIds = viewedIds, onCompose = onCompose,
-                onCoffee = { onOpenTab(2) },
                 onOpenGathering = { id ->
                     vm.markStoryViewed(id)
                     viewedIds = container.viewedStories.all()
@@ -251,10 +250,10 @@ private fun StoryRow(
     stories: List<com.hyubs.skonnection.data.Gathering>,
     viewedIds: Set<String>,
     onCompose: () -> Unit,
-    onCoffee: () -> Unit,
     onOpenGathering: (String) -> Unit,
 ) {
-    // 고정 진입 2개 + 번개·커피 모임들. 개수가 늘 수 있어 가로 스크롤로 둔다.
+    // '말하기'(작성 진입) + 번개·커피 모임들. 예전엔 고정 "커피 내기" 버튼이 스토리처럼 껴 있어
+    // 실제 커피 모임과 나란히 두 개로 보였다 — 스토리에는 진짜 모임만 둔다.
     Row(
         Modifier.fillMaxWidth()
             .horizontalScroll(androidx.compose.foundation.rememberScrollState())
@@ -262,7 +261,6 @@ private fun StoryRow(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         StoryCircle("말하기", Icons.Filled.Add, ringed = false, onClick = onCompose)
-        StoryCircle("커피 내기", Icons.Filled.Bolt, ringed = true, onClick = onCoffee)
         stories.forEach { g ->
             // 누가 연 모임인지가 참여 결정을 좌우한다 — 제목만으로는 "커피 내기"가 다 똑같아 보인다.
             val label = if (g.host.isBlank()) g.title else "${g.title}(${g.host})"
