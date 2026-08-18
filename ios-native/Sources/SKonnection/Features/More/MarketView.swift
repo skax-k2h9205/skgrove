@@ -5,7 +5,8 @@ struct MarketView: View {
     @EnvironmentObject private var session: SessionStore
     @EnvironmentObject private var store: MarketStore
     @State private var filter = "거래중"
-    @State private var composing = false
+    /// 작성 폼 표시 여부 — 홈 '말하기'에서도 열 수 있게 RootView 가 소유한다.
+    @Binding var composing: Bool
     private let filters = ["거래중", "나눔", "내가 올린 것", "전체"]
     @State private var selected: MarketItem?
 
@@ -79,7 +80,8 @@ struct MarketView: View {
 }
 
 /// 장터 상세 — 현재가·남은시간·입찰 현황 + 입찰(경매)/받기(나눔). 막는 이유를 문장으로 알린다.
-private struct MarketDetailSheet: View {
+/// 홈 피드에서도 바로 띄운다(탭 전환 없이 그 물건으로) — 그래서 private 이 아니다.
+struct MarketDetailSheet: View {
     let itemId: String
     @EnvironmentObject private var store: MarketStore
     @EnvironmentObject private var session: SessionStore

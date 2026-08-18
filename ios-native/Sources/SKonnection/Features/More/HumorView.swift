@@ -4,7 +4,8 @@ import SwiftUI
 struct HumorView: View {
     @EnvironmentObject private var session: SessionStore
     @EnvironmentObject private var store: HumorStore
-    @State private var composing = false
+    /// 작성 폼 표시 여부 — 홈 '말하기'에서도 열 수 있게 RootView 가 소유한다.
+    @Binding var composing: Bool
     @State private var selected: HumorPost?
 
     private var myName: String { session.currentUser?.name ?? "익명" }
@@ -89,7 +90,8 @@ struct HumorView: View {
 }
 
 /// 유머 상세 — 본문·좋아요·댓글 목록·댓글 작성.
-private struct HumorDetail: View {
+/// 홈 피드에서도 바로 띄운다(탭 전환 없이 그 글로) — 그래서 private 이 아니다.
+struct HumorDetail: View {
     let postId: String
     @EnvironmentObject private var store: HumorStore
     @EnvironmentObject private var session: SessionStore

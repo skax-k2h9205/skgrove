@@ -5,7 +5,8 @@ struct GatheringsView: View {
     @EnvironmentObject private var session: SessionStore
     @EnvironmentObject private var store: GatheringStore
     @State private var filter = "모집중"
-    @State private var composing = false
+    /// 작성 폼 표시 여부 — 홈 '말하기'에서도 열 수 있게 RootView 가 소유한다.
+    @Binding var composing: Bool
     @State private var selected: Gathering?
     private let filters = ["모집중", "내가 신청", "내가 연 것", "전체"]
 

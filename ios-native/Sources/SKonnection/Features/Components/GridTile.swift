@@ -36,6 +36,10 @@ struct GridTile: View {
         }
         .aspectRatio(9.0 / 16.0, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm))
+        // 히트 영역을 타일 사각형으로 고정한다. scaledToFill 사진은 타일보다 옆으로 넓게 퍼지는데
+        // clipShape 는 '그리기'만 자르고 터치는 그대로 둔다 — 그래서 넘친 부분이 옆 칸을 덮어
+        // 옆 게시물이 열렸다. contentShape 가 없으면 이 그리드 전부에서 같은 증상이 난다.
+        .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.sm))
     }
 
     private var cornerIcon: some View {

@@ -46,7 +46,10 @@ enum FeedKind: String, Codable {
 }
 
 struct HomeFeedItem: Identifiable {
+    /// 도메인 접두어가 붙은 피드 키("h:HUM-1"). 도메인이 달라도 겹치지 않게.
     let id: String
+    /// 접두어 없는 원본 id — 탭했을 때 그 글의 상세를 열려면 이게 필요하다.
+    var refId: String = ""
     let kind: FeedKind
     let title: String
     var meta: String?

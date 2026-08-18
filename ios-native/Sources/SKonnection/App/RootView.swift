@@ -2,22 +2,58 @@ import SwiftUI
 
 /// 앱의 최상위 탭 셸. iOS 네이티브 TabView 로 핵심 화면을 오간다.
 /// (웹의 가로 스크롤 하단바 대신, 5개 탭 + '더보기'의 네이티브 관례를 따른다.)
+/// 홈 '말하기'에서 고를 수 있는 작성 대상.
+enum ComposeTarget: String, Identifiable, CaseIterable {
+    case humor, gathering, market, intake
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .humor: return "유머"
+        case .gathering: return "모임 · 번개"
+        case .market: return "이음장터"
+        case .intake: return "대나무숲 접수"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .humor: return "face.smiling.fill"
+        case .gathering: return "bolt.fill"
+        case .market: return "shippingbox.fill"
+        case .intake: return "tray.and.arrow.down.fill"
+        }
+    }
+}
+
 struct RootView: View {
     @State private var showChat = false
     @State private var tab = 0
+    // 작성 상태를 여기까지 끌어올린다 — 홈 '말하기'가 각 화면의 작성 폼을 바로 열 수 있어야 한다.
+    @State private var composeHumor = false
+    @State private var composeGathering = false
+    @State private var composeMarket = false
+    @State private var composeIntake = false
 
     var body: some View {
         TabView(selection: $tab) {
-            HomeView { tab = $0 }   // 피드 타일 탭 → 해당 섹션 탭으로 이동
+            HomeView(onOpen: { tab = $0 }, onCompose: startCompose)
                 .tabItem { Label("홈", systemImage: "house.fill") }.tag(0)
-            HumorView()
+            HumorView(composing: $composeHumor)
                 .tabItem { Label("유머", systemImage: "face.smiling.fill") }.tag(1)
-            GatheringsView()
+            GatheringsView(composing: $composeGathering)
                 .tabItem { Label("모임", systemImage: "bolt.fill") }.tag(2)
-            MarketView()
+            MarketView(composing: $composeMarket)
                 .tabItem { Label("이음장터", systemImage: "shippingbox.fill") }.tag(3)
             MoreView()
                 .tabItem { Label("더보기", systemImage: "ellipsis") }.tag(4)
+        }
+        // 대나무숲 접수는 탭이 아니라 독립 화면이라 시트로 띄운다.
+        .sheet(isPresented: $composeIntake) {
+            NavigationStack {
+                IntakeView()
+                    .toolbar { ToolbarItem(placement: .cancellationAction) {
+                        Button("닫기") { composeIntake = false }
+                    } }
+            }
         }
         // AI 상담 챗봇 FAB — 웹처럼 어느 화면에서나 뜬다. 탭바 위에 띄운다.
         .overlay(alignment: .bottomTrailing) {
@@ -33,6 +69,16 @@ struct RootView: View {
             .padding(.bottom, 68)
         }
         .sheet(isPresented: $showChat) { ChatView() }
+    }
+
+    /// 고른 대상의 탭으로 옮기고 그 화면의 작성 폼을 연다(접수만 시트).
+    private func startCompose(_ target: ComposeTarget) {
+        switch target {
+        case .humor: tab = 1; composeHumor = true
+        case .gathering: tab = 2; composeGathering = true
+        case .market: tab = 3; composeMarket = true
+        case .intake: composeIntake = true
+        }
     }
 }
 
