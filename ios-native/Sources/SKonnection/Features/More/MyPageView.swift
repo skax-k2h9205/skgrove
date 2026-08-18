@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 마이페이지 — 내 프로필 + 성향(MBTI·DISC) + '나와 일하는 법'(웹 mypage 이식).
 /// 본인이 편집하는 값이라 기기에 저장(UserDefaults). 실제 공유는 Supabase 연동 시.
@@ -9,8 +10,20 @@ struct MyPageView: View {
     @AppStorage("mypage.mbti") private var mbti = ""
     @AppStorage("mypage.disc") private var disc = ""
     @AppStorage("mypage.collabGuide") private var collabGuide = ""
-    @State private var saved = false
     @State private var assessing = false
+    @State private var promptCopied = false
+
+    /// 저장 여부는 상태 플래그가 아니라 **저장된 프로필과 비교**해서 판단한다.
+    /// 예전엔 save() 가 saved=true 로 켜자마자 값 변경 onChange 가 곧바로 false 로 되돌려,
+    /// 실제로는 저장됐는데 버튼이 "저장"으로 남아 안 된 것처럼 보였다.
+    private var storedMine: TeamProfile? {
+        guard let email = session.currentUser?.email else { return nil }
+        return profiles.profiles.first { $0.id == email }
+    }
+    private var isSaved: Bool {
+        guard let m = storedMine else { return false }
+        return m.mbti == mbti && m.disc == disc && m.collabGuide == collabGuide
+    }
 
     private let mbtis = ["", "INTJ", "INTP", "ENTJ", "ENTP", "INFJ", "INFP", "ENFJ", "ENFP",
                          "ISTJ", "ISFJ", "ESTJ", "ESFJ", "ISTP", "ISFP", "ESTP", "ESFP"]
@@ -42,6 +55,28 @@ struct MyPageView: View {
                         ForEach(discs, id: \.self) { Text($0.isEmpty ? "선택 안 함" : $0).tag($0) }
                     }.pickerStyle(.segmented)
                 }
+                // D·I·S·C 알파벳만으로는 무엇을 고르는지 알 수 없다.
+                if let c = disc.first, let label = Assessment.discLabel[c] {
+                    // 고른 뒤에는 그 유형이 무슨 뜻이고 동료가 어떻게 맞춰주면 되는지 보여준다.
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(disc) · \(label)").font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.Palette.tintPrimaryInk)
+                        Text(Assessment.discGuide[c] ?? "").font(.caption).foregroundStyle(Theme.Palette.ink)
+                    }
+                    .padding(Theme.Space.x3).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.Palette.tintPrimary, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
+                } else {
+                    // 고르기 전에는 네 글자가 각각 무슨 유형인지 알려준다.
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(["D", "I", "S", "C"], id: \.self) { key in
+                            if let c = key.first, let label = Assessment.discLabel[c] {
+                                Text("\(key) · \(label) — \(Assessment.discGuide[c] ?? "")")
+                                    .font(.caption).foregroundStyle(Theme.Palette.muted)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
 
             card {
@@ -53,17 +88,36 @@ struct MyPageView: View {
                     .padding(Theme.Space.x3)
                     .background(Theme.Palette.sunken, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
                     .overlay(RoundedRectangle(cornerRadius: Theme.Radius.md).stroke(Theme.Palette.border))
+
+                // 빈 칸 앞에서 뭘 써야 할지 막히는 자리다. 평소 쓰는 AI 는 나와 나눈 대화를
+                // 기억하니, 거기에 물어보게 하면 훨씬 개인적인 초안을 얻는다.
+                Button {
+                    UIPasteboard.general.string = Assessment.collabPrompt(mbti: mbti, disc: disc)
+                    withAnimation { promptCopied = true }
+                    Haptics.success()
+                } label: {
+                    Label(promptCopied ? "복사했어요 — Claude·GPT에 붙여넣어 보세요" : "AI에게 물어볼 프롬프트 복사",
+                          systemImage: promptCopied ? "checkmark" : "doc.on.doc")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
+                }
+                .buttonStyle(.bordered)
+                .tint(promptCopied ? Theme.Palette.success : Theme.Palette.cta)
+
+                Text("평소 쓰는 AI에 붙여넣으면 나와 나눈 대화를 근거로 초안을 써줘요. 받은 내용을 위 칸에 붙여넣고 다듬으면 돼요.")
+                    .font(.caption2).foregroundStyle(Theme.Palette.muted)
             }
 
             Button { save() } label: {
-                Label(saved ? "저장됨 · 팀 분포에 반영됨" : "저장", systemImage: saved ? "checkmark" : "square.and.arrow.down")
+                Label(isSaved ? "저장됨 · 팀 분포에 반영됨" : "저장",
+                      systemImage: isSaved ? "checkmark" : "square.and.arrow.down")
                     .font(.headline).frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
             }
-            .buttonStyle(.borderedProminent).tint(saved ? Theme.Palette.success : Theme.Palette.cta)
+            .buttonStyle(.borderedProminent).tint(isSaved ? Theme.Palette.success : Theme.Palette.cta)
+            .disabled(isSaved)
         }
-        .onChange(of: mbti) { _, _ in saved = false }
-        .onChange(of: disc) { _, _ in saved = false }
-        .onChange(of: collabGuide) { _, _ in saved = false }
+        .onChange(of: mbti) { _, _ in promptCopied = false }
+        .onChange(of: disc) { _, _ in promptCopied = false }
         .sheet(isPresented: $assessing) {
             AssessmentView { resultMbti, resultDisc, guide in
                 mbti = resultMbti
@@ -80,7 +134,6 @@ struct MyPageView: View {
             profiles.upsertMine(id: user.email, name: user.name, part: user.part,
                                 mbti: mbti, disc: disc, collabGuide: collabGuide)
         }
-        saved = true
         Haptics.success()
     }
 

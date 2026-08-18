@@ -83,6 +83,9 @@ struct AssessmentView: View {
             let mbti = Assessment.scoreMBTI(mbtiAnswers)
             let disc = Assessment.scoreDISC(discAnswers)
             withAnimation { result = (mbti, disc) }
+            // 결과가 나오는 즉시 프로필에 반영한다. 예전엔 결과 화면의 버튼을 눌러야만 반영돼서,
+            // 시트를 쓸어내려 닫으면 28문항을 푼 결과가 조용히 사라졌다(저장 안 된 것처럼 보임).
+            onComplete(mbti, String(disc), Assessment.discGuide[disc] ?? "")
             Haptics.success()
         }
     }
@@ -95,11 +98,14 @@ struct AssessmentView: View {
             Text("\(r.mbti) · \(label)").font(.largeTitle.bold()).foregroundStyle(Theme.Palette.ink)
             Text(guide).font(.subheadline).foregroundStyle(Theme.Palette.muted)
                 .multilineTextAlignment(.center)
-            Button {
-                onComplete(r.mbti, String(r.disc), guide)
-                dismiss()
-            } label: {
-                Text("내 프로필에 반영").font(.headline)
+            // 이미 반영됐다는 사실을 분명히 알린다 — "저장했나?"를 궁금해하지 않게.
+            Label("내 프로필에 반영했어요", systemImage: "checkmark.circle.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.Palette.tintSuccessInk)
+                .padding(Theme.Space.x3).frame(maxWidth: .infinity)
+                .background(Theme.Palette.tintSuccess, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
+            Button { dismiss() } label: {
+                Text("확인").font(.headline)
                     .frame(maxWidth: .infinity).padding(.vertical, Theme.Space.x2)
             }
             .buttonStyle(.borderedProminent).tint(Theme.Palette.cta)
