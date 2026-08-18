@@ -14,6 +14,11 @@ struct HomeView: View {
 
     /// 스토리를 탭하면 탭 전환 없이 이 모임 상세를 바로 띄운다.
     @State private var storyGathering: Gathering?
+    /// 인스타처럼 '본 스토리'를 기록한다 — 본 것은 트레이 뒤로 밀리고 링이 회색이 된다.
+    /// 웹(localStorage skgrove:viewedStories)과 같은 규칙.
+    @State private var viewedStoryIds: [String] = Persist.load(Self.viewedKey, as: [String].self) ?? []
+
+    private static let viewedKey = "skonnection.viewedStories" 
 
     /// 각 도메인에서 몇 개씩 뽑아 라운드로빈으로 섞은 통합 피드.
     private var feed: [HomeFeedItem] {
@@ -87,9 +92,22 @@ struct HomeView: View {
 
     /// 모집중인 모임 — 시작이 임박한 순. 스토리는 "지금 참여할 수 있는 것"만 담아야 의미가 있다.
     private var openGatherings: [Gathering] {
-        gatherings.gatherings
+        let viewed = Set(viewedStoryIds)
+        return gatherings.gatherings
             .filter { gatherings.status($0) == .open }
-            .sorted { $0.startAt < $1.startAt }
+            .sorted { a, b in
+                // 안 본 스토리 먼저(인스타). 같은 그룹 안에서는 시작이 임박한 순.
+                let av = viewed.contains(a.id), bv = viewed.contains(b.id)
+                if av != bv { return !av }
+                return a.startAt < b.startAt
+            }
+    }
+
+    /// 스토리를 열면 '봤음'으로 기록한다. 저장이 실패해도 이번 세션 정렬·링은 유지된다.
+    private func markViewed(_ id: String) {
+        guard !viewedStoryIds.contains(id) else { return }
+        viewedStoryIds.append(id)
+        Persist.save(viewedStoryIds, Self.viewedKey)
     }
 
     /// 고정 진입 2개 + 모집중 모임들. 개수가 늘 수 있어 가로 스크롤로 둔다.
@@ -101,9 +119,11 @@ struct HomeView: View {
                 ForEach(openGatherings) { g in
                     Button {
                         Haptics.selection()
+                        markViewed(g.id)
                         storyGathering = g
                     } label: {
-                        StoryCircle(icon: storyIcon(g.kind), label: g.title, ringed: true,
+                        StoryCircle(icon: storyIcon(g.kind), label: g.title,
+                                    ringed: !viewedStoryIds.contains(g.id),
                                     imageURL: URL(string: g.imageURL))
                     }
                     .buttonStyle(.plain)
@@ -133,14 +153,15 @@ private struct StoryCircle: View {
     var body: some View {
         VStack(spacing: Theme.Space.x1) {
             ZStack {
-                if ringed {
-                    Circle()
-                        .strokeBorder(
-                            AngularGradient(colors: [.purple, .pink, .orange, .yellow, .purple], center: .center),
-                            lineWidth: 2.5
-                        )
-                        .frame(width: 68, height: 68)
-                }
+                // 안 본 것은 무지개 링, 본 것은 회색 링 — 인스타와 같은 신호.
+                Circle()
+                    .strokeBorder(
+                        ringed
+                            ? AnyShapeStyle(AngularGradient(colors: [.purple, .pink, .orange, .yellow, .purple], center: .center))
+                            : AnyShapeStyle(Theme.Palette.borderStrong),
+                        lineWidth: 2.5
+                    )
+                    .frame(width: 68, height: 68)
                 Circle()
                     .fill(Theme.Palette.tintNeutral)
                     .frame(width: 58, height: 58)
