@@ -63,6 +63,8 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
     // 생성(글쓰기·모임 열기·물건 등록)을 iOS처럼 상단 타이틀 좌측 + 버튼으로 올린다.
     var composeHumor by remember { mutableStateOf(false) }
     var composeGathering by remember { mutableStateOf(false) }
+    // 홈 스토리 → 모임 상세 딥링크. 모임 탭이 이 id 를 한 번 소비하고 비운다.
+    var openGatheringId by remember { mutableStateOf<String?>(null) }
     var composeMarket by remember { mutableStateOf(false) }
     // 섹션(대나무숲·액션아이템)의 등록 상태. 상단바가 MainScaffold 소유라 상태도 여기서 든다.
     var composeSection by remember { mutableStateOf(false) }
@@ -165,11 +167,13 @@ fun MainScaffold(container: AppContainer, currentEmail: String?, onLogout: () ->
                 0 -> com.hyubs.skonnection.feature.home.HomeGridContent(
                     container = container,
                     onOpenTab = { tab = it },
+                    onOpenGathering = { id -> openGatheringId = id; tab = 2 },
                     onCompose = { tab = 1 },
                     modifier = contentModifier,
                 )
                 1 -> HumorContent(container, composeHumor, { composeHumor = it }, contentModifier)
-                2 -> GatheringsContent(container, composeGathering, { composeGathering = it }, contentModifier)
+                2 -> GatheringsContent(container, composeGathering, { composeGathering = it }, contentModifier,
+                    focusId = openGatheringId, onFocusHandled = { openGatheringId = null })
                 3 -> MarketContent(container, composeMarket, { composeMarket = it }, contentModifier)
                 else -> MoreContent(
                     currentEmail = currentEmail,

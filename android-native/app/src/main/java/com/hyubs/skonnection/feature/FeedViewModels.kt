@@ -117,9 +117,27 @@ class GatheringsViewModel(private val container: AppContainer) : ViewModel() {
 
     fun create(title: String, place: String, description: String, capacity: Int?, kind: String, onDone: () -> Unit) {
         val me = container.currentUser ?: return
+        val cleanTitle = title.trim()
         viewModelScope.launch {
-            runCatching { container.gatheringRepository.create(kind, title.trim(), place, description, capacity, me.name, me.part) }
+            val id = runCatching {
+                container.gatheringRepository.create(kind, cleanTitle, place, description, capacity, me.name, me.part)
+            }.getOrNull()
+
+            // 연 사람은 당연히 참석자다. 예전엔 0명으로 시작해 주최자가 자기 모임에 또 신청해야 했고
+            // 커피뽑기 후보에서도 빠졌다. gathering_signups 에 FK 가 있어 모임 insert 성공 뒤에만 건다.
+            if (id != null) runCatching { container.gatheringRepository.join(id, me.name) }
+
             refresh(); onDone()
+
+            // 썸네일은 등록을 붙잡지 않는다 — 모임이 먼저 뜨고, 그려지면 사진으로 바뀐다.
+            // 실패해도 모임은 멀쩡해야 하므로 조용히 넘긴다(아이콘 타일 유지).
+            if (id == null) return@launch
+            val url = container.gatheringImageRepository.makeAndUpload(
+                id = id, kind = kind, title = cleanTitle, startAt = "", place = place,
+                capacity = capacity, desc = description,
+            ) ?: return@launch
+            runCatching { container.gatheringRepository.setImageUrl(id, url) }
+            refresh()
         }
     }
 

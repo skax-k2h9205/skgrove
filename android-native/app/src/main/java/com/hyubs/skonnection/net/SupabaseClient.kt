@@ -38,6 +38,24 @@ class SupabaseClient(
         contentType(ContentType.Application.Json)
     }
 
+    /**
+     * 이미지를 Storage 버킷에 올리고 공개 URL 을 돌려준다(iOS `Supabase.uploadImage` 대응).
+     * 웹·iOS 와 같은 버킷을 써야 앱이 만든 썸네일이 세 플랫폼에 모두 보인다.
+     * 실패하면 null — 호출부는 "썸네일 없음" 한 갈래만 다루면 된다.
+     */
+    suspend fun uploadImage(bucket: String, path: String, bytes: ByteArray, contentType: String): String? =
+        runCatching {
+            val resp = http.post("${SupabaseConfig.URL}/storage/v1/object/$bucket/$path") {
+                header("apikey", SupabaseConfig.ANON_KEY)
+                header("Authorization", "Bearer ${SupabaseConfig.ANON_KEY}")
+                header("cache-control", "3600")
+                contentType(ContentType.parse(contentType))
+                setBody(bytes)
+            }
+            if (resp.status.value !in 200..299) return null
+            "${SupabaseConfig.URL}/storage/v1/object/public/$bucket/$path"
+        }.getOrNull()
+
     /** 테이블 조회. query 예: "select=*&order=created_at.desc". */
     suspend fun <T> select(
         table: String,

@@ -1,6 +1,7 @@
 package com.hyubs.skonnection.feature.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -30,6 +32,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -170,9 +174,14 @@ fun HomeGridContent(
     onOpenTab: (Int) -> Unit,
     onCompose: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 스토리 탭 → 그 모임 상세로. 지정 안 하면 모임 탭으로만 이동한다. */
+    onOpenGathering: (String) -> Unit = { onOpenTab(2) },
 ) {
     val vm = remember { HomeFeedViewModel(container) }
     val tiles by vm.tiles.collectAsStateWithLifecycle()
+    val stories by vm.stories.collectAsStateWithLifecycle()
+    // 링 색을 결정하려면 '본 목록'이 필요하다. 탭할 때마다 다시 읽어 즉시 회색으로 바뀌게 한다.
+    var viewedIds by remember { mutableStateOf(container.viewedStories.all()) }
     val loading by vm.loading.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
 
@@ -190,7 +199,15 @@ fun HomeGridContent(
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(3) }) {
-            StoryRow(onCompose = onCompose, onCoffee = { onOpenTab(2) })
+            StoryRow(
+                stories = stories, viewedIds = viewedIds, onCompose = onCompose,
+                onCoffee = { onOpenTab(2) },
+                onOpenGathering = { id ->
+                    vm.markStoryViewed(id)
+                    viewedIds = container.viewedStories.all()
+                    onOpenGathering(id)
+                },
+            )
         }
         items(tiles, key = { it.id }) { tile ->
             HomeGridTile(tile) { onOpenTab(tile.tab) }
@@ -230,31 +247,75 @@ fun DomainTileGrid(
 }
 
 @Composable
-private fun StoryRow(onCompose: () -> Unit, onCoffee: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+private fun StoryRow(
+    stories: List<com.hyubs.skonnection.data.Gathering>,
+    viewedIds: Set<String>,
+    onCompose: () -> Unit,
+    onCoffee: () -> Unit,
+    onOpenGathering: (String) -> Unit,
+) {
+    // 고정 진입 2개 + 번개·커피 모임들. 개수가 늘 수 있어 가로 스크롤로 둔다.
+    Row(
+        Modifier.fillMaxWidth()
+            .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+            .padding(vertical = 8.dp, horizontal = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
         StoryCircle("말하기", Icons.Filled.Add, ringed = false, onClick = onCompose)
         StoryCircle("커피 내기", Icons.Filled.Bolt, ringed = true, onClick = onCoffee)
+        stories.forEach { g ->
+            StoryCircle(g.title, Icons.Filled.Bolt, ringed = g.id !in viewedIds,
+                        imageUrl = g.imageUrl.ifBlank { null }) {
+                onOpenGathering(g.id)
+            }
+        }
     }
 }
 
 @Composable
-private fun StoryCircle(label: String, icon: ImageVector, ringed: Boolean, onClick: () -> Unit) {
+private fun StoryCircle(
+    label: String,
+    icon: ImageVector,
+    ringed: Boolean,
+    /** 모임 썸네일(AI 생성 또는 첨부). 없으면 아이콘으로 떨어진다. */
+    imageUrl: String? = null,
+    onClick: () -> Unit,
+) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onClick() }) {
         Box(contentAlignment = Alignment.Center) {
-            if (ringed) {
-                Box(
-                    Modifier.size(64.dp).clip(CircleShape)
-                        .background(Brush.sweepGradient(listOf(
-                            Color(0xFF9C27B0), Color(0xFFE91E63), Color(0xFFFF9800),
-                            Color(0xFFFFEB3B), Color(0xFF9C27B0))))
-                )
-            }
+            // 안 본 것은 무지개 링, 본 것은 회색 링 — 인스타와 같은 신호(사라지지 않고 흐려진다).
             Box(
-                Modifier.size(if (ringed) 57.dp else 58.dp).clip(CircleShape)
+                Modifier.size(64.dp).clip(CircleShape).background(
+                    if (ringed) {
+                        Brush.sweepGradient(listOf(
+                            Color(0xFF9C27B0), Color(0xFFE91E63), Color(0xFFFF9800),
+                            Color(0xFFFFEB3B), Color(0xFF9C27B0)))
+                    } else {
+                        androidx.compose.ui.graphics.SolidColor(Color(0xFFC7C7C7))
+                    }
+                )
+            )
+            Box(
+                Modifier.size(57.dp).clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center,
-            ) { Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onSurface) }
+            ) {
+                if (imageUrl != null) {
+                    AsyncImage(
+                        model = imageUrl, contentDescription = label,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(CircleShape),
+                    )
+                } else {
+                    Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onSurface)
+                }
+            }
         }
-        Text(label, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+        Text(
+            label, style = MaterialTheme.typography.labelSmall,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.dp).width(64.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
     }
 }

@@ -13,6 +13,9 @@ import kotlinx.coroutines.launch
 class HomeFeedViewModel(private val container: AppContainer) : ViewModel() {
     private val _tiles = MutableStateFlow<List<HomeTile>>(emptyList())
     val tiles = _tiles.asStateFlow()
+    /** 스토리 줄에 올릴 모임(번개·커피). 탭하면 모임 상세로 바로 간다. */
+    private val _stories = MutableStateFlow<List<com.hyubs.skonnection.data.Gathering>>(emptyList())
+    val stories = _stories.asStateFlow()
     private val _loading = MutableStateFlow(true)
     val loading = _loading.asStateFlow()
     private val _error = MutableStateFlow<String?>(null)
@@ -42,7 +45,16 @@ class HomeFeedViewModel(private val container: AppContainer) : ViewModel() {
         val m = market.take(6).map {
             HomeTile("m:${it.id}", "market", it.title, if (it.kind == "giveaway") "나눔" else "경매", it.imageUrl, it.seller, 3)
         }
-        val g = gatherings.take(6).map {
+        // 번개·커피는 위 스토리 줄이 맡는다 — 피드에도 넣으면 같은 모임이 위아래로 두 번 보인다.
+        // 일반 모임은 지나고 나서도 기록으로 남아야 해서 피드에 그대로 둔다.
+        val storyKinds = setOf("flash", "coffee", "번개", "커피")
+        // 안 본 스토리 먼저(인스타). 같은 그룹 안에서는 시작이 임박한 순.
+        val viewed = container.viewedStories.all()
+        _stories.value = gatherings
+            .filter { it.kind in storyKinds }
+            .sortedWith(compareBy({ it.id in viewed }, { it.startAt }))
+            .take(12)
+        val g = gatherings.filterNot { it.kind in storyKinds }.take(6).map {
             HomeTile("g:${it.id}", "gathering", it.title, it.kind, it.imageUrl, it.host, 2)
         }
         val a = agendas.take(4).map {
@@ -53,6 +65,13 @@ class HomeFeedViewModel(private val container: AppContainer) : ViewModel() {
         }
         _tiles.value = roundRobin(listOf(h, m, g, a, ac))
         _loading.value = false
+    }
+
+    /** 스토리를 열면 '봤음'으로 기록하고 트레이를 다시 정렬한다. */
+    fun markStoryViewed(id: String) {
+        container.viewedStories.mark(id)
+        val viewed = container.viewedStories.all()
+        _stories.value = _stories.value.sortedWith(compareBy({ it.id in viewed }, { it.startAt }))
     }
 
     private fun roundRobin(lists: List<List<HomeTile>>): List<HomeTile> {

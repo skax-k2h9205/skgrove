@@ -31,6 +31,9 @@ class AppContainer(context: Context) {
     val accountRepository = AccountRepository(supabase)
     val humorRepository = HumorRepository(supabase)
     val gatheringRepository = GatheringRepository(supabase)
+    val gatheringImageRepository = com.hyubs.skonnection.data.GatheringImageRepository(httpClient, supabase)
+    /** 본 스토리 기록(인스타 규칙) — 홈 트레이 정렬·링 색에 쓴다. */
+    val viewedStories = com.hyubs.skonnection.core.ViewedStories(context)
     val marketRepository = MarketRepository(supabase)
     val leaderKeysStore = com.hyubs.skonnection.data.LeaderKeysStore(supabase)
     val growthRepository = com.hyubs.skonnection.data.GrowthRepository(supabase)

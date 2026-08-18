@@ -159,12 +159,22 @@ fun GatheringsContent(
     composing: Boolean,
     onComposingChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    /** 홈 스토리에서 넘어온 모임 id — 목록이 도착하면 그 상세를 한 번 열고 비운다. */
+    focusId: String? = null,
+    onFocusHandled: () -> Unit = {},
 ) {
     val vm = remember { GatheringsViewModel(container) }
     val items by vm.items.collectAsStateWithLifecycle()
     val signups by vm.signups.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     var detail by remember { mutableStateOf<com.hyubs.skonnection.data.Gathering?>(null) }
+
+    // 딥링크는 목록이 로드된 뒤에야 항목을 찾을 수 있다. 찾으면 상세를 열고 id 를 소비한다.
+    androidx.compose.runtime.LaunchedEffect(focusId, items) {
+        val id = focusId ?: return@LaunchedEffect
+        val target = items.firstOrNull { it.id == id }
+        if (target != null) { detail = target; onFocusHandled() }
+    }
 
     if (composing) {
         androidx.activity.compose.BackHandler { onComposingChange(false) }

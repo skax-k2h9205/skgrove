@@ -5,6 +5,10 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 
+/** image_url 만 갱신하는 최소 패치 바디. */
+@Serializable
+private data class ImageUrlPatch(@SerialName("image_url") val imageUrl: String)
+
 @Serializable
 private data class SignupRow(
     @SerialName("gathering_id") val gatheringId: String,
@@ -54,10 +58,11 @@ class GatheringRepository(private val supabase: SupabaseClient) {
     suspend fun setCoffeePick(gatheringId: String, name: String) =
         supabase.patch("gatherings", gatheringId, CoffeePickPatch(name), CoffeePickPatch.serializer())
 
+    /** 만든 모임의 id 를 돌려준다 — 호출부가 이어서 주최자 신청·썸네일 생성을 건다. */
     suspend fun create(
         kind: String, title: String, place: String, description: String,
         capacity: Int?, host: String, part: String,
-    ) {
+    ): String {
         val id = "GAT-" + System.currentTimeMillis().toString(36).uppercase()
         supabase.insert(
             "gatherings",
@@ -70,7 +75,12 @@ class GatheringRepository(private val supabase: SupabaseClient) {
             ),
             NewGathering.serializer(),
         )
+        return id
     }
+
+    /** 생성된 썸네일 URL 반영. */
+    suspend fun setImageUrl(id: String, url: String) =
+        supabase.patch("gatherings", id, ImageUrlPatch(url), ImageUrlPatch.serializer())
 
     /** admin 전용 모임 삭제(신청 기록은 FK on delete cascade 로 함께 정리된다는 가정, 아니면 남을 수 있음). */
     suspend fun delete(id: String) {
