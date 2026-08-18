@@ -22,6 +22,31 @@ enum ComposeTarget: String, Identifiable, CaseIterable {
         case .intake: return "tray.and.arrow.down.fill"
         }
     }
+    /// 이름만으로는 무엇을 쓰는 자리인지 알기 어렵다 — 한 줄로 알려준다.
+    var desc: String {
+        switch self {
+        case .humor: return "웃긴 이야기나 짤을 공유해요"
+        case .gathering: return "번개·커피 내기를 열어요"
+        case .market: return "나눔·경매로 물건을 주고받아요"
+        case .intake: return "팀에 하고 싶은 이야기를 남겨요"
+        }
+    }
+    var tint: Color {
+        switch self {
+        case .humor: return Theme.Palette.tintDanger
+        case .gathering: return Theme.Palette.tintPrimary
+        case .market: return Theme.Palette.tintNeutral
+        case .intake: return Theme.Palette.tintSuccess
+        }
+    }
+    var ink: Color {
+        switch self {
+        case .humor: return Theme.Palette.danger
+        case .gathering: return Theme.Palette.tintPrimaryInk
+        case .market: return Theme.Palette.ink
+        case .intake: return Theme.Palette.tintSuccessInk
+        }
+    }
 }
 
 struct RootView: View {

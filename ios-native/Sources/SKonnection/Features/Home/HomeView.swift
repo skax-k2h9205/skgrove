@@ -93,11 +93,16 @@ struct HomeView: View {
         .sheet(item: $openGatheringId) { t in GatheringDetailSheet(gatheringId: t.id) }
         .sheet(item: $openAgendaId) { t in AgendaDetailSheet(agendaId: t.id) }
         .sheet(item: $openActionId) { t in ActionDetailSheet(itemId: t.id) }
-        .confirmationDialog("무엇을 말할까요?", isPresented: $pickingCompose, titleVisibility: .visible) {
-            ForEach(ComposeTarget.allCases) { target in
-                Button(target.label) { onCompose(target) }
+        // 확인 다이얼로그(confirmationDialog)는 "정말 하시겠어요?"를 묻는 자리다.
+        // 만들기 메뉴로 쓰면 글자만 나열돼 무엇을 쓰는 자리인지 알 수 없다 →
+        // 아이콘·설명이 있는 선택 시트로 바꾸고, 내용 높이만큼만 올라오게 한다.
+        .sheet(isPresented: $pickingCompose) {
+            ComposePicker { target in
+                pickingCompose = false
+                onCompose(target)
             }
-            Button("취소", role: .cancel) {}
+            .presentationDetents([.height(430)])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -233,3 +238,52 @@ private struct StoryCircle: View {
     }
 }
 
+/// '말하기' 선택 시트 — 어디에 쓸지 고르는 자리.
+/// 아이콘·한 줄 설명을 함께 보여줘서 "유머와 대나무숲 접수가 뭐가 다른지"를 눌러보기 전에 안다.
+private struct ComposePicker: View {
+    let onPick: (ComposeTarget) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.x4) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("무엇을 말할까요?").font(.title3.weight(.bold)).foregroundStyle(Theme.Palette.ink)
+                Text("고르면 바로 쓸 수 있어요").font(.subheadline).foregroundStyle(Theme.Palette.muted)
+            }
+            .padding(.top, Theme.Space.x5)
+
+            VStack(spacing: Theme.Space.x2) {
+                ForEach(ComposeTarget.allCases) { target in
+                    Button { onPick(target) } label: { row(target) }
+                        .buttonStyle(.plain)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Theme.Space.x4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Palette.sunken)
+    }
+
+    private func row(_ target: ComposeTarget) -> some View {
+        HStack(spacing: Theme.Space.x3) {
+            Image(systemName: target.icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(target.ink)
+                .frame(width: 44, height: 44)
+                .background(target.tint, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(target.label).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.Palette.ink)
+                Text(target.desc).font(.caption).foregroundStyle(Theme.Palette.muted)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.Palette.muted)
+        }
+        .padding(Theme.Space.x3)
+        // 행 전체가 눌리게 한다 — 글자 옆 빈 곳을 눌러도 반응해야 자연스럽다.
+        .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.md))
+        .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.md).stroke(Theme.Palette.border))
+    }
+}
