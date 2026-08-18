@@ -31,10 +31,33 @@ private struct MyGrowth: View {
     @State private var title = ""
     @State private var detail = ""
     @State private var due = ""
+    /// 프로젝트 경험으로 추천받기 시트.
+    @State private var suggesting = false
 
     private var myGoals: [GrowthGoal] { growth.goals.filter { $0.ownerEmail.lowercased() == email } }
 
     var body: some View {
+        // 빈 칸 세 개만 두면 "무엇을 어떻게 적으라는 건지" 알 수 없다 —
+        // 먼저 경험으로 초안을 받고, 그걸 고치는 흐름이 훨씬 쉽다.
+        Button { suggesting = true } label: {
+            HStack(spacing: Theme.Space.x2) {
+                Image(systemName: "sparkles")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("프로젝트 경험으로 추천받기").font(.subheadline.weight(.semibold))
+                    Text("해온 일을 적으면 역량 레벨과 목표를 제안해요")
+                        .font(.caption).foregroundStyle(Theme.Palette.muted)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.Palette.muted)
+            }
+            .padding(Theme.Space.x3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.Palette.tintPrimary, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
+            .foregroundStyle(Theme.Palette.tintPrimaryInk)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $suggesting) { GrowthSuggestSheet(email: email) }
+
         sectionHeader("성장 목표", "target")
         VStack(spacing: Theme.Space.x2) {
             field("이번 분기 성장 목표", $title)
@@ -55,6 +78,20 @@ private struct MyGrowth: View {
         ForEach(myGoals) { g in goalCard(g) }
 
         sectionHeader("역량 레벨", "chart.line.uptrend.xyaxis")
+        // 숫자만 있으면 3과 4의 차이를 알 수 없어 아무도 못 고른다. 뜻을 같이 보여준다.
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(1...5, id: \.self) { n in
+                HStack(alignment: .top, spacing: 6) {
+                    Text("\(n)").font(.caption.weight(.bold)).frame(width: 14, alignment: .leading)
+                    Text(GrowthLevelGuide.long[n] ?? "").font(.caption)
+                }
+                .foregroundStyle(Theme.Palette.muted)
+            }
+        }
+        .padding(Theme.Space.x3).frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.md).stroke(Theme.Palette.border))
+
         ForEach(growthCompetencies, id: \.self) { c in competencyRow(c) }
     }
 
@@ -110,6 +147,10 @@ private struct MyGrowth: View {
                 }
                 if let ll = lvl?.leaderLevel {
                     Text("리더 합의 \(ll)").font(.caption).foregroundStyle(Theme.Palette.muted)
+                }
+                Spacer(minLength: 0)
+                if let mine = lvl?.selfLevel, let word = GrowthLevelGuide.short[mine] {
+                    Text(word).font(.caption).foregroundStyle(Theme.Palette.tintPrimaryInk)
                 }
             }
             TextField("근거 한 줄 (예: A프로젝트 리드)", text: Binding(
