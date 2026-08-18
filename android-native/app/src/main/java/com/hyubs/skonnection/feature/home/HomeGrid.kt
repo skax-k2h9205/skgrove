@@ -264,7 +264,9 @@ private fun StoryRow(
         StoryCircle("말하기", Icons.Filled.Add, ringed = false, onClick = onCompose)
         StoryCircle("커피 내기", Icons.Filled.Bolt, ringed = true, onClick = onCoffee)
         stories.forEach { g ->
-            StoryCircle(g.title, Icons.Filled.Bolt, ringed = g.id !in viewedIds,
+            // 누가 연 모임인지가 참여 결정을 좌우한다 — 제목만으로는 "커피 내기"가 다 똑같아 보인다.
+            val label = if (g.host.isBlank()) g.title else "${g.title}(${g.host})"
+            StoryCircle(label, Icons.Filled.Bolt, ringed = g.id !in viewedIds,
                         imageUrl = g.imageUrl.ifBlank { null }) {
                 onOpenGathering(g.id)
             }
@@ -313,8 +315,8 @@ private fun StoryCircle(
         }
         Text(
             label, style = MaterialTheme.typography.labelSmall,
-            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 4.dp).width(64.dp),
+            maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.dp).width(76.dp),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
     }
