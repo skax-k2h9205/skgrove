@@ -129,7 +129,8 @@ export function Dashboard({
                 <Zap size={22} strokeWidth={1.6} />
               </span>
             </span>
-            <small>{item.title}</small>
+            {/* 누가 연 번개인지가 참여 결정을 좌우한다 — 제목만으로는 다 비슷해 보인다. */}
+            <small>{item.host ? `${item.title}(${item.host})` : item.title}</small>
           </button>
         ))}
       </div>
