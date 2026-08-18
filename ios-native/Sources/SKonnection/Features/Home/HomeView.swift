@@ -110,12 +110,12 @@ struct HomeView: View {
         Persist.save(viewedStoryIds, Self.viewedKey)
     }
 
-    /// 고정 진입 2개 + 모집중 모임들. 개수가 늘 수 있어 가로 스크롤로 둔다.
+    /// '말하기'(작성 진입) + 모집중 모임들. 예전엔 고정 "커피 내기" 버튼이 스토리처럼 껴 있어
+    /// 실제 커피 모임과 나란히 두 개로 보였다 — 스토리에는 진짜 모임만 둔다.
     private var storyRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: Theme.Space.x4) {
                 StoryCircle(icon: "plus", label: "말하기", ringed: false)
-                StoryCircle(icon: "bolt.fill", label: "커피 내기", ringed: true)
                 ForEach(openGatherings) { g in
                     Button {
                         Haptics.selection()
