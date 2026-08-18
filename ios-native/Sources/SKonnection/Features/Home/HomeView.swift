@@ -12,6 +12,9 @@ struct HomeView: View {
     @EnvironmentObject private var agendas: AgendaStore
     @EnvironmentObject private var actions: ActionStore
 
+    /// 스토리를 탭하면 탭 전환 없이 이 모임 상세를 바로 띄운다.
+    @State private var storyGathering: Gathering?
+
     /// 각 도메인에서 몇 개씩 뽑아 라운드로빈으로 섞은 통합 피드.
     private var feed: [HomeFeedItem] {
         let h = humor.posts.prefix(8).map {
@@ -22,10 +25,15 @@ struct HomeView: View {
             HomeFeedItem(id: "m:\($0.id)", kind: .market, title: $0.title,
                          meta: market.status($0).rawValue, imageURL: URL(string: $0.imageURL), author: $0.seller)
         }
-        let g = gatherings.gatherings.prefix(6).map {
-            HomeFeedItem(id: "g:\($0.id)", kind: .gathering, title: $0.title,
-                         meta: gatherings.status($0).rawValue, imageURL: URL(string: $0.imageURL), author: $0.host)
-        }
+        // 번개·커피는 스토리 줄에서 다루니 피드에는 넣지 않는다 — 같은 걸 위아래로 두 번 보여주는 꼴이 된다.
+        // 일반 모임은 지나고 나서도 기록으로 남아야 해서 피드에 그대로 둔다.
+        let g = gatherings.gatherings
+            .filter { $0.kind == .gathering }
+            .prefix(6)
+            .map {
+                HomeFeedItem(id: "g:\($0.id)", kind: .gathering, title: $0.title,
+                             meta: gatherings.status($0).rawValue, imageURL: URL(string: $0.imageURL), author: $0.host)
+            }
         let a = agendas.agendas.prefix(4).map {
             HomeFeedItem(id: "a:\($0.id)", kind: .agenda, title: $0.title, meta: $0.status.rawValue)
         }
@@ -64,6 +72,7 @@ struct HomeView: View {
                 .buttonStyle(.plain)
             }
         }
+        .sheet(item: $storyGathering) { g in GatheringDetailSheet(gatheringId: g.id) }
     }
 
     /// 피드 종류 → 탭 인덱스(유머 1·모임 2·장터 3, 안건·액션은 더보기 4).
@@ -76,11 +85,39 @@ struct HomeView: View {
         }
     }
 
+    /// 모집중인 모임 — 시작이 임박한 순. 스토리는 "지금 참여할 수 있는 것"만 담아야 의미가 있다.
+    private var openGatherings: [Gathering] {
+        gatherings.gatherings
+            .filter { gatherings.status($0) == .open }
+            .sorted { $0.startAt < $1.startAt }
+    }
+
+    /// 고정 진입 2개 + 모집중 모임들. 개수가 늘 수 있어 가로 스크롤로 둔다.
     private var storyRow: some View {
-        HStack(alignment: .top, spacing: Theme.Space.x4) {
-            StoryCircle(icon: "plus", label: "말하기", ringed: false)
-            StoryCircle(icon: "bolt.fill", label: "커피 내기", ringed: true)
-            Spacer(minLength: 0)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: Theme.Space.x4) {
+                StoryCircle(icon: "plus", label: "말하기", ringed: false)
+                StoryCircle(icon: "bolt.fill", label: "커피 내기", ringed: true)
+                ForEach(openGatherings) { g in
+                    Button {
+                        Haptics.selection()
+                        storyGathering = g
+                    } label: {
+                        StoryCircle(icon: storyIcon(g.kind), label: g.title, ringed: true,
+                                    imageURL: URL(string: g.imageURL))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private func storyIcon(_ kind: GatheringKind) -> String {
+        switch kind {
+        case .flash: return "bolt.fill"
+        case .coffee: return "cup.and.saucer.fill"
+        case .gathering: return "calendar"
         }
     }
 }
@@ -90,6 +127,8 @@ private struct StoryCircle: View {
     let icon: String
     let label: String
     let ringed: Bool
+    /// 모임 썸네일(AI 생성 또는 첨부). 없으면 아이콘으로 떨어진다.
+    var imageURL: URL? = nil
 
     var body: some View {
         VStack(spacing: Theme.Space.x1) {
@@ -105,9 +144,22 @@ private struct StoryCircle: View {
                 Circle()
                     .fill(Theme.Palette.tintNeutral)
                     .frame(width: 58, height: 58)
-                    .overlay(Image(systemName: icon).font(.system(size: 22)).foregroundStyle(Theme.Palette.ink))
+                    .overlay {
+                        if let imageURL {
+                            AsyncImage(url: imageURL) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                Image(systemName: icon).font(.system(size: 22)).foregroundStyle(Theme.Palette.ink)
+                            }
+                            .frame(width: 58, height: 58)
+                            .clipShape(Circle())
+                        } else {
+                            Image(systemName: icon).font(.system(size: 22)).foregroundStyle(Theme.Palette.ink)
+                        }
+                    }
             }
             Text(label).font(.caption).foregroundStyle(Theme.Palette.ink)
+                .lineLimit(1).truncationMode(.tail).frame(width: 68)
         }
     }
 }

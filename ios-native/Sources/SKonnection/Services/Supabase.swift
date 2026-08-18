@@ -64,6 +64,24 @@ enum Supabase {
         try check(resp, data)
     }
 
+    // MARK: 스토리지
+
+    /// 이미지를 Storage 버킷에 올리고 공개 URL 을 돌려준다.
+    /// 웹(gatheringStore POSTER_BUCKET)과 **같은 버킷**을 써서 앱이 만든 썸네일이 웹에도 그대로 보인다.
+    /// 실패하면 nil — 호출부는 "썸네일 없음" 한 갈래만 다루면 된다(모임 자체는 멀쩡해야 한다).
+    static func uploadImage(bucket: String, path: String, data: Data, contentType: String) async -> String? {
+        guard let endpoint = URL(string: "\(url)/storage/v1/object/\(bucket)/\(path)") else { return nil }
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "POST"
+        req.setValue(anonKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        req.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        req.setValue("3600", forHTTPHeaderField: "cache-control")
+        guard let (_, resp) = try? await URLSession.shared.upload(for: req, from: data),
+              let code = (resp as? HTTPURLResponse)?.statusCode, (200..<300).contains(code) else { return nil }
+        return "\(url)/storage/v1/object/public/\(bucket)/\(path)"
+    }
+
     static let decoder = JSONDecoder()
     static let encoder = JSONEncoder()
 

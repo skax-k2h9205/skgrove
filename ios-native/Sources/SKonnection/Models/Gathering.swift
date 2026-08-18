@@ -190,13 +190,35 @@ final class GatheringStore: ObservableObject {
     func create(kind: GatheringKind, title: String, host: String, startAt: String, closeAt: String,
                 capacity: Int?, place: String, desc: String, coffeeDraw: Bool) {
         let id = "GAT-\(Int(Date().timeIntervalSince1970))"
-        gatherings.insert(Gathering(id: id, title: title, host: host, kind: kind,
-                                    startAt: startAt, closeAt: closeAt, capacity: capacity, minPeople: nil,
-                                    place: place, desc: desc, coffeeDraw: coffeeDraw), at: 0)
-        Task { try? await Supabase.insert("gatherings",
-            SupabaseGatheringInsert(id: id, kind: kind.dbValue, title: title, start_at: startAt,
-                                    close_at: closeAt, capacity: capacity, place: place, description: desc,
-                                    host: host, coffee_draw: coffeeDraw)) }
+        let created = Gathering(id: id, title: title, host: host, kind: kind,
+                                startAt: startAt, closeAt: closeAt, capacity: capacity, minPeople: nil,
+                                place: place, desc: desc, coffeeDraw: coffeeDraw)
+        gatherings.insert(created, at: 0)
+
+        Task { [weak self] in
+            // 모임 행이 먼저 있어야 신청을 넣을 수 있다 — gathering_signups 에 FK 가 걸려 있어서(23503)
+            // 순서가 뒤집히면 주최자 신청이 원격에서 조용히 버려진다.
+            try? await Supabase.insert("gatherings",
+                SupabaseGatheringInsert(id: id, kind: kind.dbValue, title: title, start_at: startAt,
+                                        close_at: closeAt, capacity: capacity, place: place, description: desc,
+                                        host: host, coffee_draw: coffeeDraw))
+
+            // 연 사람은 당연히 참석자다. 예전엔 0명으로 시작해 주최자가 자기 모임에 또 신청해야 했고,
+            // 커피뽑기 후보에서도 빠졌다.
+            self?.join(created, name: host)
+
+            // 썸네일은 등록을 붙잡지 않는다 — 모임이 먼저 뜨고, 그려지면 사진으로 바뀐다.
+            // 생성이 실패해도 모임은 멀쩡해야 하므로 실패는 조용히 넘긴다(아이콘 타일 유지).
+            guard let url = await GatheringImage.makeAndUpload(for: created), !url.isEmpty else { return }
+            self?.applyImageURL(id, url)
+            try? await Supabase.patch("gatherings", id: id, ["image_url": url])
+        }
+    }
+
+    /// 생성된 썸네일을 로컬 배열에 반영한다(원격 patch 는 호출부가 한다).
+    private func applyImageURL(_ id: String, _ url: String) {
+        guard let i = gatherings.firstIndex(where: { $0.id == id }) else { return }
+        gatherings[i].imageURL = url
     }
 
     /// 시작까지 남은 시간 사람말.

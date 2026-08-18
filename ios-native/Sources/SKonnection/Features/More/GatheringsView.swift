@@ -72,7 +72,8 @@ struct GatheringsView: View {
 }
 
 /// 모임 상세 — 확정/대기 로스터 + 신청/취소, 대기 안내, 주최자 커피뽑기·취소.
-private struct GatheringDetailSheet: View {
+/// 홈 스토리에서도 바로 띄운다(탭 전환 없이 상세로) — 그래서 private 이 아니다.
+struct GatheringDetailSheet: View {
     let gatheringId: String
     @EnvironmentObject private var store: GatheringStore
     @EnvironmentObject private var session: SessionStore
