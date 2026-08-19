@@ -127,11 +127,14 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
           setError(`비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상이어야 해요.`);
           return;
         }
+        // 파트 드롭다운은 팀 확정 후에만 떠서 보통 유효하지만, blur 없이 바로 제출한 경우
+        // 기본값(다른 팀 파트)이 남을 수 있어 여기서 그 팀의 유효한 파트로 보정한다.
+        const chosenPart = tenant.parts.includes(part) ? part : tenant.parts[0] ?? part;
         const { data, error: e } = await supabase.auth.signUp({
           email: em,
           password,
           // 이름·파트·테넌트를 metadata 로 넘겨, 확인 후 첫 로그인 때 그 팀 계정으로 생성.
-          options: { data: { full_name: name.trim(), part, tenant_id: tenant.id } },
+          options: { data: { full_name: name.trim(), part: chosenPart, tenant_id: tenant.id } },
         });
         if (e) {
           setError(e.message);
@@ -327,17 +330,17 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
           </>
         )}
 
-        {view === 'signup' && (
-          <>
-            <label>
-              소속 파트
-              <select value={part} onChange={(e) => setPart(e.target.value as TeamPart)}>
-                {partOptions.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </label>
-          </>
+        {/* 소속 파트는 초대코드로 팀이 확정된 뒤에만 보여준다. 팀이 정해지기 전엔 어느 팀의
+            파트인지 알 수 없어(기본 SK 파트가 뜨는 게 부자연스럽다) 숨긴다. */}
+        {view === 'signup' && resolvedTenant && (
+          <label>
+            소속 파트
+            <select value={part} onChange={(e) => setPart(e.target.value as TeamPart)}>
+              {partOptions.map((item) => (
+                <option key={item}>{item}</option>
+              ))}
+            </select>
+          </label>
         )}
 
         {(error || authError) && <p className="form-error">{error || authError}</p>}
