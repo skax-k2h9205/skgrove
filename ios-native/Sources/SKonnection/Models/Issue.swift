@@ -41,6 +41,10 @@ struct Issue: Identifiable, Codable {
     var category: String
     var identity: Identity
     var target: IssueTarget
+    /// 서버에 저장된 대상 원문. 웹은 '리더 전체'나 특정 리더 이름도 대상으로 쓰는데,
+    /// IssueTarget 은 두 값뿐이라 그 밖의 값이 전부 .teamLeader 로 접힌다.
+    /// 접힌 값으로 열람 권한을 판정하면 남의 접수가 팀리더에게 새므로 원문을 남긴다.
+    var targetRaw: String? = nil
     var body: String
     var expectedChange: String
     var urgency: Urgency
@@ -256,6 +260,7 @@ struct SupabaseIssueRow: Decodable {
             category: category ?? issueCategories[0],
             identity: Identity(rawValue: author ?? "") ?? .anonymous,
             target: IssueTarget(rawValue: target ?? "") ?? .teamLeader,
+            targetRaw: target,
             body: body ?? "",
             expectedChange: expected_change ?? "",
             urgency: Urgency(rawValue: urgency ?? "") ?? .normal,

@@ -222,8 +222,12 @@ struct MoreView: View {
                     link("액션아이템", "bolt.fill", Theme.Palette.success) { ActionsView() }
                     link("캔미팅 / 티미팅", "dot.radiowaves.left.and.right", Theme.Palette.primary) { MeetingsView() }
                 }
-                Section("리더") {
-                    link("리더 관리함", "tray.full.fill", Theme.Palette.primary) { LeaderView() }
+                // 리더 관리함은 실제 리더 역할만 — 예전엔 조건이 없어 팀원에게도 보였고,
+                // 열면 남의 파트로 간 대나무숲 접수까지 다 보였다(웹은 원래 막혀 있었다).
+                if session.currentUser?.role.hasLeaderRole == true {
+                    Section("리더") {
+                        link("리더 관리함", "tray.full.fill", Theme.Palette.primary) { LeaderView() }
+                    }
                 }
                 Section("팀") {
                     link("팀 추억", "photo.stack.fill", Theme.Palette.cta) { MemoryView() }
@@ -238,11 +242,17 @@ struct MoreView: View {
                     link("알림 / 메시지", "bell.fill", Theme.Palette.cta) { NotificationsView() }
                 }
 
-                // 관리 화면은 리더/커넥셔너에게만 노출한다.
-                if session.currentUser?.role.isLeader == true {
+                // 관리 화면의 문턱은 웹과 같게 나눈다 — 예전엔 둘을 한 덩어리로 묶어
+                // 파트리더도 계정·시스템 관리에 들어갈 수 있었다.
+                if session.currentUser?.role.canManageAccounts == true
+                    || session.currentUser?.role.canManageSystem == true {
                     Section("관리") {
-                        link("계정 관리", "person.2.badge.gearshape.fill", Theme.Palette.primaryStrong) { AccountsView() }
-                        link("시스템 관리", "gearshape.2.fill", Theme.Palette.muted) { SystemView() }
+                        if session.currentUser?.role.canManageAccounts == true {
+                            link("계정 관리", "person.2.badge.gearshape.fill", Theme.Palette.primaryStrong) { AccountsView() }
+                        }
+                        if session.currentUser?.role.canManageSystem == true {
+                            link("시스템 관리", "gearshape.2.fill", Theme.Palette.muted) { SystemView() }
+                        }
                     }
                 }
                 Section {

@@ -12,14 +12,34 @@ struct LeaderView: View {
     // 암호화 접수 복호화용 내 계정 id(CurrentUser엔 id가 없어 roster에서 이메일로 찾는다).
     @State private var leaderAccountId = ""
 
+    /// 나에게 접수된 건만 본다. 예전엔 store.issues 를 통째로 보여줘서, 남의 파트로 간
+    /// 대나무숲 접수까지 다 읽혔다 — 대상 지정이 무의미해지고 익명 제보의 전제가 깨진다.
+    /// (웹 LeaderInbox 의 leadersFor 필터와 같은 규칙.)
+    private var mine: [Issue] {
+        guard let me = session.currentUser else { return [] }
+        return store.issues.filter { IssueTargeting.isTargeted($0, me: me) }
+    }
+
     private var filtered: [Issue] {
-        guard let filter else { return store.issues }
-        return store.issues.filter { $0.status == filter }
+        guard let filter else { return mine }
+        return mine.filter { $0.status == filter }
     }
 
     private let openStatuses: [IssueStatus] = [.received, .reviewing]
 
     var body: some View {
+        // 메뉴를 숨기는 것만으로는 방어가 한 겹뿐이다 — 화면 자체도 역할을 확인한다.
+        if session.currentUser?.role.hasLeaderRole != true {
+            ScreenScaffold(title: "리더 관리함", showUserChip: false) {
+                EmptyState(icon: "lock", title: "리더만 볼 수 있어요",
+                           message: "대나무숲 접수는 접수자가 지정한 리더에게만 전달돼요.")
+            }
+        } else {
+            inbox
+        }
+    }
+
+    private var inbox: some View {
         ScreenScaffold(title: "리더 관리함", showUserChip: false,
                        onRefresh: { try? await Task.sleep(for: .seconds(0.6)) }) {
             summary
@@ -158,7 +178,9 @@ struct LeaderView: View {
 
     @ViewBuilder
     private var overdueBanner: some View {
-        if let days = store.oldestWaitingDays(today: Date()), days >= Issue.responseDueDays {
+        // 지연 경고도 내 접수만 본다 — 남의 파트가 밀린 걸 내 화면에서 재촉할 이유가 없다.
+        if let days = mine.filter({ $0.isAwaitingResponse })
+            .map({ $0.daysSinceCreated(today: Date()) }).max(), days >= Issue.responseDueDays {
             HStack(spacing: Theme.Space.x2) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.Palette.danger)
                 Text("\(days)일째 답변을 기다리는 접수가 있어요. 방치되면 사람들이 다시 쓰지 않아요.")
@@ -193,10 +215,11 @@ struct LeaderView: View {
     }
 
     private var summary: some View {
-        let openCount = store.issues.filter { openStatuses.contains($0.status) }.count
+        // 집계도 목록과 같은 범위를 센다 — 전체를 세면 "10건"이라 해놓고 7건만 보여준다.
+        let openCount = mine.filter { openStatuses.contains($0.status) }.count
         return HStack(spacing: Theme.Space.x2) {
             Image(systemName: "tray.full.fill").foregroundStyle(Theme.Palette.primary)
-            Text("접수 \(store.issues.count)건 · 처리 대기 \(openCount)건 — 검토하고 안건으로 올려보세요.")
+            Text("접수 \(mine.count)건 · 처리 대기 \(openCount)건 — 검토하고 안건으로 올려보세요.")
                 .font(.footnote).foregroundStyle(Theme.Palette.tintPrimaryInk)
         }
         .padding(Theme.Space.x3).frame(maxWidth: .infinity, alignment: .leading)
