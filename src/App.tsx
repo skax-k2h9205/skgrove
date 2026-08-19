@@ -420,6 +420,21 @@ export function App() {
     };
   }, [currentUser]);
 
+  // 탭으로 돌아올 때 유머 글·댓글을 다시 읽는다.
+  // 위 로드는 (로그인당) 1회짜리라, 탭을 열어둔 채 앱(iOS)이나 다른 사람 브라우저에서
+  // 글이 올라오면 새로고침 전까지 영영 안 보였다 — "앱에서 올린 글이 웹에 없다"의 정체.
+  // 로드와 같은 전제(로그인 후 = 테넌트 확정)를 따라 currentUser 가 있을 때만 돈다.
+  useEffect(() => {
+    if (!currentUser) return;
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      void loadHumorPosts().then(setHumorPosts);
+      void loadHumorComments().then(setHumorComments);
+    };
+    document.addEventListener('visibilitychange', refresh);
+    return () => document.removeEventListener('visibilitychange', refresh);
+  }, [currentUser]);
+
   // createdAt은 App이 채운다(접수 시각). 호출부가 넘기지 않는다.
   // 암호화 대상(익명 전체 / 실명 '리더만 보기')이면 본문을 수신자 공개키로 E2E 암호화한다.
   //  - 익명: 대상 리더만 수신자 → 운영자도, 작성자도(불명) 못 읽는다.
