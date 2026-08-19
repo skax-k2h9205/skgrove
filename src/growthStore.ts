@@ -2,6 +2,7 @@
 // 목표·역량 레벨은 수정형(syncRows), 이력 로그는 추가형(insert). actionItemStore 패턴을 따른다.
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
+import { getCurrentTenantId, withTenant } from './tenantContext';
 import type { CompetencyLevel, CompetencyLogEntry, GrowthGoal } from './types';
 
 const GOALS_KEY = 'skgrove:growthGoals';
@@ -73,9 +74,9 @@ export function makeGrowthId(prefix: string): string {
 export async function loadGrowth(): Promise<{ goals: GrowthGoal[]; levels: CompetencyLevel[]; log: CompetencyLogEntry[] }> {
   if (supabase) {
     const [g, l, lg] = await Promise.all([
-      supabase.from(GOALS_TABLE).select('*'),
-      supabase.from(LEVELS_TABLE).select('*'),
-      supabase.from(LOG_TABLE).select('*').order('at', { ascending: true }),
+      withTenant(supabase.from(GOALS_TABLE).select('*')),
+      withTenant(supabase.from(LEVELS_TABLE).select('*')),
+      withTenant(supabase.from(LOG_TABLE).select('*')).order('at', { ascending: true }),
     ]);
     const goals = !g.error && g.data ? (g.data as GoalRow[]).map(goalFromRow) : readLocal<GrowthGoal>(GOALS_KEY);
     const levels = !l.error && l.data ? (l.data as LevelRow[]).map(levelFromRow) : readLocal<CompetencyLevel>(LEVELS_KEY);
@@ -113,7 +114,7 @@ export async function appendLog(entry: CompetencyLogEntry): Promise<void> {
   const cache = readLocal<CompetencyLogEntry>(LOG_KEY);
   window.localStorage.setItem(LOG_KEY, JSON.stringify([...cache, entry]));
   if (supabase) {
-    const { error } = await supabase.from(LOG_TABLE).insert(logToRow(entry));
+    const { error } = await supabase.from(LOG_TABLE).insert({ ...logToRow(entry), tenant_id: getCurrentTenantId() });
     if (error) console.warn('growth_competency_log insert 실패.', error);
   }
 }
