@@ -291,6 +291,15 @@ export function App() {
     return profileDirectory.filter((profile) => activeNames.has(profile.name));
   }, [profileDirectory, accounts]);
 
+  // 티미팅 그룹 편성용 현재 팀 활성 멤버(이름·파트). 예전엔 SK mock(teamRoster)을 썼다.
+  const teamMembers = useMemo(
+    () =>
+      accounts
+        .filter((account) => account.status === '활성')
+        .map((account) => ({ name: account.name, part: account.part })),
+    [accounts],
+  );
+
   const [votedAgendaIds, setVotedAgendaIds] = useState<string[]>([]);
   const [agendaForActions, setAgendaForActions] = useState<Agenda | null>(null);
 
@@ -1816,6 +1825,7 @@ export function App() {
           selectedId={selectedCanId}
           currentUser={currentUser}
           canSteps={canSteps}
+          members={teamMembers}
           onSelectSession={setSelectedCanId}
           onStartSession={startCanSession}
           onUpdateSession={updateCanSession}
