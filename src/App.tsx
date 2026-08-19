@@ -338,15 +338,6 @@ export function App() {
     loadTenants().then((loaded) => {
       if (isMounted) setTenants(loaded);
     });
-    loadTeaSessionTypes().then((loaded) => {
-      if (isMounted) setTeaSessionTypes(loaded);
-    });
-    loadCanSteps().then((loaded) => {
-      if (isMounted) setCanSteps(loaded);
-    });
-    loadNotifySettings().then((loaded) => {
-      if (isMounted) setNotifySettings(loaded);
-    });
     return () => {
       isMounted = false;
     };
@@ -365,6 +356,16 @@ export function App() {
     // 계정 로스터도 현재 테넌트로 재조회(mount 의 전체 로드를 팀 스코프로 교체).
     loadAccounts().then((loaded) => {
       if (isMounted) setAccounts(loaded);
+    });
+    // 팀 공용 설정(app_config)도 테넌트 스코프라 로그인 후에 읽는다.
+    loadTeaSessionTypes().then((loaded) => {
+      if (isMounted) setTeaSessionTypes(loaded);
+    });
+    loadCanSteps().then((loaded) => {
+      if (isMounted) setCanSteps(loaded);
+    });
+    loadNotifySettings().then((loaded) => {
+      if (isMounted) setNotifySettings(loaded);
     });
     loadIssues().then((loaded) => {
       if (isMounted) setIssues(loaded);

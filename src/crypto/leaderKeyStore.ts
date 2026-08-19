@@ -1,6 +1,7 @@
 // 리더 키페어의 원격 저장/로드 + 세션 내 개인키 메모리 캐시.
 // leader_keys 테이블: 공개키(누구나 읽음) + 패스프레이즈/복구코드로 감싼 개인키(암호문).
 import { supabase } from '../supabaseClient';
+import { getCurrentTenantId } from '../tenantContext';
 import { ISSUE_ENC_ALG, type WrappedKey } from './issueCrypto';
 
 export type LeaderKeyRecord = {
@@ -78,7 +79,9 @@ export async function loadLeaderKeyRecord(accountId: string): Promise<LeaderKeyR
 /** 리더 키 최초 등록. 이미 있으면 upsert(키 재설정). */
 export async function saveLeaderKeyRecord(rec: LeaderKeyRecord): Promise<boolean> {
   if (!supabase) return true; // 로컬 전용 모드는 실패가 아니다
-  const { error } = await supabase.from(TABLE).upsert(recordToRow(rec), { onConflict: 'account_id' });
+  const { error } = await supabase
+    .from(TABLE)
+    .upsert({ ...recordToRow(rec), tenant_id: getCurrentTenantId() }, { onConflict: 'account_id' });
   if (error) {
     console.warn('leader_keys 저장 실패.', error);
     return false;
