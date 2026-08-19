@@ -9,11 +9,14 @@ struct MarketView: View {
     @Binding var composing: Bool
     private let filters = ["거래중", "나눔", "내가 올린 것", "전체"]
     @State private var selected: MarketItem?
+    @State private var reporting: ReportTarget?
+    @EnvironmentObject private var moderation: ModerationStore
 
     private var myName: String { session.currentUser?.name ?? "나" }
 
     private var visible: [MarketItem] {
-        store.sorted.filter { item in
+        // 차단·신고한 것은 필터와 무관하게 먼저 걸러낸다(심사 지침 1.2).
+        store.sorted.filter { !moderation.isHidden(.market, id: $0.id, author: $0.seller) }.filter { item in
             switch filter {
             case "거래중": return store.status(item) == .open
             case "나눔": return item.kind == .giveaway
@@ -50,12 +53,18 @@ struct MarketView: View {
                                  caption: (author: item.seller.isEmpty ? "익명" : item.seller, text: item.title))
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        ModerationMenuItems(
+                            target: ReportTarget(kind: .market, targetId: item.id, author: item.seller),
+                            onReport: { reporting = $0 })
+                    }
                 }
             }
         }
         .sheet(item: $selected) { item in
             MarketDetailSheet(itemId: item.id)
         }
+        .sheet(item: $reporting) { ReportSheet(target: $0) }
         .sheet(isPresented: $composing) {
             MarketComposeSheet { kind, title, desc, place, startPrice, minStep, closeAt in
                 store.list(kind: kind == "경매" ? .auction : .giveaway, title: title, seller: myName,
@@ -87,9 +96,17 @@ struct MarketDetailSheet: View {
     @EnvironmentObject private var session: SessionStore
     @Environment(\.dismiss) private var dismiss
     @State private var bidAmount: Int = 0
+    @State private var reporting: ReportTarget?
+    @EnvironmentObject private var moderation: ModerationStore
 
     private var myName: String { session.currentUser?.name ?? "나" }
     private var item: MarketItem? { store.items.first { $0.id == itemId } }
+
+    /// 신고·차단한 물건은 상세도 함께 닫는다(심사 지침 1.2 '즉시 제거').
+    private var hiddenNow: Bool {
+        guard let item else { return false }
+        return moderation.isHidden(.market, id: item.id, author: item.seller)
+    }
 
     var body: some View {
         NavigationStack {
@@ -110,7 +127,18 @@ struct MarketDetailSheet: View {
             }
             .background(Theme.Palette.sunken)
             .navigationTitle("이음장터").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    if let item {
+                        ModerationToolbarMenu(
+                            target: ReportTarget(kind: .market, targetId: item.id, author: item.seller),
+                            onReport: { reporting = $0 })
+                    }
+                }
+            }
+            .sheet(item: $reporting) { ReportSheet(target: $0) }
+            .onChange(of: hiddenNow) { _, now in if now { dismiss() } }
         }
         .presentationDetents([.medium, .large])
         .onAppear { if let item { bidAmount = store.minNextBid(item) } }

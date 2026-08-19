@@ -14,6 +14,7 @@ struct IntakeView: View {
     @State private var urgency: Urgency = .normal
     @State private var visibility: IssueVisibility = .leaderOnly
     @State private var justSubmitted: String?
+    @State private var filterWarning: String?
 
     @State private var reviewing = false
     @State private var findings: [ReviewFinding] = []
@@ -145,6 +146,7 @@ struct IntakeView: View {
                 Text(reviewError).font(.footnote).foregroundStyle(Theme.Palette.danger)
             }
 
+            if let filterWarning { FilterWarning(message: filterWarning) }
             Button(action: reviewAndSubmit) {
                 HStack {
                     if reviewing { ProgressView().tint(.white) }
@@ -218,6 +220,15 @@ struct IntakeView: View {
     /// 접수 전 AI 검토. 지적이 있으면 카드로 보여주고 멈추고, 없으면 바로 접수.
     private func reviewAndSubmit() {
         guard !title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        // 대나무숲도 사용자 생성 콘텐츠다 — 금칙어는 등록 전에 막는다(심사 지침 1.2).
+        // AI 검토(ReviewService)는 키·네트워크가 필요해 심사 중 막히면 무력해지므로,
+        // 그것과 별개로 로컬 필터를 앞단에 둔다.
+        if let reason = ContentFilter.violation(in: "\(title) \(detail) \(expectedChange)") {
+            withAnimation(.snappy) { filterWarning = reason }
+            Haptics.warning()
+            return
+        }
+        filterWarning = nil
         // 암호화 글(익명 / 실명 '리더만 보기')은 본문을 외부 AI로 보내지 않는다 — 바로 접수(웹과 동일).
         if AnonEncrypt.plan(identity: identity, visibility: visibility).encrypt {
             doSubmit()

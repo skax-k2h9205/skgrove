@@ -13,6 +13,7 @@ struct HomeView: View {
     @EnvironmentObject private var market: MarketStore
     @EnvironmentObject private var agendas: AgendaStore
     @EnvironmentObject private var actions: ActionStore
+    @EnvironmentObject private var moderation: ModerationStore
 
     /// 스토리를 탭하면 탭 전환 없이 이 모임 상세를 바로 띄운다.
     @State private var storyGathering: Gathering?
@@ -31,12 +32,19 @@ struct HomeView: View {
     private static let viewedKey = "skonnection.viewedStories" 
 
     /// 각 도메인에서 몇 개씩 뽑아 라운드로빈으로 섞은 통합 피드.
+    ///
+    /// 차단·신고 필터는 반드시 prefix **앞**에 건다. 뒤에 걸면 차단한 사람 글이
+    /// 자리만 차지하고 사라져 피드가 텅 빈 것처럼 보인다.
     private var feed: [HomeFeedItem] {
-        let h = humor.posts.prefix(8).map {
+        let h = humor.posts
+            .filter { !moderation.isHidden(.humorPost, id: $0.id, author: $0.author) }
+            .prefix(8).map {
             HomeFeedItem(id: "h:\($0.id)", refId: $0.id, kind: .humor, title: $0.body,
                          meta: "빵터짐 \($0.laughs)", imageURL: humor.thumbnail($0), author: $0.author)
         }
-        let m = market.sorted.prefix(6).map {
+        let m = market.sorted
+            .filter { !moderation.isHidden(.market, id: $0.id, author: $0.seller) }
+            .prefix(6).map {
             HomeFeedItem(id: "m:\($0.id)", refId: $0.id, kind: .market, title: $0.title,
                          meta: market.status($0).rawValue, imageURL: URL(string: $0.imageURL), author: $0.seller)
         }
@@ -44,6 +52,7 @@ struct HomeView: View {
         // 일반 모임은 지나고 나서도 기록으로 남아야 해서 피드에 그대로 둔다.
         let g = gatherings.gatherings
             .filter { $0.kind == .gathering }
+            .filter { !moderation.isHidden(.gathering, id: $0.id, author: $0.host) }
             .prefix(6)
             .map {
                 HomeFeedItem(id: "g:\($0.id)", refId: $0.id, kind: .gathering, title: $0.title,
@@ -132,6 +141,7 @@ struct HomeView: View {
         let viewed = Set(viewedStoryIds)
         return gatherings.gatherings
             .filter { gatherings.status($0) == .open }
+            .filter { !moderation.isHidden(.gathering, id: $0.id, author: $0.host) }
             .sorted { a, b in
                 // 안 본 스토리 먼저(인스타). 같은 그룹 안에서는 시작이 임박한 순.
                 let av = viewed.contains(a.id), bv = viewed.contains(b.id)

@@ -8,12 +8,15 @@ struct GatheringsView: View {
     /// 작성 폼 표시 여부 — 홈 '말하기'에서도 열 수 있게 RootView 가 소유한다.
     @Binding var composing: Bool
     @State private var selected: Gathering?
+    @State private var reporting: ReportTarget?
+    @EnvironmentObject private var moderation: ModerationStore
     private let filters = ["모집중", "내가 신청", "내가 연 것", "전체"]
 
     private var myName: String { session.currentUser?.name ?? "나" }
 
     private var visible: [Gathering] {
-        store.gatherings.filter { g in
+        // 차단·신고한 것은 필터와 무관하게 먼저 걸러낸다(심사 지침 1.2).
+        store.gatherings.filter { !moderation.isHidden(.gathering, id: $0.id, author: $0.host) }.filter { g in
             switch filter {
             case "모집중": return store.status(g) == .open || store.status(g) == .closed
             case "내가 신청": return store.mySeat(g, name: myName) != nil
@@ -40,10 +43,16 @@ struct GatheringsView: View {
                                  caption: (author: g.host.isEmpty ? "우리 팀" : g.host, text: g.title))
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        ModerationMenuItems(
+                            target: ReportTarget(kind: .gathering, targetId: g.id, author: g.host),
+                            onReport: { reporting = $0 })
+                    }
                 }
             }
         }
         .sheet(item: $selected) { g in GatheringDetailSheet(gatheringId: g.id) }
+        .sheet(item: $reporting) { ReportSheet(target: $0) }
         .sheet(isPresented: $composing) {
             GatheringComposeSheet { kind, title, startAt, place, capacity, desc in
                 let k: GatheringKind = kind == "번개" ? .flash : (kind == "커피" ? .coffee : .gathering)
@@ -81,9 +90,17 @@ struct GatheringDetailSheet: View {
     @EnvironmentObject private var coffeeGames: CoffeeGameStore
     @Environment(\.dismiss) private var dismiss
     @State private var showCoffeeGame = false
+    @State private var reporting: ReportTarget?
+    @EnvironmentObject private var moderation: ModerationStore
 
     private var myName: String { session.currentUser?.name ?? "나" }
     private var g: Gathering? { store.gatherings.first { $0.id == gatheringId } }
+
+    /// 신고·차단한 모임은 상세도 함께 닫는다(심사 지침 1.2 '즉시 제거').
+    private var hiddenNow: Bool {
+        guard let g else { return false }
+        return moderation.isHidden(.gathering, id: g.id, author: g.host)
+    }
     /// 지금 이 모임에서 돌아가는(또는 끝난) 게임.
     private var liveGame: CoffeeGame? { coffeeGames.game(for: gatheringId) }
 
@@ -109,7 +126,18 @@ struct GatheringDetailSheet: View {
             }
             .background(Theme.Palette.sunken)
             .navigationTitle("모임 · 번개").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    if let g {
+                        ModerationToolbarMenu(
+                            target: ReportTarget(kind: .gathering, targetId: g.id, author: g.host),
+                            onReport: { reporting = $0 })
+                    }
+                }
+            }
+            .sheet(item: $reporting) { ReportSheet(target: $0) }
+            .onChange(of: hiddenNow) { _, now in if now { dismiss() } }
         }
         .presentationDetents([.medium, .large])
         // 상세가 열려 있는 동안만 폴링한다 — 게임이 시작되면 참가자 폰에도 곧바로 뜬다.

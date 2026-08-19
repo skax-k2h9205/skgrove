@@ -31,19 +31,29 @@ struct FormField: View {
 }
 
 /// 폼 시트 뼈대 — 스크롤 + 등록/닫기 툴바.
+///
+/// 금칙어 검사도 여기서 한다. 폼마다 따로 걸면 새 폼이 생길 때마다 빠뜨리고,
+/// 심사 지침 1.2 의 '콘텐츠 필터링'은 **사용자가 글을 쓰는 모든 경로**에 있어야 한다.
+/// `moderated` 로 검사할 텍스트를 넘기면 위반 시 등록을 막고 이유를 보여준다.
 struct FormSheet<Content: View>: View {
     let title: String
     let action: String
     let canSubmit: Bool
     let onSubmit: () -> Void
+    /// 검사 대상 텍스트(제목·본문 등을 이어붙여 넘긴다). 비우면 검사하지 않는다.
+    var moderated: () -> String = { "" }
     @ViewBuilder var content: () -> Content
     @Environment(\.dismiss) private var dismiss
+    @State private var warning: String?
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Space.x4) { content() }
-                    .padding(Theme.Space.x4)
+                VStack(alignment: .leading, spacing: Theme.Space.x4) {
+                    if let warning { FilterWarning(message: warning) }
+                    content()
+                }
+                .padding(Theme.Space.x4)
             }
             .background(Theme.Palette.sunken)
             .navigationTitle(title)
@@ -51,10 +61,21 @@ struct FormSheet<Content: View>: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(action) { onSubmit(); dismiss() }.disabled(!canSubmit)
+                    Button(action) { submit() }.disabled(!canSubmit)
                 }
             }
         }
+    }
+
+    private func submit() {
+        if let reason = ContentFilter.violation(in: moderated()) {
+            withAnimation(.snappy) { warning = reason }
+            Haptics.warning()
+            return
+        }
+        warning = nil
+        onSubmit()
+        dismiss()
     }
 }
 
@@ -68,7 +89,8 @@ struct HumorComposeSheet: View {
     var body: some View {
         FormSheet(title: "유머 글쓰기", action: "등록",
                   canSubmit: !body_.trimmingCharacters(in: .whitespaces).isEmpty,
-                  onSubmit: { onCreate(body_, media) }) {
+                  onSubmit: { onCreate(body_, media) },
+                  moderated: { body_ }) {
             FormRow(label: "내용") { FormField(text: $body_, placeholder: "웃긴 이야기를 남겨보세요", lines: 4) }
             FormRow(label: "이미지 · 영상 링크 (선택)") {
                 FormField(text: $media, placeholder: "이미지 주소나 유튜브 링크", keyboard: .URL)
@@ -95,7 +117,8 @@ struct GatheringComposeSheet: View {
     private var canSubmit: Bool { isCoffee || !title.trimmingCharacters(in: .whitespaces).isEmpty }
 
     var body: some View {
-        FormSheet(title: "모임 열기", action: "열기", canSubmit: canSubmit, onSubmit: submit) {
+        FormSheet(title: "모임 열기", action: "열기", canSubmit: canSubmit, onSubmit: submit,
+                  moderated: { "\(title) \(desc)" }) {
             FormRow(label: "종류") {
                 Picker("종류", selection: $kind) {
                     Text("모임").tag("모임"); Text("번개").tag("번개"); Text("커피").tag("커피")
@@ -163,7 +186,8 @@ struct MarketComposeSheet: View {
                   onSubmit: {
                       let price = Int(priceText.filter(\.isNumber)) ?? 0
                       onCreate(kind, title, desc, place, isAuction ? price : 0, minStep, closeAt)
-                  }) {
+                  },
+                  moderated: { "\(title) \(desc)" }) {
             FormRow(label: "종류") {
                 Picker("종류", selection: $kind) { Text("나눔").tag("나눔"); Text("경매").tag("경매") }
                     .pickerStyle(.segmented)

@@ -7,8 +7,15 @@ struct HumorView: View {
     /// 작성 폼 표시 여부 — 홈 '말하기'에서도 열 수 있게 RootView 가 소유한다.
     @Binding var composing: Bool
     @State private var selected: HumorPost?
+    @State private var reporting: ReportTarget?
+    @EnvironmentObject private var moderation: ModerationStore
 
     private var myName: String { session.currentUser?.name ?? "익명" }
+
+    /// 차단한 사람의 글과 내가 신고해 숨긴 글은 즉시 사라진다(심사 지침 1.2).
+    private var visiblePosts: [HumorPost] {
+        store.posts.filter { !moderation.isHidden(.humorPost, id: $0.id, author: $0.author) }
+    }
 
     var body: some View {
         // 당겨서 새로고침이 예전엔 0.6초 잠자기만 했다 — 웹에서 올라온 글이 앱을 껐다 켜기
@@ -18,7 +25,7 @@ struct HumorView: View {
                        onCompose: { composing = true }) {
             hallOfFame
 
-            InstaGrid(items: store.posts) { post in
+            InstaGrid(items: visiblePosts) { post in
                 Button { Haptics.selection(); selected = post } label: {
                     GridTile(imageURL: store.thumbnail(post), icon: "face.smiling", title: post.body,
                              meta: "빵터짐 \(post.laughs) · 댓글 \(store.commentCount(post.id))",
@@ -33,6 +40,9 @@ struct HumorView: View {
                             withAnimation(.snappy) { store.deletePost(post.id) }
                         } label: { Label("삭제", systemImage: "trash") }
                     }
+                    ModerationMenuItems(
+                        target: ReportTarget(kind: .humorPost, targetId: post.id, author: post.author),
+                        onReport: { reporting = $0 })
                 }
             }
         }
@@ -40,6 +50,7 @@ struct HumorView: View {
         .sheet(item: $selected) { post in
             HumorDetail(postId: post.id)
         }
+        .sheet(item: $reporting) { ReportSheet(target: $0) }
         .sheet(isPresented: $composing) {
             HumorComposeSheet { body, media in store.addPost(author: myName, body: body, mediaURL: media); Haptics.success() }
         }
@@ -98,11 +109,20 @@ struct HumorDetail: View {
     let postId: String
     @EnvironmentObject private var store: HumorStore
     @EnvironmentObject private var session: SessionStore
+    @EnvironmentObject private var moderation: ModerationStore
     @Environment(\.dismiss) private var dismiss
     @State private var draft = ""
+    @State private var reporting: ReportTarget?
+    @State private var filterWarning: String?
 
     private var myName: String { session.currentUser?.name ?? "익명" }
     private var post: HumorPost? { store.posts.first { $0.id == postId } }
+
+    /// 방금 신고·차단한 글을 상세에 그대로 띄워두면 "즉시 사라진다"는 약속과 어긋난다.
+    private var hiddenNow: Bool {
+        guard let post else { return false }
+        return moderation.isHidden(.humorPost, id: post.id, author: post.author)
+    }
 
     var body: some View {
         NavigationStack {
@@ -141,13 +161,27 @@ struct HumorDetail: View {
             }
             .background(Theme.Palette.sunken)
             .navigationTitle("유머").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } }
+                // 상세에는 눈에 보이는 신고 버튼을 둔다 — 길게 누르는 메뉴만으로는
+                // 심사자가 신고 기능을 찾지 못한다.
+                ToolbarItem(placement: .primaryAction) {
+                    if let post {
+                        ModerationToolbarMenu(
+                            target: ReportTarget(kind: .humorPost, targetId: post.id, author: post.author),
+                            onReport: { reporting = $0 })
+                    }
+                }
+            }
+            .sheet(item: $reporting) { ReportSheet(target: $0) }
+            .onChange(of: hiddenNow) { _, now in if now { dismiss() } }
             .safeAreaInset(edge: .bottom) { commentBar }
         }
     }
 
     private func commentsSection(_ post: HumorPost) -> some View {
         let list = store.comments(for: post.id)
+            .filter { !moderation.isHidden(.humorComment, id: $0.id, author: $0.author) }
         return VStack(alignment: .leading, spacing: Theme.Space.x3) {
             Text("댓글 \(list.count)").font(.subheadline.bold()).foregroundStyle(Theme.Palette.ink)
             if list.isEmpty {
@@ -162,18 +196,38 @@ struct HumorDetail: View {
                         }
                         Spacer()
                     }
+                    .contentShape(Rectangle())
+                    .contextMenu {
+                        ModerationMenuItems(
+                            target: ReportTarget(kind: .humorComment, targetId: c.id, author: c.author),
+                            onReport: { reporting = $0 })
+                    }
                 }
             }
         }
     }
 
     private var commentBar: some View {
+        VStack(spacing: Theme.Space.x2) {
+            if let filterWarning { FilterWarning(message: filterWarning) }
+            commentField
+        }
+        .padding(Theme.Space.x3)
+        .background(.ultraThinMaterial)
+    }
+
+    private var commentField: some View {
         HStack(spacing: Theme.Space.x2) {
             TextField("댓글 달기…", text: $draft)
                 .padding(.horizontal, Theme.Space.x3).padding(.vertical, Theme.Space.x2)
                 .background(Theme.Palette.surface, in: Capsule())
                 .overlay(Capsule().stroke(Theme.Palette.border))
             Button {
+                // 명백한 욕설·비방은 등록 자체를 막는다(심사 지침 1.2 '콘텐츠 필터링').
+                if let reason = ContentFilter.violation(in: draft) {
+                    filterWarning = reason; Haptics.warning(); return
+                }
+                filterWarning = nil
                 store.addComment(postId: postId, author: myName, content: draft)
                 draft = ""; Haptics.success()
             } label: {
@@ -182,8 +236,6 @@ struct HumorDetail: View {
             }
             .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
         }
-        .padding(Theme.Space.x3)
-        .background(.ultraThinMaterial)
     }
 }
 

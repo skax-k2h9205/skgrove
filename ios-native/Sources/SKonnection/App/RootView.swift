@@ -229,6 +229,11 @@ struct MoreView: View {
                         link("리더 관리함", "tray.full.fill", Theme.Palette.primary) { LeaderView() }
                     }
                 }
+                // 차단은 되돌릴 수 있어야 하고, 그 자리가 어디인지 분명해야 한다(심사 지침 1.2).
+                Section("안전") {
+                    link("차단한 사람", "hand.raised.slash.fill", Theme.Palette.danger) { BlockedAuthorsView() }
+                }
+
                 Section("팀") {
                     link("팀 추억", "photo.stack.fill", Theme.Palette.cta) { MemoryView() }
                 }
