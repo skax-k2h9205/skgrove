@@ -13,6 +13,7 @@ import {
   saveConnectResults,
 } from '../../connectResultStore';
 import type { Profile, SavedDrawResult } from '../../types';
+import { useTenantParts } from '../../tenantParts';
 
 type ConnectProps = {
   // 실제 유저(활성 계정)의 라이브 성향 프로필. App이 profiles(DB)+accounts(활성 상태)로 합쳐 전달한다.
@@ -42,7 +43,6 @@ type ProfileSignal = {
   weight: number;
 };
 
-const partOrder = ['TEST혁신파트', 'ITS혁신파트', 'PM혁신파트'];
 
 function getAgeMood(birthYear: string) {
   const year = Number(birthYear);
@@ -265,6 +265,7 @@ function analyzeAllTeams(groups: TeamGroup[]) {
 }
 
 export function Connect({ members }: ConnectProps) {
+  const partOrder = useTenantParts(); // 현재 팀의 파트 순서(SK 고정 아님)
   // 커피뽑기는 번개로 통합됐다. 이 화면(커넥셔너 · 조뽑기)은 조뽑기 전용이다.
   const participantNames = useMemo(() => members.map((member) => member.name), [members]);
   const [selectedNames, setSelectedNames] = useState(participantNames);
@@ -323,7 +324,7 @@ export function Connect({ members }: ConnectProps) {
       part,
       members: visibleParticipants.filter((profile) => profile.part === part),
     }));
-  }, [visibleParticipants]);
+  }, [visibleParticipants, partOrder]);
 
   const teamCount = getTeamCount(selectedParticipants.length, teamBasis, teamValue);
   // 입력한 값이 그대로 쓰이지 못한 경우에만 이유를 밝힌다.

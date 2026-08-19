@@ -14,14 +14,10 @@ import {
   type MeetingLoad,
   toMetricEvents,
 } from '../../googleCalendar';
-import {
-  initialAgendas,
-  initialCanOpinions,
-  initialCanSessions,
-  initialIssues,
-  profiles,
-} from '../../data/mockData';
 import { loadIssues } from '../../issueStore';
+import { loadProfiles } from '../../profileStore';
+import { loadCanOpinions, loadCanSessions } from '../../canStore';
+import { useTenantParts } from '../../tenantParts';
 import {
   DEFAULT_CALENDAR_WINDOW_DAYS,
   LONG_MEETING_MINUTES,
@@ -87,7 +83,6 @@ const initialWeights: MetricWeights = {
   rewardScore: 82,
 };
 
-const partNames = ['TEST혁신파트', 'ITS혁신파트', 'PM혁신파트'];
 
 
 type MetricsActivity = {
@@ -107,16 +102,17 @@ type MetricsActivity = {
 // CalendarMeetingType · CalendarMetricEvent · CalendarConnection 은 types.ts 로 옮겼다.
 // googleCalendar.ts 의 매핑 함수와 같은 타입을 써야 하기 때문이다.
 
-const initialActivity: MetricsActivity = {
+// 초기값은 전부 비어 있다 — 로드 전 SK mock 이 순간 보이지 않게. 로그인 후 스코프 로드로 채운다.
+const emptyActivity: MetricsActivity = {
   actionItems: [],
-  agendas: initialAgendas,
+  agendas: [],
   ballots: [],
   calendarEvents: [],
   calendarWindowDays: DEFAULT_CALENDAR_WINDOW_DAYS,
-  canOpinions: initialCanOpinions,
-  canSessions: initialCanSessions,
+  canOpinions: [],
+  canSessions: [],
   connectShareTexts: [],
-  issues: initialIssues,
+  issues: [],
   teaSessions: [],
 };
 
@@ -271,9 +267,9 @@ function saveCalendarState(status: CalendarConnection, events: CalendarMetricEve
   window.localStorage.setItem(CALENDAR_WINDOW_KEY, String(windowDays));
 }
 
-function buildPartMetrics(activity: MetricsActivity): PartMetric[] {
-  return partNames.map((partName) => {
-    const members = profiles.filter((profile) => profile.part === partName);
+function buildPartMetrics(activity: MetricsActivity, parts: string[], profileList: Profile[]): PartMetric[] {
+  return parts.map((partName) => {
+    const members = profileList.filter((profile) => profile.part === partName);
     const canOpinions = activity.canOpinions.filter((opinion) => opinion.part === partName);
     const partAgendas = activity.agendas.filter((agenda) => agenda.part === partName || agenda.part === '전체');
     const partActions = activity.actionItems.filter((item) => members.some((member) => item.owner === member.name));
@@ -360,8 +356,11 @@ function busiestOf(loads: MeetingLoad[]): { name: string; date: string; minutes:
 }
 
 export function Metrics({ currentUser }: MetricsProps) {
-  const [activity, setActivity] = useState<MetricsActivity>(initialActivity);
-  const [partMetrics, setPartMetrics] = useState<PartMetric[]>(() => buildPartMetrics(initialActivity));
+  const parts = useTenantParts(); // 현재 팀의 파트(SK 고정 아님)
+  // 파트 멤버·색·성향은 현재 팀의 프로필에서(스코프). 로드 전엔 빈 목록.
+  const [profileList, setProfileList] = useState<Profile[]>([]);
+  const [activity, setActivity] = useState<MetricsActivity>(emptyActivity);
+  const [partMetrics, setPartMetrics] = useState<PartMetric[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarMetricEvent[]>([]);
   const [calendarStatus, setCalendarStatus] = useState<CalendarConnection>('disconnected');
   // 언제 기준 값인지 밝히지 않으면 오래된 값을 지금 값으로 착각한다.
@@ -373,7 +372,9 @@ export function Metrics({ currentUser }: MetricsProps) {
   const [isSample, setIsSample] = useState(false);
   const [calendarBusy, setCalendarBusy] = useState(false);
   const [calendarError, setCalendarError] = useState('');
-  const [selectedPart, setSelectedPart] = useState(currentUser.part === '전체' ? partNames[0] : currentUser.part);
+  const [selectedPart, setSelectedPart] = useState(
+    currentUser.part && currentUser.part !== '전체' ? currentUser.part : (parts[0] ?? ''),
+  );
   const [weights, setWeights] = useState(initialWeights);
   const canViewAllLeaderMetrics = isTeamLeader(currentUser); // 커넥셔너 포함
   const isPartLeader = currentUser.role === '파트리더';
@@ -394,7 +395,10 @@ export function Metrics({ currentUser }: MetricsProps) {
       loadBallots(),
       loadActionItems(),
       loadTeaSessions(),
-    ]).then(([issues, agendas, ballots, actionItems, teaSessions]) => {
+      loadCanOpinions(),
+      loadCanSessions(),
+      loadProfiles([], currentUser),
+    ]).then(([issues, agendas, ballots, actionItems, teaSessions, canOpinions, canSessions, loadedProfiles]) => {
       if (!isMounted) return;
       const loadedActivity = {
         actionItems,
@@ -402,19 +406,21 @@ export function Metrics({ currentUser }: MetricsProps) {
         ballots,
         calendarEvents: savedCalendarEvents,
         calendarWindowDays: savedCalendarWindowDays,
-        canOpinions: initialCanOpinions,
-        canSessions: initialCanSessions,
+        canOpinions,
+        canSessions,
         connectShareTexts: readConnectShareTexts(),
         issues,
         teaSessions,
       };
+      setProfileList(loadedProfiles);
       setActivity(loadedActivity);
-      setPartMetrics(buildPartMetrics(loadedActivity));
+      setPartMetrics(buildPartMetrics(loadedActivity, parts, loadedProfiles));
     });
 
     return () => {
       isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const scoredParts = useMemo(
@@ -462,7 +468,7 @@ export function Metrics({ currentUser }: MetricsProps) {
       connectShareTexts: readConnectShareTexts(),
     };
     setActivity(nextActivity);
-    setPartMetrics(buildPartMetrics(nextActivity));
+    setPartMetrics(buildPartMetrics(nextActivity, parts, profileList));
   };
 
   // 최근 90일치를 읽는다. 회의 습관을 보는 지표라 오래된 일정은 도움이 안 되고,

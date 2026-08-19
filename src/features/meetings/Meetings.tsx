@@ -26,7 +26,6 @@ import { PanelHeader } from '../../components/PanelHeader';
 import type { ToastTone } from '../../components/Toast';
 import { makeActionItemId } from '../../actionItemStore';
 import { summarizeCanMeeting } from '../../aiSummarize';
-import { teamRoster } from '../../data/mockData';
 import type {
   ActionItem,
   CalendarMetricEvent,
@@ -78,6 +77,8 @@ type MeetingsProps = {
   selectedId: string | null;
   currentUser: CurrentUser;
   canSteps: CanStepConfig[];
+  // 티미팅 그룹 편성에 쓸 현재 팀(테넌트)의 활성 멤버. 예전엔 SK mock(teamRoster)을 썼다.
+  members: { name: string; part: string }[];
   onSelectSession: (id: string | null) => void;
   onStartSession: () => void;
   onUpdateSession: (session: CanSession) => void;
@@ -119,6 +120,7 @@ export function Meetings({
   selectedId,
   currentUser,
   canSteps,
+  members,
   onSelectSession,
   onStartSession,
   onUpdateSession,
@@ -233,15 +235,15 @@ export function Meetings({
   // 파트를 섞어 그룹 편성 (SKSOOP-70): 실제 파트별로 셔플 후 라운드로빈 배정 → 각 조에 파트가 고루 섞임
   const formTeaGroups = () => {
     setTeaCopyNotice(''); // 그룹이 바뀌면 이전 복사 안내는 무효
-    const count = Math.min(Math.max(2, teaGroupCount), teamRoster.length);
+    const count = Math.min(Math.max(2, teaGroupCount), members.length);
     const groups: TeaGroup[] = Array.from({ length: count }, (_, index) => ({
       name: `${index + 1}조`,
       members: [],
     }));
-    const parts = Array.from(new Set(teamRoster.map((member) => member.part)));
+    const parts = Array.from(new Set(members.map((member) => member.part)));
     let cursor = 0;
     parts.forEach((part) => {
-      teamRoster
+      members
         .filter((member) => member.part === part)
         .sort(() => Math.random() - 0.5)
         .forEach((member) => {
@@ -1487,7 +1489,7 @@ export function Meetings({
                       <input
                         type="number"
                         min={2}
-                        max={teamRoster.length}
+                        max={members.length}
                         value={teaGroupCount}
                         onChange={(event) => {
                           setTeaGroupCount(Number(event.target.value));
@@ -1495,13 +1497,13 @@ export function Meetings({
                         }}
                         onBlur={(event) => {
                           const n = Number(event.target.value);
-                          setTeaGroupCount(Math.min(Math.max(2, Number.isFinite(n) ? n : 2), teamRoster.length));
+                          setTeaGroupCount(Math.min(Math.max(2, Number.isFinite(n) ? n : 2), members.length));
                         }}
                       />
                     </label>
                     <button className="secondary-button" onClick={formTeaGroups}>
                       <UsersRound size={16} />
-                      파트 섞어 그룹 편성 ({teamRoster.length}명)
+                      파트 섞어 그룹 편성 ({members.length}명)
                     </button>
                   </div>
                   {teaGroups && (
