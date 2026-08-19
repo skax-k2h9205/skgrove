@@ -360,7 +360,9 @@ export function Metrics({ currentUser }: MetricsProps) {
   // 파트 멤버·색·성향은 현재 팀의 프로필에서(스코프). 로드 전엔 빈 목록.
   const [profileList, setProfileList] = useState<Profile[]>([]);
   const [activity, setActivity] = useState<MetricsActivity>(emptyActivity);
-  const [partMetrics, setPartMetrics] = useState<PartMetric[]>([]);
+  // 초기값은 '현재 팀 파트의 빈 지표'(SK mock 아님). 로드 전에도 activePart 가 항상 존재해
+  // undefined 접근(pe.name) 크래시를 막고, 로드가 끝나면 실제 값으로 교체된다.
+  const [partMetrics, setPartMetrics] = useState<PartMetric[]>(() => buildPartMetrics(emptyActivity, parts, []));
   const [calendarEvents, setCalendarEvents] = useState<CalendarMetricEvent[]>([]);
   const [calendarStatus, setCalendarStatus] = useState<CalendarConnection>('disconnected');
   // 언제 기준 값인지 밝히지 않으면 오래된 값을 지금 값으로 착각한다.
