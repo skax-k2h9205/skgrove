@@ -28,6 +28,9 @@ type ProfilesProps = {
   currentUser: CurrentUser;
   // 편집/로드 시 상위(App)의 프로필 디렉토리에 반영 → Avatar 전역 갱신.
   onProfilesChange?: (profiles: Profile[]) => void;
+  // 팀 멤버(활성 계정)의 이름·파트. 디렉토리 파트를 계정 데이터에 맞춰 보정하는 데 쓴다
+  // (프로필 테이블 파트가 옛 값/불일치여도 계정 기준으로 표시).
+  members?: { name: string; part: string }[];
 };
 
 type SurveyChoice = {
@@ -100,7 +103,7 @@ const feedbackChoices: SurveyChoice[] = [
   { label: '근거 포함', value: '수정 이유와 기대 효과가 같이 있으면 바로 반영합니다.', helper: '왜 바꾸는지까지 이해' },
 ];
 
-export function Profiles({ mode, currentUser, onProfilesChange }: ProfilesProps) {
+export function Profiles({ mode, currentUser, onProfilesChange, members = [] }: ProfilesProps) {
   // 파트 필터는 현재 팀(테넌트)의 파트로. '전체'를 앞에 붙인다.
   const partOptions = ['전체', ...useTenantParts()];
   // 내 프로필이 아직 없을 때 보여줄 '내 빈 카드'. 예전엔 목록 첫 번째(남의 프로필)로
@@ -131,6 +134,14 @@ export function Profiles({ mode, currentUser, onProfilesChange }: ProfilesProps)
     return profileList.find((profile) => profile.name === currentUser.name) ?? myStub;
   }, [currentUser.name, profileList, myStub]);
 
+  // 디렉토리 표시용: 각 프로필의 파트를 계정(members) 파트로 덮어써 계정 데이터와 일치시킨다.
+  // (프로필 테이블 파트가 옛 값이거나 계정과 어긋나도 계정 기준으로 집계·표시)
+  const partByName = useMemo(() => new Map(members.map((m) => [m.name, m.part])), [members]);
+  const syncedProfiles = useMemo(
+    () => profileList.map((p) => ({ ...p, part: partByName.get(p.name) ?? p.part })),
+    [profileList, partByName],
+  );
+
   const [draft, setDraft] = useState<ProfileDraft>(() => ({
     ...(initialProfiles.find((profile) => profile.name === currentUser.name) ?? fallbackDraft),
     name: currentUser.name,
@@ -145,7 +156,7 @@ export function Profiles({ mode, currentUser, onProfilesChange }: ProfilesProps)
   const filteredProfiles = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    return profileList
+    return syncedProfiles
       .filter((profile) => partFilter === '전체' || profile.part === partFilter)
       .filter((profile) => {
         if (!normalizedSearch) return true;
@@ -157,14 +168,15 @@ export function Profiles({ mode, currentUser, onProfilesChange }: ProfilesProps)
         if (b.name === currentUser.name) return 1;
         return a.name.localeCompare(b.name, 'ko');
       });
-  }, [currentUser.name, partFilter, profileList, searchTerm]);
+  }, [currentUser.name, partFilter, syncedProfiles, searchTerm]);
 
   const partCounts = useMemo(() => {
     return partOptions.map((part) => ({
       part,
-      count: part === '전체' ? profileList.length : profileList.filter((profile) => profile.part === part).length,
+      count: part === '전체' ? syncedProfiles.length : syncedProfiles.filter((profile) => profile.part === part).length,
     }));
-  }, [profileList]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncedProfiles, partOptions]);
 
   const draftColor = myProfile?.color ?? colorCycle[profileList.length % colorCycle.length];
   const previewProfile: Profile = {
