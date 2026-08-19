@@ -4,7 +4,7 @@
 import { initialHumorComments, initialHumorPosts } from './data/mockData';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
-import { tenantPath } from './tenantContext';
+import { tenantPath, withTenant } from './tenantContext';
 import type { HumorComment, HumorPost } from './types';
 
 const POSTS_KEY = 'skgrove:humorposts';
@@ -62,7 +62,7 @@ function readLocal<T>(key: string): T[] {
 
 export async function loadHumorPosts(): Promise<HumorPost[]> {
   if (supabase) {
-    const { data, error } = await supabase.from(POSTS_TABLE).select('*').order('created_at', { ascending: false });
+    const { data, error } = await withTenant(supabase.from(POSTS_TABLE).select('*')).order('created_at', { ascending: false });
     if (!error && data) {
       const posts = (data as HumorPostRow[]).map(postFromRow);
       rememberRemote(POSTS_TABLE, data as unknown as Record<string, unknown>[], POST_WRITE_KEYS);
@@ -88,7 +88,7 @@ export async function saveHumorPosts(posts: HumorPost[]) {
 
 export async function loadHumorComments(): Promise<HumorComment[]> {
   if (supabase) {
-    const { data, error } = await supabase.from(COMMENTS_TABLE).select('*').order('created_at', { ascending: true });
+    const { data, error } = await withTenant(supabase.from(COMMENTS_TABLE).select('*')).order('created_at', { ascending: true });
     if (!error && data) {
       const comments = (data as HumorCommentRow[]).map(commentFromRow);
       rememberRemote(COMMENTS_TABLE, data as unknown as Record<string, unknown>[], COMMENT_WRITE_KEYS);

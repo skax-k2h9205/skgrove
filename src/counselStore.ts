@@ -5,7 +5,7 @@
 // 못한다(대나무숲·안건과 같은 신뢰 모델). 사용자가 이 한계를 인지하고 DB 저장을 택함.
 import { supabase } from './supabaseClient';
 import type { CounselMessage } from './types';
-import { getCurrentTenantId } from './tenantContext';
+import { getCurrentTenantId, withTenant } from './tenantContext';
 
 const KEY = 'skgrove:counselMessages';
 const TABLE = 'counsel_messages';
@@ -67,9 +67,7 @@ function writeLocal(all: CounselMessage[]) {
 /** 특정 사용자의 상담 기록을 시간순으로. */
 export async function loadCounselMessages(author: string): Promise<CounselMessage[]> {
   if (supabase) {
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select('*')
+    const { data, error } = await withTenant(supabase.from(TABLE).select('*'))
       .eq('author', author)
       .order('created_at', { ascending: true });
     if (!error && data) {

@@ -19,6 +19,12 @@ const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const TEMP = process.env.TEMP_PASSWORD || 'skonnect2026!';
 const DRY = process.argv.includes('--dry');
 const ONLY_ACTIVE = process.env.ONLY_ACTIVE === '1';
+// 공유 임시비번을 걸면 안 되는 민감 계정은 제외한다(데이터 정제 관리자·앱 심사용 등).
+// EXCLUDE_EMAILS 로 덮어쓸 수 있다(쉼표 구분). 이 계정들은 비번을 개별로 안전하게 관리.
+const EXCLUDE = (process.env.EXCLUDE_EMAILS ?? 'admin@sk.com,appreview@sk.com')
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
 
 if (!URL || !KEY) {
   console.error('❌ SUPABASE_URL 과 SUPABASE_SERVICE_ROLE_KEY 환경변수가 필요합니다.');
@@ -48,6 +54,11 @@ for (const a of accounts) {
   const email = (a.email || '').trim().toLowerCase();
   if (!email) {
     console.log(`- (건너뜀) 이메일 없음: ${a.name}`);
+    summary.skipped++;
+    continue;
+  }
+  if (EXCLUDE.includes(email)) {
+    console.log(`- (제외) 민감 계정: ${email}`);
     summary.skipped++;
     continue;
   }

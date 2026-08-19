@@ -1,5 +1,6 @@
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
+import { withTenant } from './tenantContext';
 import type { AgendaBallot } from './types';
 
 const BALLOT_STORAGE_KEY = 'skgrove:ballots';
@@ -33,7 +34,7 @@ export async function makeVoterKey(email: string, agendaId: string) {
 
 export async function loadBallots() {
   if (supabase) {
-    const { data, error } = await supabase.from(BALLOT_TABLE).select('*');
+    const { data, error } = await withTenant(supabase.from(BALLOT_TABLE).select('*'));
 
     if (!error && data) {
       const ballots = data.map(ballotFromRow);

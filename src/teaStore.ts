@@ -4,6 +4,7 @@ import { TEA_SESSION_TYPES_KEY, loadConfig, saveConfig } from './configStore';
 import { initialTeaSessions } from './data/mockData';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
+import { withTenant } from './tenantContext';
 import type { TeaSession, TeaSessionStatus, TeamPart } from './types';
 
 const SESSIONS_KEY = 'skgrove:teasessions';
@@ -25,7 +26,7 @@ type TeaSessionRow = {
 
 export async function loadTeaSessions(): Promise<TeaSession[]> {
   if (supabase) {
-    const { data, error } = await supabase.from(SESSIONS_TABLE).select('*');
+    const { data, error } = await withTenant(supabase.from(SESSIONS_TABLE).select('*'));
     if (!error && data) {
       const sessions = (data as TeaSessionRow[]).map(sessionFromRow);
       rememberRemote(SESSIONS_TABLE, data as unknown as Record<string, unknown>[], TEA_WRITE_KEYS);

@@ -1,6 +1,7 @@
 import { initialActionItems } from './data/mockData';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
+import { withTenant } from './tenantContext';
 import type { ActionItem } from './types';
 
 const ACTION_STORAGE_KEY = 'skgrove:actionItems';
@@ -24,7 +25,7 @@ type ActionRow = {
 
 export async function loadActionItems() {
   if (supabase) {
-    const { data, error } = await supabase.from(ACTION_TABLE).select('*').order('created_at', { ascending: false });
+    const { data, error } = await withTenant(supabase.from(ACTION_TABLE).select('*')).order('created_at', { ascending: false });
 
     if (!error && data) {
       const items = data.map(actionFromRow);

@@ -2,6 +2,7 @@ import type { ManagedAccount } from './types';
 import { normalizeTeamPart } from './auth';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
+import { withTenant } from './tenantContext';
 
 const ACCOUNT_STORAGE_KEY = 'skgrove:accounts';
 const ACCOUNT_TABLE = 'accounts';
@@ -88,7 +89,7 @@ type AccountRow = {
 
 export async function loadAccounts() {
   if (supabase) {
-    const { data, error } = await supabase.from(ACCOUNT_TABLE).select('*').order('joined_at', { ascending: true });
+    const { data, error } = await withTenant(supabase.from(ACCOUNT_TABLE).select('*')).order('joined_at', { ascending: true });
 
     if (!error && data) {
       const accounts = ensureAdminAccount(data.map(accountFromRow));

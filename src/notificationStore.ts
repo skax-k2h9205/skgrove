@@ -3,6 +3,7 @@
 import { initialNotifications } from './data/mockData';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
+import { withTenant } from './tenantContext';
 import type { AppNotification, NotificationKind, Section } from './types';
 
 const NOTIFICATION_STORAGE_KEY = 'skgrove:notifications';
@@ -26,7 +27,7 @@ type NotificationRow = {
 
 export async function loadNotifications(): Promise<AppNotification[]> {
   if (supabase) {
-    const { data, error } = await supabase.from(NOTIFICATION_TABLE).select('*').order('created_at', { ascending: false });
+    const { data, error } = await withTenant(supabase.from(NOTIFICATION_TABLE).select('*')).order('created_at', { ascending: false });
     if (!error && data) {
       const items = (data as NotificationRow[]).map(notificationFromRow);
       rememberRemote(NOTIFICATION_TABLE, data as unknown as Record<string, unknown>[], NOTIFICATION_WRITE_KEYS);
