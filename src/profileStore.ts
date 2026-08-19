@@ -1,5 +1,6 @@
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
+import { normalizeTeamPart } from './auth';
 import type { CurrentUser, Profile } from './types';
 import { getCurrentTenantId, tenantPath, withTenant } from './tenantContext';
 
@@ -103,7 +104,8 @@ function mergeCurrentUserProfile(profiles: Profile[], currentUser: CurrentUser) 
 function profileFromRow(row: ProfileRow): Profile {
   return {
     name: row.name,
-    part: row.part,
+    // 옛 파트 이름('혁신도구파트')이 저장돼 있으면 지금 이름(PM혁신파트)으로 갈아끼운다.
+    part: normalizeTeamPart(row.part),
     role: row.role,
     englishName: row.english_name,
     birthYear: row.birth_year,

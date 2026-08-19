@@ -1915,11 +1915,11 @@ export function App() {
         />
       )}
       {active === 'profiles' && (
-        <Profiles mode="directory" currentUser={currentUser} onProfilesChange={setProfileDirectory} />
+        <Profiles mode="directory" currentUser={currentUser} onProfilesChange={setProfileDirectory} members={teamMembers} />
       )}
       {active === 'mypage' && (
         <>
-          <Profiles mode="mine" currentUser={currentUser} onProfilesChange={setProfileDirectory} />
+          <Profiles mode="mine" currentUser={currentUser} onProfilesChange={setProfileDirectory} members={teamMembers} />
           <ChangePassword />
         </>
       )}
