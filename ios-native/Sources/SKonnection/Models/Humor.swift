@@ -128,26 +128,11 @@ final class HumorStore: ObservableObject {
 
     // MARK: 유튜브 썸네일
 
-    func thumbnail(_ post: HumorPost) -> URL? {
-        let s = post.mediaURL.trimmingCharacters(in: .whitespaces)
-        guard !s.isEmpty else { return nil }
-        if let id = Self.youtubeID(s) { return URL(string: "https://img.youtube.com/vi/\(id)/hqdefault.jpg") }
-        let lower = s.lowercased()
-        if lower.hasSuffix(".jpg") || lower.hasSuffix(".jpeg") || lower.hasSuffix(".png") || lower.hasSuffix(".webp") {
-            return URL(string: s)
-        }
-        return nil
-    }
+    /// 붙인 링크의 해석 결과. 판별 규칙은 HumorMedia 한 곳에만 둔다 —
+    /// 썸네일용과 재생용 규칙이 갈라지면 "그림은 보이는데 재생은 안 되는" 글이 생긴다.
+    func media(_ post: HumorPost) -> HumorMedia? { HumorMedia.resolve(post.mediaURL) }
 
-    private static func youtubeID(_ url: String) -> String? {
-        for marker in ["v=", "youtu.be/", "/shorts/", "/embed/"] {
-            if let r = url.range(of: marker) {
-                let id = url[r.upperBound...].prefix { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }
-                if id.count >= 6 { return String(id) }
-            }
-        }
-        return nil
-    }
+    func thumbnail(_ post: HumorPost) -> URL? { media(post)?.thumbnail }
 
     private static func today() -> String {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX")

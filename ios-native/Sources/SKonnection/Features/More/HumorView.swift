@@ -11,8 +11,10 @@ struct HumorView: View {
     private var myName: String { session.currentUser?.name ?? "익명" }
 
     var body: some View {
+        // 당겨서 새로고침이 예전엔 0.6초 잠자기만 했다 — 웹에서 올라온 글이 앱을 껐다 켜기
+        // 전까지 안 보였다(스토어는 init 에서 한 번만 동기화한다).
         ScreenScaffold(title: "유머 게시판", showUserChip: false,
-                       onRefresh: { try? await Task.sleep(for: .seconds(0.6)) },
+                       onRefresh: { await store.syncFromRemote() },
                        onCompose: { composing = true }) {
             hallOfFame
 
@@ -34,6 +36,7 @@ struct HumorView: View {
                 }
             }
         }
+        .task { await store.syncFromRemote() }
         .sheet(item: $selected) { post in
             HumorDetail(postId: post.id)
         }
@@ -113,10 +116,8 @@ struct HumorDetail: View {
                                 Text(post.createdAt).font(.caption).foregroundStyle(Theme.Palette.muted)
                             }
                         }
-                        if let url = store.thumbnail(post) {
-                            AsyncImage(url: url) { $0.resizable().scaledToFit() } placeholder: { Theme.Palette.sunken }
-                                .frame(maxWidth: .infinity).clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md))
-                        }
+                        // 예전엔 유튜브 썸네일 이미지 한 장만 그려서, 영상 글을 열어도 재생이 안 됐다.
+                        if let media = store.media(post) { HumorMediaView(media: media) }
                         Text(post.body).font(.title3).foregroundStyle(Theme.Palette.ink)
                         HStack(spacing: Theme.Space.x4) {
                             Button { store.toggleLike(post.id, by: myName); Haptics.light() } label: {
