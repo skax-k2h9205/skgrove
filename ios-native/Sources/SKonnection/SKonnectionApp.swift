@@ -17,6 +17,10 @@ struct SKonnectionApp: App {
     @StateObject private var memories = MemoryStore()
     @StateObject private var system = SystemStore()
     @StateObject private var growth = GrowthStore()
+    /// 신고·차단 상태(App Store 1.2). 화면마다 따로 두면 차단이 한 화면에만 먹는다.
+    @StateObject private var moderation = ModerationStore()
+    /// 약관 동의 버전 — 로그인·가입 전에 받아야 한다(심사 지침 1.2).
+    @AppStorage("terms.acceptedVersion") private var termsVersion = 0
     @State private var showSplash = true
     @State private var splashScheduled = false
 
@@ -24,7 +28,10 @@ struct SKonnectionApp: App {
         WindowGroup {
             ZStack {
                 Group {
-                    if session.isLoggedIn {
+                    if termsVersion < TermsGateView.version {
+                        // 로그인 화면보다 앞에 둔다 — Apple 은 "가입·로그인 전 동의"를 요구한다.
+                        TermsGateView { termsVersion = TermsGateView.version }
+                    } else if session.isLoggedIn {
                         RootView()
                     } else {
                         LoginView()
@@ -43,6 +50,7 @@ struct SKonnectionApp: App {
                 .environmentObject(memories)
                 .environmentObject(system)
                 .environmentObject(growth)
+                .environmentObject(moderation)
 
                 if showSplash {
                     SplashView()
