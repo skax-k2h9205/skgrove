@@ -48,7 +48,9 @@ export async function loadProfiles(fallback: Profile[], currentUser: CurrentUser
     if (!error && data) {
       const loaded = (data as ProfileRow[]).map(profileFromRow);
       rememberRemote(PROFILE_TABLE, data as unknown as Record<string, unknown>[], PROFILE_WRITE_KEYS, profileId);
-      const merged = mergeCurrentUserProfile(loaded.length > 0 ? loaded : fallback, currentUser);
+      // 테넌트 스코프 결과가 비어도 시드(fallback=SK mock)로 채우지 않는다 — 다른 팀에
+      // SK 프로필(이선민 등)이 새어 들어가던 원인. 빈 팀은 빈 채로 둔다(본인 것만 병합).
+      const merged = mergeCurrentUserProfile(loaded, currentUser);
       window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(merged));
       return merged;
     }

@@ -17,6 +17,7 @@ import { Assessment } from './AssessmentFlow';
 import { DISC_GUIDE, DISC_LABEL } from './assessment';
 import { Markdownish } from '../chat/Markdownish';
 import { AVATAR_KINDS } from '../../types';
+import { useTenantParts } from '../../tenantParts';
 import type { CurrentUser, Profile } from '../../types';
 
 type ProfileDraft = Omit<Profile, 'color'>;
@@ -36,7 +37,6 @@ type SurveyChoice = {
 };
 
 const colorCycle: Profile['color'][] = ['green', 'red', 'blue', 'yellow'];
-const partOptions = ['전체', 'TEST혁신파트', 'ITS혁신파트', 'PM혁신파트'];
 
 const fallbackDraft: ProfileDraft = {
   name: '김수정',
@@ -101,10 +101,22 @@ const feedbackChoices: SurveyChoice[] = [
 ];
 
 export function Profiles({ mode, currentUser, onProfilesChange }: ProfilesProps) {
-  const [profileList, setProfileList] = useState<Profile[]>(initialProfiles);
-  const [selectedName, setSelectedName] = useState(() => {
-    return initialProfiles.find((profile) => profile.name === currentUser.name)?.name ?? initialProfiles[0]?.name ?? '';
-  });
+  // 파트 필터는 현재 팀(테넌트)의 파트로. '전체'를 앞에 붙인다.
+  const partOptions = ['전체', ...useTenantParts()];
+  // 내 프로필이 아직 없을 때 보여줄 '내 빈 카드'. 예전엔 목록 첫 번째(남의 프로필)로
+  // 폴백해 다른 사람이 내 페이지에 뜨는 버그가 있었다.
+  const myStub = useMemo<Profile>(
+    () => ({
+      name: currentUser.name,
+      part: currentUser.part && currentUser.part !== '전체' ? currentUser.part : '',
+      role: '', englishName: '', birthYear: '', birthday: '', character: '', trait: '',
+      style: '', collaboration: '', feedback: '', guide: '', color: 'green',
+    }),
+    [currentUser.name, currentUser.part],
+  );
+  // 초기값은 빈 목록 — 로드 전 SK 시드가 순간 보이지 않게. 로드가 끝나면 채워진다.
+  const [profileList, setProfileList] = useState<Profile[]>([]);
+  const [selectedName, setSelectedName] = useState(currentUser.name);
   const [partFilter, setPartFilter] = useState('전체');
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -115,8 +127,9 @@ export function Profiles({ mode, currentUser, onProfilesChange }: ProfilesProps)
   const [collabDraft, setCollabDraft] = useState('');
 
   const myProfile = useMemo(() => {
-    return profileList.find((profile) => profile.name === currentUser.name) ?? profileList[0];
-  }, [currentUser.name, profileList]);
+    // 내 프로필이 없으면 남의 것(목록 첫 번째)이 아니라 '내 빈 카드'로.
+    return profileList.find((profile) => profile.name === currentUser.name) ?? myStub;
+  }, [currentUser.name, profileList, myStub]);
 
   const [draft, setDraft] = useState<ProfileDraft>(() => ({
     ...(initialProfiles.find((profile) => profile.name === currentUser.name) ?? fallbackDraft),
@@ -168,14 +181,13 @@ export function Profiles({ mode, currentUser, onProfilesChange }: ProfilesProps)
       if (!isMounted) return;
       setProfileList(loadedProfiles);
       onProfilesChange?.(loadedProfiles);
-      const nextMine = loadedProfiles.find((profile) => profile.name === currentUser.name) ?? loadedProfiles[0];
-      if (nextMine) {
-        setSelectedName(nextMine.name);
-        // 스프레드로 통째로 옮긴다. 필드를 하나씩 옮겨 담으면 새 값(성향 진단·캐릭터)이
-        // 생길 때마다 조용히 빠져서, 편집만 해도 그 값이 지워진다.
-        const { color: _color, ...rest } = nextMine;
-        setDraft(rest);
-      }
+      // 내 프로필이 없으면 남의 것(loadedProfiles[0])이 아니라 '내 빈 카드'로.
+      const nextMine = loadedProfiles.find((profile) => profile.name === currentUser.name) ?? myStub;
+      setSelectedName(nextMine.name);
+      // 스프레드로 통째로 옮긴다. 필드를 하나씩 옮겨 담으면 새 값(성향 진단·캐릭터)이
+      // 생길 때마다 조용히 빠져서, 편집만 해도 그 값이 지워진다.
+      const { color: _color, ...rest } = nextMine;
+      setDraft(rest);
     });
 
     return () => {
