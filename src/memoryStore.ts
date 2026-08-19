@@ -1,6 +1,6 @@
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
-import { tenantPath } from './tenantContext';
+import { tenantPath, withTenant } from './tenantContext';
 import type { MemoryAsset, TeamMemory } from './types';
 
 const MEMORY_STORAGE_KEY = 'skgrove:teamMemories';
@@ -47,8 +47,8 @@ type MemoryAssetRow = {
 export async function loadMemories(fallback: TeamMemory[]) {
   if (supabase) {
     const [{ data: memoryRows, error: memoryError }, { data: assetRows, error: assetError }] = await Promise.all([
-      supabase.from(MEMORY_TABLE).select('*').order('event_date', { ascending: true }),
-      supabase.from(MEMORY_ASSET_TABLE).select('*').order('uploaded_at', { ascending: false }),
+      withTenant(supabase.from(MEMORY_TABLE).select('*')).order('event_date', { ascending: true }),
+      withTenant(supabase.from(MEMORY_ASSET_TABLE).select('*')).order('uploaded_at', { ascending: false }),
     ]);
 
     if (!memoryError && !assetError && memoryRows) {

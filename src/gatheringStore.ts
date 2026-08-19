@@ -8,7 +8,7 @@ import { normalizeTeamPart } from './auth';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { Gathering, GatheringCost, GatheringKind, GatheringPoster, GatheringSignup, TeamPart } from './types';
-import { getCurrentTenantId, tenantPath } from './tenantContext';
+import { getCurrentTenantId, tenantPath, withTenant } from './tenantContext';
 
 const GATHERINGS_KEY = 'skgrove:gatherings';
 const SIGNUPS_KEY = 'skgrove:gatheringSignups';
@@ -121,7 +121,7 @@ function gatheringToRow(gathering: Gathering): GatheringRow {
 
 export async function loadGatherings(): Promise<Gathering[]> {
   if (supabase) {
-    const { data, error } = await supabase.from(GATHERINGS_TABLE).select('*').order('start_at', { ascending: false });
+    const { data, error } = await withTenant(supabase.from(GATHERINGS_TABLE).select('*')).order('start_at', { ascending: false });
     if (!error && data) {
       const rows = (data as GatheringRow[]).map(gatheringFromRow);
       rememberRemote(GATHERINGS_TABLE, data as unknown as Record<string, unknown>[], GATHERING_WRITE_KEYS);
@@ -148,7 +148,7 @@ export async function deleteGatheringRecord(id: string) {
 
 export async function loadSignups(): Promise<GatheringSignup[]> {
   if (supabase) {
-    const { data, error } = await supabase.from(SIGNUPS_TABLE).select('*').order('created_at', { ascending: true });
+    const { data, error } = await withTenant(supabase.from(SIGNUPS_TABLE).select('*')).order('created_at', { ascending: true });
     if (!error && data) {
       const rows = (data as SignupRow[]).map((row) => ({
         id: row.id,

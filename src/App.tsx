@@ -313,9 +313,10 @@ export function App() {
   const passedAgendaCount = agendas.filter((agenda) => agenda.status === '통과').length;
   const openIssueCount = issues.filter((issue) => issue.status !== '종료').length;
 
+  // 로그인 전에 필요한 것만 mount 에서 읽는다: 계정(로그인 매칭용, 전체)·테넌트(가입 코드)·
+  // 팀 공용 설정(app_config). 나머지 콘텐츠는 로그인 후 '현재 테넌트로 스코프'해서 읽는다.
   useEffect(() => {
     let isMounted = true;
-
     loadAccounts().then((loadedAccounts) => {
       if (isMounted) {
         setAccounts(loadedAccounts);
@@ -325,45 +326,57 @@ export function App() {
     loadTenants().then((loaded) => {
       if (isMounted) setTenants(loaded);
     });
-    loadIssues().then((loadedIssues) => {
-      if (isMounted) {
-        setIssues(loadedIssues);
-      }
-    });
-    loadAgendas().then((loadedAgendas) => {
-      if (!isMounted) return;
-      // 서버 배치가 없으므로 마감일 경과와 조기 확정을 열어보는 시점에 함께 반영한다.
-      const settled = settleAgendas(loadedAgendas, today());
-      setAgendas(settled);
-      if (settled !== loadedAgendas) void saveAgendas(settled);
-    });
-    loadBallots().then((loadedBallots) => {
-      if (isMounted) {
-        setBallots(loadedBallots);
-      }
-    });
-    loadActionItems().then((loadedItems) => {
-      if (isMounted) {
-        setActionItems(loadedItems);
-      }
-    });
-    loadTeaSessions().then((loaded) => {
-      if (isMounted) setTeaSessions(loaded);
-    });
     loadTeaSessionTypes().then((loaded) => {
       if (isMounted) setTeaSessionTypes(loaded);
-    });
-    loadCanSessions().then((loaded) => {
-      if (isMounted) setCanSessions(loaded);
-    });
-    loadCanOpinions().then((loaded) => {
-      if (isMounted) setCanOpinions(loaded);
     });
     loadCanSteps().then((loaded) => {
       if (isMounted) setCanSteps(loaded);
     });
     loadNotifySettings().then((loaded) => {
       if (isMounted) setNotifySettings(loaded);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // 콘텐츠 데이터는 로그인 후 '현재 테넌트로 스코프'해서 읽는다(withTenant). 로그인 전엔
+  // 테넌트가 정해지지 않아 전체가 읽히므로, 반드시 로그인 후에 로드해야 팀별로 분리된다.
+  useEffect(() => {
+    if (!currentUser) return;
+    // 스코프 기준을 로드보다 먼저 확정(세션 복원 경로 포함).
+    setCurrentTenantId(currentUser.tenantId ?? null);
+    let isMounted = true;
+    loadProfiles(initialProfiles, currentUser).then((loaded) => {
+      if (isMounted) setProfileDirectory(loaded);
+    });
+    // 계정 로스터도 현재 테넌트로 재조회(mount 의 전체 로드를 팀 스코프로 교체).
+    loadAccounts().then((loaded) => {
+      if (isMounted) setAccounts(loaded);
+    });
+    loadIssues().then((loaded) => {
+      if (isMounted) setIssues(loaded);
+    });
+    loadAgendas().then((loaded) => {
+      if (!isMounted) return;
+      const settled = settleAgendas(loaded, today());
+      setAgendas(settled);
+      if (settled !== loaded) void saveAgendas(settled);
+    });
+    loadBallots().then((loaded) => {
+      if (isMounted) setBallots(loaded);
+    });
+    loadActionItems().then((loaded) => {
+      if (isMounted) setActionItems(loaded);
+    });
+    loadTeaSessions().then((loaded) => {
+      if (isMounted) setTeaSessions(loaded);
+    });
+    loadCanSessions().then((loaded) => {
+      if (isMounted) setCanSessions(loaded);
+    });
+    loadCanOpinions().then((loaded) => {
+      if (isMounted) setCanOpinions(loaded);
     });
     loadNotifications().then((loaded) => {
       if (isMounted) {
@@ -388,19 +401,6 @@ export function App() {
     });
     loadSignups().then((loaded) => {
       if (isMounted) setGatheringSignups(loaded);
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  // 프로필 디렉토리는 로그인(currentUser) 후 로드 — loadProfiles가 currentUser를 필요로 한다.
-  useEffect(() => {
-    if (!currentUser) return;
-    let isMounted = true;
-    loadProfiles(initialProfiles, currentUser).then((loaded) => {
-      if (isMounted) setProfileDirectory(loaded);
     });
     return () => {
       isMounted = false;

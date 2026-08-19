@@ -1,7 +1,7 @@
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { CurrentUser, Profile } from './types';
-import { getCurrentTenantId, tenantPath } from './tenantContext';
+import { getCurrentTenantId, tenantPath, withTenant } from './tenantContext';
 
 const PROFILE_STORAGE_KEY = 'skgrove:profiles';
 const PROFILE_USER_KEY_PREFIX = 'skgrove:profile:';
@@ -43,7 +43,7 @@ type ProfileRow = {
 
 export async function loadProfiles(fallback: Profile[], currentUser: CurrentUser) {
   if (supabase) {
-    const { data, error } = await supabase.from(PROFILE_TABLE).select('*').order('part').order('name');
+    const { data, error } = await withTenant(supabase.from(PROFILE_TABLE).select('*')).order('part').order('name');
 
     if (!error && data) {
       const loaded = (data as ProfileRow[]).map(profileFromRow);

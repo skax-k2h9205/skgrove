@@ -3,6 +3,7 @@
 import { initialCanOpinions, initialCanSessions } from './data/mockData';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
+import { withTenant } from './tenantContext';
 import type { CanFollowUp, CanMethod, CanOpinion, CanResultGroup, CanSession, CanStage, Identity, TeamPart } from './types';
 
 const SESSIONS_KEY = 'skgrove:cansessions';
@@ -38,7 +39,7 @@ type CanOpinionRow = {
 
 export async function loadCanSessions(): Promise<CanSession[]> {
   if (supabase) {
-    const { data, error } = await supabase.from(SESSIONS_TABLE).select('*').order('held_at', { ascending: false });
+    const { data, error } = await withTenant(supabase.from(SESSIONS_TABLE).select('*')).order('held_at', { ascending: false });
     if (!error && data) {
       const sessions = (data as CanSessionRow[]).map(sessionFromRow);
       rememberRemote(SESSIONS_TABLE, data as unknown as Record<string, unknown>[], SESSION_WRITE_KEYS);
@@ -57,7 +58,7 @@ export async function saveCanSessions(sessions: CanSession[]) {
 
 export async function loadCanOpinions(): Promise<CanOpinion[]> {
   if (supabase) {
-    const { data, error } = await supabase.from(OPINIONS_TABLE).select('*');
+    const { data, error } = await withTenant(supabase.from(OPINIONS_TABLE).select('*'));
     if (!error && data) {
       const opinions = (data as CanOpinionRow[]).map(opinionFromRow);
       rememberRemote(OPINIONS_TABLE, data as unknown as Record<string, unknown>[], OPINION_WRITE_KEYS);

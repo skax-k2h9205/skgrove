@@ -7,7 +7,7 @@
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
 import type { GatheringPoster, MarketBid, MarketItem, MarketKind } from './types';
-import { getCurrentTenantId, tenantPath } from './tenantContext';
+import { getCurrentTenantId, tenantPath, withTenant } from './tenantContext';
 
 const ITEMS_KEY = 'skgrove:marketItems';
 const BIDS_KEY = 'skgrove:marketBids';
@@ -109,7 +109,7 @@ function itemToRow(item: MarketItem): ItemRow {
 
 export async function loadMarketItems(): Promise<MarketItem[]> {
   if (supabase) {
-    const { data, error } = await supabase.from(ITEMS_TABLE).select('*').order('close_at', { ascending: false });
+    const { data, error } = await withTenant(supabase.from(ITEMS_TABLE).select('*')).order('close_at', { ascending: false });
     if (!error && data) {
       const rows = (data as ItemRow[]).map(itemFromRow);
       rememberRemote(ITEMS_TABLE, data as unknown as Record<string, unknown>[], ITEM_WRITE_KEYS);
@@ -147,7 +147,7 @@ export async function deleteMarketBidsForItem(itemId: string) {
 
 export async function loadMarketBids(): Promise<MarketBid[]> {
   if (supabase) {
-    const { data, error } = await supabase.from(BIDS_TABLE).select('*').order('created_at', { ascending: true });
+    const { data, error } = await withTenant(supabase.from(BIDS_TABLE).select('*')).order('created_at', { ascending: true });
     if (!error && data) {
       const rows = (data as BidRow[]).map((row) => ({
         id: row.id,

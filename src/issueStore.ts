@@ -1,6 +1,7 @@
 import { initialIssues } from './data/mockData';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
+import { withTenant } from './tenantContext';
 import type { Issue } from './types';
 
 const ISSUE_STORAGE_KEY = 'skgrove:issues';
@@ -44,7 +45,7 @@ const ISSUE_WRITE_KEYS = [
 
 export async function loadIssues() {
   if (supabase) {
-    const { data, error } = await supabase.from(ISSUE_TABLE).select('*').order('created_at', { ascending: false });
+    const { data, error } = await withTenant(supabase.from(ISSUE_TABLE).select('*')).order('created_at', { ascending: false });
 
     if (!error && data) {
       const issues = data.map(issueFromRow);

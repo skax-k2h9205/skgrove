@@ -2,6 +2,7 @@ import { initialAgendas } from './data/mockData';
 import { normalizeTeamPart } from './auth';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
+import { withTenant } from './tenantContext';
 import type { Agenda, AgendaOption } from './types';
 
 const AGENDA_STORAGE_KEY = 'skgrove:agendas';
@@ -37,7 +38,7 @@ type AgendaRow = {
 
 export async function loadAgendas() {
   if (supabase) {
-    const { data, error } = await supabase.from(AGENDA_TABLE).select('*').order('created_at', { ascending: false });
+    const { data, error } = await withTenant(supabase.from(AGENDA_TABLE).select('*')).order('created_at', { ascending: false });
 
     if (!error && data) {
       const agendas = data.map(agendaFromRow);

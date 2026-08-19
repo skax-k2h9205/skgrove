@@ -1,5 +1,6 @@
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
+import { withTenant } from './tenantContext';
 import type { ConnectResultMode, SavedDrawResult } from './types';
 
 const CONNECT_RESULT_STORAGE_KEY = 'skgrove:connect-results';
@@ -18,9 +19,7 @@ type ConnectResultRow = {
 
 export async function loadConnectResults() {
   if (supabase) {
-    const { data, error } = await supabase
-      .from(CONNECT_RESULT_TABLE)
-      .select('*')
+    const { data, error } = await withTenant(supabase.from(CONNECT_RESULT_TABLE).select('*'))
       .order('created_at', { ascending: false })
       .limit(12);
 
