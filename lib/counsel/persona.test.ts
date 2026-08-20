@@ -9,11 +9,21 @@ describe('buildSystemContent', () => {
       partner: { name: '민수' },
       cases: [{ source: '대나무숲', id: 'SOOP-1', title: '회의 갈등', status: '검토중', snippet: '요약' }],
     });
+
     expect(out).toContain(PERSONA);
     expect(out).toContain('지훈');
     expect(out).toContain('민수');
+    // 이미 고른 상대를 다시 묻지 않도록 프롬프트가 못을 박는다(되물으면 고른 행위가 무의미해진다).
+    expect(out).toContain('"민수"님을 이미 지정했다');
+    expect(out).toContain('되묻지 말고');
     expect(out).toContain('대나무숲 SOOP-1'); // 사례가 id 와 함께 인용됨
     expect(out).toContain(FORMAT_RULES);
+  });
+
+  it('상대를 고르지 않았으면 지정 문구를 넣지 않는다 — 그때는 되묻는 게 맞다', () => {
+    const out = buildSystemContent({ mode: 'counsel', self: { name: '지훈' } });
+    expect(out).not.toContain('이미 지정했다');
+    expect(out).not.toContain('[갈등 상대의 성향]');
   });
 
   it('상담 모드: 사례가 없으면 사례 섹션을 넣지 않는다', () => {
