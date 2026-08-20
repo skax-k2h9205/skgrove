@@ -46,14 +46,19 @@ enum HumorMedia {
 /// 유튜브 인라인 재생. 앱 안에서 바로 보게 한다 — 유머는 흐름이 끊기면 재미가 반감된다.
 ///
 /// 임베드 주소를 URLRequest 로 그냥 열면 origin 이 없어 유튜브가 "오류 153"(동영상 플레이어
-/// 구성 오류)을 돌려준다. iframe 을 감싼 HTML 을 baseURL 과 함께 실어야 정상 origin 이 된다.
+/// 구성 오류)을 돌려준다. iframe 을 감싼 HTML 을 baseURL 과 함께 실어야 한다.
+///
+/// baseURL 은 **웹앱과 같은 출처**여야 한다. youtube.com 을 출처로 주장하면 유튜브가
+/// 자기 도메인이 자기를 임베드하는 꼴로 보고 "오류 152"(이 동영상은 볼 수 없습니다)를
+/// 돌려준다 — 같은 영상이 웹앱에서는 멀쩡히 재생되는 이유가 이것이다.
 private struct YouTubePlayer: UIViewRepresentable {
     let videoID: String
 
-    private static let origin = URL(string: "https://www.youtube.com")!
+    /// 웹앱이 실제로 서비스되는 출처. 여기서 임베드하면 웹과 똑같이 재생된다.
+    private static let origin = URL(string: "https://skonnection.vercel.app")!
 
     private var html: String {
-        let src = "https://www.youtube.com/embed/\(videoID)?playsinline=1&rel=0"
+        let src = "https://www.youtube.com/embed/\(videoID)?playsinline=1&rel=0&origin=https://skonnection.vercel.app"
         return """
         <!doctype html><html><head>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
