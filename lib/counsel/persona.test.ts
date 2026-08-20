@@ -15,7 +15,8 @@ describe('buildSystemContent', () => {
     expect(out).toContain('민수');
     // 이미 고른 상대를 다시 묻지 않도록 프롬프트가 못을 박는다(되물으면 고른 행위가 무의미해진다).
     expect(out).toContain('"민수"님을 이미 지정했다');
-    expect(out).toContain('되묻지 말고');
+    expect(out).toContain('되묻지도 말고');
+    expect(out).toContain('"민수님" 으로 부르고');   // 지정한 상대를 이름으로 부른다
     expect(out).toContain('대나무숲 SOOP-1'); // 사례가 id 와 함께 인용됨
     expect(out).toContain(FORMAT_RULES);
   });
