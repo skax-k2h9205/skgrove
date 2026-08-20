@@ -104,7 +104,8 @@ struct ChatView: View {
         let isUser = turn.role == .user
         return HStack {
             if isUser { Spacer(minLength: 40) }
-            Text(turn.content)
+            // 답변에 섞인 **굵게** 표기를 해석한다 — 그대로 두면 별표가 글자로 보인다.
+            Text(ChatMarkdown.attributed(turn.content))
                 .font(.body)
                 .foregroundStyle(isUser ? .white : Theme.Palette.ink)
                 .padding(Theme.Space.x3)
