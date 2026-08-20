@@ -42,3 +42,4 @@ coverage/
 # 실명·사번·이메일이 담긴 dev 시드 스크립트. 절대 커밋 금지(로컬 전용).
 scripts/seed-real-profiles.mjs
 scripts/set-account-photos.mjs
+appstore-1.2-demo.mp4
