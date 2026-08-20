@@ -10,6 +10,8 @@ struct MarketView: View {
     private let filters = ["거래중", "나눔", "내가 올린 것", "전체"]
     @State private var selected: MarketItem?
     @State private var reporting: ReportTarget?
+    /// 내리기 확인 대상. 되돌릴 수 없어 한 번 더 묻는다.
+    @State private var cancelingItem: String?
     @EnvironmentObject private var moderation: ModerationStore
 
     private var myName: String { session.currentUser?.name ?? "나" }
@@ -56,7 +58,8 @@ struct MarketView: View {
                     .contextMenu {
                         ModerationMenuItems(
                             target: ReportTarget(kind: .market, targetId: item.id, author: item.seller),
-                            onReport: { reporting = $0 })
+                            onReport: { reporting = $0 },
+                            onDelete: { cancelingItem = item.id })
                     }
                 }
             }
@@ -65,6 +68,18 @@ struct MarketView: View {
             MarketDetailSheet(itemId: item.id)
         }
         .sheet(item: $reporting) { ReportSheet(target: $0) }
+        .confirmationDialog("이 물건을 내릴까요?",
+                            isPresented: Binding(get: { cancelingItem != nil },
+                                                 set: { if !$0 { cancelingItem = nil } }),
+                            presenting: cancelingItem) { id in
+            Button("내리기", role: .destructive) {
+                withAnimation(.snappy) { store.cancel(id, seller: myName) }
+                Haptics.success()
+            }
+            Button("취소", role: .cancel) {}
+        } message: { _ in
+            Text("거래가 취소되고 목록에서 내려갑니다.")
+        }
         .sheet(isPresented: $composing) {
             MarketComposeSheet { kind, title, desc, place, startPrice, minStep, closeAt in
                 store.list(kind: kind == "경매" ? .auction : .giveaway, title: title, seller: myName,
@@ -97,6 +112,7 @@ struct MarketDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var bidAmount: Int = 0
     @State private var reporting: ReportTarget?
+    @State private var confirmingCancel = false
     @EnvironmentObject private var moderation: ModerationStore
 
     private var myName: String { session.currentUser?.name ?? "나" }
@@ -133,11 +149,18 @@ struct MarketDetailSheet: View {
                     if let item {
                         ModerationToolbarMenu(
                             target: ReportTarget(kind: .market, targetId: item.id, author: item.seller),
-                            onReport: { reporting = $0 })
+                            onReport: { reporting = $0 },
+                            onDelete: { confirmingCancel = true })
                     }
                 }
             }
             .sheet(item: $reporting) { ReportSheet(target: $0) }
+            .confirmationDialog("이 물건을 내릴까요?", isPresented: $confirmingCancel) {
+                Button("내리기", role: .destructive) {
+                    store.cancel(itemId, seller: myName); Haptics.success(); dismiss()
+                }
+                Button("취소", role: .cancel) {}
+            } message: { Text("거래가 취소되고 목록에서 내려갑니다.") }
             .onChange(of: hiddenNow) { _, now in if now { dismiss() } }
         }
         .presentationDetents([.medium, .large])

@@ -14,20 +14,29 @@ struct ReportTarget: Identifiable {
     var id: String { "\(kind.rawValue):\(targetId)" }
 }
 
-/// 목록 타일·댓글에 붙이는 신고/차단 메뉴 항목.
+/// 목록 타일·댓글에 붙이는 콘텐츠 액션 항목.
 /// 이미 있는 `.contextMenu { }` 안에 그대로 끼워 쓴다.
+///
+/// 내 글이면 삭제, 남의 글이면 신고·차단이 뜬다. 한곳에서 갈라놓아야
+/// "내 글에 차단 버튼이 뜨는" 식의 앞뒤 안 맞는 메뉴가 생기지 않는다.
 struct ModerationMenuItems: View {
     let target: ReportTarget
     let onReport: (ReportTarget) -> Void
+    /// 내 글일 때 보여줄 삭제 동작. 넘기지 않으면 삭제를 제공하지 않는다.
+    var onDelete: (() -> Void)? = nil
 
     @EnvironmentObject private var moderation: ModerationStore
     @EnvironmentObject private var session: SessionStore
 
     private var myName: String { session.currentUser?.name ?? "" }
+    var isMine: Bool { !target.author.isEmpty && target.author == myName }
 
     var body: some View {
-        // 내 글은 신고·차단 대상이 아니다. 삭제는 각 화면이 따로 제공한다.
-        if !target.author.isEmpty, target.author != myName {
+        if isMine {
+            if let onDelete {
+                Button(role: .destructive) { onDelete() } label: { Label("삭제", systemImage: "trash") }
+            }
+        } else if !target.author.isEmpty {
             Button { onReport(target) } label: { Label("신고", systemImage: "flag") }
             Button(role: .destructive) {
                 moderation.block(target.author, reporter: myName)
@@ -37,20 +46,26 @@ struct ModerationMenuItems: View {
     }
 }
 
-/// 상세 화면 툴바에 놓는 눈에 보이는 신고 버튼.
+/// 상세 화면 툴바에 놓는 눈에 보이는 ⋯ 버튼.
+/// 내 글이면 삭제, 남의 글이면 신고·차단. 길게 누르는 메뉴만으로는
+/// 심사자도 사용자도 이 기능들을 찾지 못한다.
 struct ModerationToolbarMenu: View {
     let target: ReportTarget
     let onReport: (ReportTarget) -> Void
+    var onDelete: (() -> Void)? = nil
 
     @EnvironmentObject private var moderation: ModerationStore
     @EnvironmentObject private var session: SessionStore
 
     private var myName: String { session.currentUser?.name ?? "" }
+    private var isMine: Bool { !target.author.isEmpty && target.author == myName }
+    /// 보여줄 항목이 하나도 없으면 빈 메뉴를 띄우지 않는다.
+    private var hasActions: Bool { isMine ? onDelete != nil : !target.author.isEmpty }
 
     var body: some View {
-        if !target.author.isEmpty, target.author != myName {
+        if hasActions {
             Menu {
-                ModerationMenuItems(target: target, onReport: onReport)
+                ModerationMenuItems(target: target, onReport: onReport, onDelete: onDelete)
             } label: {
                 Image(systemName: "ellipsis.circle")
             }

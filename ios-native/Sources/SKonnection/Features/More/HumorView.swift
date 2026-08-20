@@ -8,6 +8,8 @@ struct HumorView: View {
     @Binding var composing: Bool
     @State private var selected: HumorPost?
     @State private var reporting: ReportTarget?
+    /// 삭제 확인 대상. 삭제는 되돌릴 수 없어 한 번 더 묻는다.
+    @State private var deletingPost: String?
     @EnvironmentObject private var moderation: ModerationStore
 
     private var myName: String { session.currentUser?.name ?? "익명" }
@@ -35,14 +37,10 @@ struct HumorView: View {
                 .buttonStyle(.plain)
                 .contextMenu {
                     ShareLink(item: "[\(post.author)] \(post.body)") { Label("공유", systemImage: "square.and.arrow.up") }
-                    if post.author == myName {
-                        Button(role: .destructive) {
-                            withAnimation(.snappy) { store.deletePost(post.id) }
-                        } label: { Label("삭제", systemImage: "trash") }
-                    }
                     ModerationMenuItems(
                         target: ReportTarget(kind: .humorPost, targetId: post.id, author: post.author),
-                        onReport: { reporting = $0 })
+                        onReport: { reporting = $0 },
+                        onDelete: { deletingPost = post.id })
                 }
             }
         }
@@ -53,6 +51,18 @@ struct HumorView: View {
         .sheet(item: $reporting) { ReportSheet(target: $0) }
         .sheet(isPresented: $composing) {
             HumorComposeSheet { body, media in store.addPost(author: myName, body: body, mediaURL: media); Haptics.success() }
+        }
+        .confirmationDialog("이 글을 삭제할까요?",
+                            isPresented: Binding(get: { deletingPost != nil },
+                                                 set: { if !$0 { deletingPost = nil } }),
+                            presenting: deletingPost) { id in
+            Button("삭제", role: .destructive) {
+                withAnimation(.snappy) { store.deletePost(id, by: myName) }
+                Haptics.success()
+            }
+            Button("취소", role: .cancel) {}
+        } message: { _ in
+            Text("되돌릴 수 없어요. 이 글에 달린 댓글도 함께 사라집니다.")
         }
     }
 
@@ -114,6 +124,9 @@ struct HumorDetail: View {
     @State private var draft = ""
     @State private var reporting: ReportTarget?
     @State private var filterWarning: String?
+    /// 삭제 확인 대상(글 / 댓글). 되돌릴 수 없어 한 번 더 묻는다.
+    @State private var confirmingPostDelete = false
+    @State private var deletingComment: String?
 
     private var myName: String { session.currentUser?.name ?? "익명" }
     private var post: HumorPost? { store.posts.first { $0.id == postId } }
@@ -169,11 +182,32 @@ struct HumorDetail: View {
                     if let post {
                         ModerationToolbarMenu(
                             target: ReportTarget(kind: .humorPost, targetId: post.id, author: post.author),
-                            onReport: { reporting = $0 })
+                            onReport: { reporting = $0 },
+                            onDelete: { confirmingPostDelete = true })
                     }
                 }
             }
             .sheet(item: $reporting) { ReportSheet(target: $0) }
+            .confirmationDialog("이 글을 삭제할까요?", isPresented: $confirmingPostDelete) {
+                Button("삭제", role: .destructive) {
+                    store.deletePost(postId, by: myName)
+                    Haptics.success()
+                    dismiss()   // 지운 글의 상세를 띄워둘 이유가 없다
+                }
+                Button("취소", role: .cancel) {}
+            } message: {
+                Text("되돌릴 수 없어요. 이 글에 달린 댓글도 함께 사라집니다.")
+            }
+            .confirmationDialog("이 댓글을 삭제할까요?",
+                                isPresented: Binding(get: { deletingComment != nil },
+                                                     set: { if !$0 { deletingComment = nil } }),
+                                presenting: deletingComment) { id in
+                Button("삭제", role: .destructive) {
+                    withAnimation(.snappy) { store.deleteComment(id, by: myName) }
+                    Haptics.success()
+                }
+                Button("취소", role: .cancel) {}
+            } message: { _ in Text("되돌릴 수 없어요.") }
             .onChange(of: hiddenNow) { _, now in if now { dismiss() } }
             .safeAreaInset(edge: .bottom) { commentBar }
         }
@@ -200,7 +234,8 @@ struct HumorDetail: View {
                     .contextMenu {
                         ModerationMenuItems(
                             target: ReportTarget(kind: .humorComment, targetId: c.id, author: c.author),
-                            onReport: { reporting = $0 })
+                            onReport: { reporting = $0 },
+                            onDelete: { deletingComment = c.id })
                     }
                 }
             }

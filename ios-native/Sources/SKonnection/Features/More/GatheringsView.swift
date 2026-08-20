@@ -9,6 +9,8 @@ struct GatheringsView: View {
     @Binding var composing: Bool
     @State private var selected: Gathering?
     @State private var reporting: ReportTarget?
+    /// 취소 확인 대상. 되돌릴 수 없어 한 번 더 묻는다.
+    @State private var cancelingGathering: String?
     @EnvironmentObject private var moderation: ModerationStore
     private let filters = ["모집중", "내가 신청", "내가 연 것", "전체"]
 
@@ -46,13 +48,26 @@ struct GatheringsView: View {
                     .contextMenu {
                         ModerationMenuItems(
                             target: ReportTarget(kind: .gathering, targetId: g.id, author: g.host),
-                            onReport: { reporting = $0 })
+                            onReport: { reporting = $0 },
+                            onDelete: { cancelingGathering = g.id })
                     }
                 }
             }
         }
         .sheet(item: $selected) { g in GatheringDetailSheet(gatheringId: g.id) }
         .sheet(item: $reporting) { ReportSheet(target: $0) }
+        .confirmationDialog("이 모임을 취소할까요?",
+                            isPresented: Binding(get: { cancelingGathering != nil },
+                                                 set: { if !$0 { cancelingGathering = nil } }),
+                            presenting: cancelingGathering) { id in
+            Button("모임 취소", role: .destructive) {
+                withAnimation(.snappy) { store.cancel(id, host: myName) }
+                Haptics.success()
+            }
+            Button("돌아가기", role: .cancel) {}
+        } message: { _ in
+            Text("신청한 사람들에게도 취소로 표시됩니다.")
+        }
         .sheet(isPresented: $composing) {
             GatheringComposeSheet { kind, title, startAt, place, capacity, desc in
                 let k: GatheringKind = kind == "번개" ? .flash : (kind == "커피" ? .coffee : .gathering)
@@ -91,6 +106,7 @@ struct GatheringDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showCoffeeGame = false
     @State private var reporting: ReportTarget?
+    @State private var confirmingCancel = false
     @EnvironmentObject private var moderation: ModerationStore
 
     private var myName: String { session.currentUser?.name ?? "나" }
@@ -132,11 +148,18 @@ struct GatheringDetailSheet: View {
                     if let g {
                         ModerationToolbarMenu(
                             target: ReportTarget(kind: .gathering, targetId: g.id, author: g.host),
-                            onReport: { reporting = $0 })
+                            onReport: { reporting = $0 },
+                            onDelete: { confirmingCancel = true })
                     }
                 }
             }
             .sheet(item: $reporting) { ReportSheet(target: $0) }
+            .confirmationDialog("이 모임을 취소할까요?", isPresented: $confirmingCancel) {
+                Button("모임 취소", role: .destructive) {
+                    store.cancel(gatheringId, host: myName); Haptics.success(); dismiss()
+                }
+                Button("돌아가기", role: .cancel) {}
+            } message: { Text("신청한 사람들에게도 취소로 표시됩니다.") }
             .onChange(of: hiddenNow) { _, now in if now { dismiss() } }
         }
         .presentationDetents([.medium, .large])

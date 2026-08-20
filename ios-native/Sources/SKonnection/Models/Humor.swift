@@ -87,9 +87,24 @@ final class HumorStore: ObservableObject {
             ["id": id, "post_id": postId, "author": author, "body": text, "created_at": Self.today()]) }
     }
 
-    func deletePost(_ postId: String) {
+    /// 내 글 삭제. 예전엔 로컬 배열만 비워서 다음 동기화 때 그대로 되살아났다 —
+    /// 지웠다고 믿은 글이 다시 보이는 건 안 지워지는 것보다 나쁘다.
+    /// 작성자 본인만 지울 수 있고, 딸린 댓글도 함께 지운다.
+    func deletePost(_ postId: String, by name: String) {
+        guard let post = posts.first(where: { $0.id == postId }), post.author == name else { return }
         posts.removeAll { $0.id == postId }
         comments.removeAll { $0.postId == postId }
+        Task {
+            try? await Supabase.delete("humor_comments", query: "post_id=eq.\(postId)")
+            try? await Supabase.delete("humor_posts", query: "id=eq.\(postId)")
+        }
+    }
+
+    /// 내 댓글 삭제.
+    func deleteComment(_ commentId: String, by name: String) {
+        guard let c = comments.first(where: { $0.id == commentId }), c.author == name else { return }
+        comments.removeAll { $0.id == commentId }
+        Task { try? await Supabase.delete("humor_comments", query: "id=eq.\(commentId)") }
     }
 
     // MARK: 명예의 전당(월간, 웹 humorRules 이식)
