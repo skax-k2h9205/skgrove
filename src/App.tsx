@@ -424,45 +424,52 @@ export function App() {
   // 암호화 대상(익명 전체 / 실명 '리더만 보기')이면 본문을 수신자 공개키로 E2E 암호화한다.
   //  - 익명: 대상 리더만 수신자 → 운영자도, 작성자도(불명) 못 읽는다.
   //  - 실명 '리더만 보기': 대상 리더 + 작성자 본인 수신자 → 작성자는 '내 접수'에서 재열람.
-  // 수신자 공개키가 하나도 없으면 평문으로 저장(비반적 폴백).
+  // 민감 접수(익명 전체 / 실명 '리더만 보기')는 반드시 암호화해서 저장한다.
+  // 암호화할 수 없으면(수신자 키 없음·암호화 실패) 평문으로 저장하지 않고 접수 자체를 막는다
+  // (fail-closed). 안 그러면 익명이라 믿고 쓴 글이 평문으로 남아 관리자에게 노출된다.
   const submitIssue = async (issue: Omit<Issue, 'id' | 'status' | 'createdAt'>): Promise<Issue> => {
     let prepared = issue;
     const plan = encryptionPlan(issue.author, issue.visibility);
     if (plan.encrypt) {
-      try {
-        const recipientAccounts = [...leadersFor(accounts, issue.target)];
-        if (plan.includeAuthor) {
-          const me = accounts.find(
-            (account) => account.email.toLowerCase() === currentUser?.email.toLowerCase(),
-          );
-          if (me) recipientAccounts.push(me);
-        }
-        // 작성자가 대상 리더를 겸할 수 있으니 accountId 로 중복 제거한다.
-        const uniqueIds = Array.from(new Set(recipientAccounts.map((account) => account.id)));
-        const pubKeys = await loadLeaderPublicKeys(uniqueIds);
-        const recipients = uniqueIds
-          .filter((id) => pubKeys[id])
-          .map((id) => ({ accountId: id, publicJwk: pubKeys[id] }));
-        if (recipients.length > 0) {
-          const enc = await encryptForRecipients(
-            JSON.stringify({ body: issue.body, expectedChange: issue.expectedChange }),
-            recipients,
-          );
-          // 평문은 저장하지 않는다(body/expectedChange 비움). 암호문만 남긴다.
-          prepared = {
-            ...issue,
-            body: '',
-            expectedChange: '',
-            encrypted: true,
-            encPayload: enc.payload,
-            encKeys: enc.keys,
-            encAlg: enc.alg,
-          };
-        }
-      } catch (error) {
-        // 암호화 실패 시 평문으로 조용히 새지 않는다 — 폴백은 '수신자 키 없음'일 때만.
-        console.warn('접수 암호화 실패, 평문 폴백.', error);
+      const recipientAccounts = [...leadersFor(accounts, issue.target)];
+      if (plan.includeAuthor) {
+        const me = accounts.find(
+          (account) => account.email.toLowerCase() === currentUser?.email.toLowerCase(),
+        );
+        if (me) recipientAccounts.push(me);
       }
+      // 작성자가 대상 리더를 겸할 수 있으니 accountId 로 중복 제거한다.
+      const uniqueIds = Array.from(new Set(recipientAccounts.map((account) => account.id)));
+      const pubKeys = await loadLeaderPublicKeys(uniqueIds);
+      const recipients = uniqueIds
+        .filter((id) => pubKeys[id])
+        .map((id) => ({ accountId: id, publicJwk: pubKeys[id] }));
+      if (recipients.length === 0) {
+        // 수신자 리더 중 암호화 키를 설정한 사람이 없다 → 평문 저장 금지, 접수를 막는다.
+        throw new Error(
+          '아직 암호화 열람 키를 설정한 리더가 없어 지금은 이 접수를 받을 수 없어요. 리더에게 "리더 관리함 → 암호화 키 설정"을 요청해 주세요.',
+        );
+      }
+      let enc;
+      try {
+        enc = await encryptForRecipients(
+          JSON.stringify({ body: issue.body, expectedChange: issue.expectedChange }),
+          recipients,
+        );
+      } catch (error) {
+        console.warn('접수 암호화 실패.', error);
+        throw new Error('접수 암호화에 실패했어요. 잠시 후 다시 시도해 주세요.');
+      }
+      // 평문은 저장하지 않는다(body/expectedChange 비움). 암호문만 남긴다.
+      prepared = {
+        ...issue,
+        body: '',
+        expectedChange: '',
+        encrypted: true,
+        encPayload: enc.payload,
+        encKeys: enc.keys,
+        encAlg: enc.alg,
+      };
     }
     const next: Issue = {
       id: makeIssueId(),

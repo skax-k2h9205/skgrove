@@ -70,6 +70,8 @@ export function Intake({ identity, currentUser, myAccountId, issues, partLeaders
   const [anonymousReceiptId, setAnonymousReceiptId] = useState('');
   const [anonymousAccessCode, setAnonymousAccessCode] = useState('');
   const [anonymousLookupError, setAnonymousLookupError] = useState('');
+  // 접수 저장 실패(암호화 불가로 fail-closed 차단 등)를 제출 버튼 근처에 표시.
+  const [submitError, setSubmitError] = useState('');
   const [anonymousIssueId, setAnonymousIssueId] = useState('');
   // 검토를 통과하기 전에는 제출할 수 없다. 검토 중에도 잠근다.
   const [reviewReady, setReviewReady] = useState(false);
@@ -108,21 +110,29 @@ export function Intake({ identity, currentUser, myAccountId, issues, partLeaders
         return;
       }
     }
+    setSubmitError('');
     const nextAnonymousCode = identity === '익명' ? makeAnonymousAccessCode() : undefined;
-    const createdIssue = await onSubmitIssue({
-      title: title.trim(),
-      category,
-      author: identity,
-      anonymousAccessCode: nextAnonymousCode,
-      submitterName: identity === '실명' ? currentUser.name : undefined,
-      submitterEmail: identity === '실명' ? currentUser.email : undefined,
-      submitterPart: identity === '실명' ? currentUser.part : undefined,
-      target,
-      urgency,
-      body: body.trim(),
-      expectedChange: expectedChange.trim(),
-      visibility,
-    });
+    let createdIssue;
+    try {
+      createdIssue = await onSubmitIssue({
+        title: title.trim(),
+        category,
+        author: identity,
+        anonymousAccessCode: nextAnonymousCode,
+        submitterName: identity === '실명' ? currentUser.name : undefined,
+        submitterEmail: identity === '실명' ? currentUser.email : undefined,
+        submitterPart: identity === '실명' ? currentUser.part : undefined,
+        target,
+        urgency,
+        body: body.trim(),
+        expectedChange: expectedChange.trim(),
+        visibility,
+      });
+    } catch (error) {
+      // 암호화 불가(수신자 키 없음 등)로 접수가 막힌 경우 — 평문으로 저장되지 않았음을 알린다.
+      setSubmitError(error instanceof Error ? error.message : '접수를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
     setReceiptEncrypted(createdIssue.encrypted === true);
     setReceiptId(createdIssue.id);
     setReceiptAccessCode(nextAnonymousCode ?? '');
@@ -535,6 +545,7 @@ export function Intake({ identity, currentUser, myAccountId, issues, partLeaders
                 </div>
               </>
             )}
+            {submitError && <p className="form-error">{submitError}</p>}
             <div className="form-actions">
               <button className="secondary-button" onClick={() => setStep('content')}>
                 수정하기
