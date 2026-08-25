@@ -45,7 +45,7 @@ import { ChatWidget } from './features/chat/ChatWidget';
 import { clearSession, loadSession, saveSession } from './session';
 import { supabase } from './supabaseClient';
 import { encryptForRecipients } from './crypto/issueCrypto';
-import { loadLeaderPublicKeys } from './crypto/leaderKeyStore';
+import { loadLeaderPublicKeys, clearPrivateKeyCache } from './crypto/leaderKeyStore';
 import { encryptionPlan } from './issueEncryptionPolicy';
 import { identityFromSession, resolveAccount, type AuthIdentity } from './authLink';
 import { setCurrentTenantId } from './tenantContext';
@@ -1733,6 +1733,9 @@ export function App() {
         clearSession();
         setCurrentUser(null);
         setCurrentTenantId(null);
+        // 대나무숲 개인키(메모리 캐시)를 반드시 지운다 — 안 지우면 로그아웃 후에도(SPA라
+        // 새로고침이 없다) 암호화 접수가 비번 없이 열려, 공용/자리비움 PC에서 위험하다.
+        clearPrivateKeyCache();
         // Slack 세션까지 정리 — 안 하면 다음 렌더에서 세션이 다시 잡혀 자동 재로그인된다.
         setPendingSlack(null);
         setSlackNewUser(null);
