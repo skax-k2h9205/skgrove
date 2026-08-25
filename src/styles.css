@@ -1561,6 +1561,41 @@ h1 {
   padding: 10px var(--space-3);
 }
 
+/* 대나무숲 암호화 열람 키 상태 배너(리더 관리함 상단). */
+.link-button {
+  background: none;
+  border: 0;
+  color: var(--color-primary);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0 4px;
+  text-decoration: underline;
+}
+.key-status-ok {
+  background: var(--tint-success);
+  border-color: var(--color-success);
+  color: var(--tint-success-ink);
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin-top: var(--space-3);
+}
+.key-status-warn {
+  background: var(--tint-danger);
+  border-color: var(--color-border-danger);
+  color: var(--tint-danger-ink);
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin-top: var(--space-3);
+}
+.key-status-warn span { flex: 1; min-width: 200px; }
+.key-setup-panel {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  margin-top: var(--space-3);
+}
+
 .complete-panel {
   justify-items: start;
   padding: 30px;
