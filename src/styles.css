@@ -1356,6 +1356,12 @@ h1 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* 각 칸을 위 정렬 — 한쪽에 안내문(field-hint)이 생겨 높이가 커져도 반대편 입력이
+   아래로 밀리지 않게 한다. choice-row(등높이 카드)에는 적용하지 않는다. */
+.form-grid {
+  align-items: start;
+}
+
 .choice-card {
   background: var(--tint-primary);
   border: 1px solid var(--color-border);
