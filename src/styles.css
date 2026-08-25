@@ -1561,6 +1561,14 @@ h1 {
   padding: 10px var(--space-3);
 }
 
+/* 입력 아래 작은 도움말(대나무숲 대상 필터 안내 등). */
+.field-hint {
+  color: var(--color-muted);
+  display: block;
+  font-size: var(--text-micro);
+  margin-top: 4px;
+}
+
 /* 대나무숲 암호화 열람 키 상태 배너(리더 관리함 상단). */
 .link-button {
   background: none;
