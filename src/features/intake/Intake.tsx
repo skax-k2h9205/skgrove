@@ -260,7 +260,8 @@ export function Intake({ identity, currentUser, myAccountId, issues, partLeaders
           <div className="modal-card">
             <LeaderKeySetup
               accountId={myAccountId}
-              intro="이 글은 대상 리더와 나만 볼 수 있게 암호화됩니다. 열람용 키를 먼저 만들어 주세요."
+              title="내 글 열람용 키 만들기 · 최초 1회"
+              intro="실명으로 '리더만 보기' 접수를 하셨어요. 이 글은 대상 리더와 나만 볼 수 있게 암호화됩니다. 나중에 '내 접수'에서 이 글을 다시 열어보려면 내 전용 열쇠가 한 번 필요해요. (서버·관리자는 이 열쇠를 모릅니다. 다음부터는 안 물어봐요.)"
               onDone={() => {
                 setNeedKeySetup(false);
                 void submit();
