@@ -60,8 +60,8 @@ export function LeaderKeySetup({ accountId, onDone, intro }: { accountId: string
     return (
       <div className="anon-key-setup">
         <div className="role-note">
-          <strong><KeyRound size={15} /> 복구코드를 꼭 저장하세요</strong>
-          <span>패스프레이즈를 잊으면 이 코드로만 복구할 수 있어요. 서버·운영자는 이 코드를 모릅니다. 다시 보여주지 않습니다.</span>
+          <strong><KeyRound size={15} /> 복구코드를 안전한 곳에 보관하세요</strong>
+          <span>비밀번호를 잊었을 때, 이 코드로 접수를 다시 열 수 있는 유일한 예비 열쇠예요. 지금 한 번만 보여드려요 — 메모장이나 비밀번호 관리앱에 저장해 주세요. (서버·관리자도 모르는 값입니다)</span>
         </div>
         <div className="anonymous-receipt">
           <strong>복구코드</strong>
@@ -124,6 +124,9 @@ export function EncryptedIssueBody({ issue, accountId }: { issue: Issue; account
   const [record, setRecord] = useState<LeaderKeyRecord | null>(null);
   const [pass, setPass] = useState('');
   const [busy, setBusy] = useState(false);
+  // 비밀번호를 잊었을 때 복구코드로 여는 경로. 같은 개인키를 복구코드로도 감싸 뒀다(encPrivRecovery).
+  const [useRecovery, setUseRecovery] = useState(false);
+  const [recovery, setRecovery] = useState('');
 
   const encIssue: EncryptedIssue = {
     alg: issue.encAlg ?? ISSUE_ENC_ALG,
@@ -166,9 +169,11 @@ export function EncryptedIssueBody({ issue, accountId }: { issue: Issue; account
     try {
       let priv;
       try {
-        priv = await unwrapPrivateKey(record.encPrivPassphrase, pass);
+        priv = useRecovery
+          ? await unwrapPrivateKey(record.encPrivRecovery, recovery.trim())
+          : await unwrapPrivateKey(record.encPrivPassphrase, pass);
       } catch {
-        setState({ phase: 'error', message: '패스프레이즈가 올바르지 않아요.' });
+        setState({ phase: 'error', message: useRecovery ? '복구코드가 올바르지 않아요.' : '비밀번호가 올바르지 않아요.' });
         return;
       }
       cachePrivateKey(accountId, priv);
@@ -176,6 +181,7 @@ export function EncryptedIssueBody({ issue, accountId }: { issue: Issue; account
       const parsed = JSON.parse(text) as { body: string; expectedChange: string };
       setState({ phase: 'unlocked', body: parsed.body, expectedChange: parsed.expectedChange });
       setPass('');
+      setRecovery('');
     } finally {
       setBusy(false);
     }
@@ -219,13 +225,25 @@ export function EncryptedIssueBody({ issue, accountId }: { issue: Issue; account
   // locked | error
   return (
     <div className="issue-body-box">
-      <strong><Lock size={14} /> 암호화 접수 — 패스프레이즈 입력</strong>
-      <p>대상 리더인 회원님만 열람할 수 있어요. 패스프레이즈로 잠금을 해제하세요.</p>
-      <input type="password" value={pass} autoComplete="off"
-        onChange={(e) => setPass(e.target.value)} placeholder="패스프레이즈" />
+      <strong><Lock size={14} /> 암호화 접수 — {useRecovery ? '복구코드' : '비밀번호'} 입력</strong>
+      <p>대상 리더인 회원님만 열람할 수 있어요. {useRecovery ? '설정 때 저장한 복구코드를 입력하세요.' : '비밀번호로 잠금을 해제하세요.'}</p>
+      {useRecovery ? (
+        <input value={recovery} autoComplete="off"
+          onChange={(e) => setRecovery(e.target.value)} placeholder="복구코드" />
+      ) : (
+        <input type="password" value={pass} autoComplete="off"
+          onChange={(e) => setPass(e.target.value)} placeholder="비밀번호" />
+      )}
       {state.phase === 'error' && <p className="form-error">{state.message}</p>}
-      <button className="primary-button" disabled={busy || !pass} onClick={unlock}>
+      <button className="primary-button" disabled={busy || (useRecovery ? !recovery.trim() : !pass)} onClick={unlock}>
         <KeyRound size={16} /> {busy ? '여는 중…' : '열람'}
+      </button>
+      <button
+        type="button"
+        className="login-link"
+        onClick={() => { setUseRecovery((v) => !v); setState({ phase: 'locked' }); }}
+      >
+        {useRecovery ? '← 비밀번호로 열기' : '비밀번호를 잊으셨나요? 복구코드로 열기'}
       </button>
     </div>
   );
