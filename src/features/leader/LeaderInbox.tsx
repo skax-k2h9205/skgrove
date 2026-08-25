@@ -4,6 +4,8 @@ import {
   ArrowLeft,
   CalendarPlus,
   FileCheck2,
+  KeyRound,
+  Lock,
   MessageSquareText,
   PenLine,
   Send,
@@ -12,7 +14,8 @@ import {
   UserRoundCheck,
   Vote,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { loadLeaderKeyRecord } from '../../crypto/leaderKeyStore';
 import { MIN_OPTIONS, VoteMethodEditor, validateVoteOptions } from '../agenda/VoteMethodEditor';
 import { useTenantParts } from '../../tenantParts';
 import {
@@ -24,7 +27,7 @@ import {
   statusNeedsReason,
 } from '../../issueRules';
 import { leadersFor } from '../../notificationRules';
-import { EncryptedIssueBody } from './AnonCrypto';
+import { EncryptedIssueBody, LeaderKeySetup } from './AnonCrypto';
 import type { Agenda, CurrentUser, Identity, Issue, IssueStatus, ManagedAccount, TeamPart, VoteType } from '../../types';
 
 type AgendaDraft = Pick<
@@ -105,6 +108,20 @@ export function LeaderInbox({ issues, accounts, currentUser, today, onIssueUpdat
   const myAccountId = accounts.find(
     (account) => account.email.toLowerCase() === currentUser.email.toLowerCase(),
   )?.id ?? '';
+
+  // 대나무숲 암호화 열람 키 상태. 리더가 키를 미리 설정할 수 있게 관리함 상단에 노출한다.
+  // 키가 있어야 익명 접수가 암호화되어 들어오고(수신자), 열람도 본인 비번으로만 가능.
+  const [keyPhase, setKeyPhase] = useState<'loading' | 'none' | 'set' | 'setup'>('loading');
+  useEffect(() => {
+    let alive = true;
+    if (!myAccountId) return;
+    loadLeaderKeyRecord(myAccountId).then((rec) => {
+      if (alive) setKeyPhase(rec ? 'set' : 'none');
+    });
+    return () => {
+      alive = false;
+    };
+  }, [myAccountId]);
   const agendaDraft = selectedIssue ? agendaDrafts[selectedIssue.id] ?? makeAgendaDraft(selectedIssue) : null;
   const waitingCount = myIssues.filter((issue) => issue.status === '접수' || issue.status === '검토중').length;
   const answeredCount = myIssues.filter((issue) => issue.leaderReply).length;
@@ -231,6 +248,33 @@ export function LeaderInbox({ issues, accounts, currentUser, today, onIssueUpdat
           <strong>{oldestWaiting === null ? '없음' : `${oldestWaiting}일`}</strong>
         </div>
       </div>
+
+      {/* 대나무숲 암호화 열람 키 — 리더가 미리 설정하는 진입점. 이게 있어야 익명 접수가
+          암호화되어 들어오고, 관리자도 못 읽는 보안이 실제로 작동한다. */}
+      {keyPhase === 'setup' ? (
+        <div className="key-setup-panel">
+          <LeaderKeySetup
+            accountId={myAccountId}
+            intro="대나무숲 익명 접수를 암호화해서 받고, 나만 열람할 수 있게 하는 키입니다. 비밀번호를 정하면 자동으로 만들어져요."
+            onDone={() => setKeyPhase('set')}
+          />
+          <button className="link-button" onClick={() => setKeyPhase('none')}>닫기</button>
+        </div>
+      ) : keyPhase === 'set' ? (
+        <div className="notice-line key-status-ok">
+          <ShieldCheck size={18} />
+          암호화 열람 키가 설정되어 있어요. 익명 접수가 암호화되어 들어오고, 본인 비밀번호로만 열람됩니다.
+          <button className="link-button" onClick={() => setKeyPhase('setup')}>재설정</button>
+        </div>
+      ) : keyPhase === 'none' ? (
+        <div className="notice-line key-status-warn">
+          <Lock size={18} />
+          <span><b>암호화 열람 키를 설정하세요.</b> 설정 전에는 익명 접수를 암호화해서 받을 수 없어요(관리자도 못 읽는 보안).</span>
+          <button className="primary-button" onClick={() => setKeyPhase('setup')}>
+            <KeyRound size={16} /> 암호화 키 설정
+          </button>
+        </div>
+      ) : null}
 
       {overdueCount > 0 && (
         <div className="notice-line action-overdue-notice">
