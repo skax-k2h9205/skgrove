@@ -23,7 +23,7 @@ import type { Issue } from '../../types';
 const MIN_PASSPHRASE = 8;
 
 // ── 키 설정 모달 ──
-export function LeaderKeySetup({ accountId, onDone, intro }: { accountId: string; onDone: () => void; intro?: string }) {
+export function LeaderKeySetup({ accountId, onDone, intro, title }: { accountId: string; onDone: () => void; intro?: string; title?: string }) {
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
   const [busy, setBusy] = useState(false);
@@ -88,7 +88,7 @@ export function LeaderKeySetup({ accountId, onDone, intro }: { accountId: string
   return (
     <div className="anon-key-setup">
       <div className="role-note">
-        <strong><Lock size={15} /> 암호화 열람 키 설정</strong>
+        <strong><Lock size={15} /> {title ?? '암호화 열람 키 설정'}</strong>
         <span>{intro ?? '익명 접수를 열어보려면 암호화 키가 필요해요.'} 패스프레이즈는 이 기기에서만 쓰이고 서버로 전송되지 않습니다.</span>
       </div>
       <label>
