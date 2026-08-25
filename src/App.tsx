@@ -45,7 +45,7 @@ import { ChatWidget } from './features/chat/ChatWidget';
 import { clearSession, loadSession, saveSession } from './session';
 import { supabase } from './supabaseClient';
 import { encryptForRecipients } from './crypto/issueCrypto';
-import { loadLeaderPublicKeys, clearPrivateKeyCache } from './crypto/leaderKeyStore';
+import { loadLeaderPublicKeys, loadLeaderKeyAccountIds, clearPrivateKeyCache } from './crypto/leaderKeyStore';
 import { encryptionPlan } from './issueEncryptionPolicy';
 import { identityFromSession, resolveAccount, type AuthIdentity } from './authLink';
 import { setCurrentTenantId } from './tenantContext';
@@ -221,6 +221,8 @@ export function App() {
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   // 테넌트 목록(플랫폼 오너 콘솔용).
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  // 암호화 키를 설정한 리더의 accountId 집합. 대나무숲 대상을 '키 있는 리더'로만 노출하는 데 쓴다.
+  const [keyedLeaderIds, setKeyedLeaderIds] = useState<Set<string>>(new Set());
   // 저장된 세션이 있으면 복원한다 — 새로고침해도 로그인이 유지된다.
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => loadSession());
   // Slack(OIDC) 로그인 파이프라인:
@@ -356,6 +358,10 @@ export function App() {
     // 계정 로스터도 현재 테넌트로 재조회(mount 의 전체 로드를 팀 스코프로 교체).
     loadAccounts().then((loaded) => {
       if (isMounted) setAccounts(loaded);
+    });
+    // 암호화 키를 설정한 리더 목록 — 대나무숲 대상 필터용.
+    loadLeaderKeyAccountIds().then((ids) => {
+      if (isMounted) setKeyedLeaderIds(new Set(ids));
     });
     // 팀 공용 설정(app_config)도 테넌트 스코프라 로그인 후에 읽는다.
     loadTeaSessionTypes().then((loaded) => {
@@ -1782,7 +1788,9 @@ export function App() {
           issues={issues}
           partLeaders={accounts
             .filter((account) => account.status === '활성' && account.role === '파트리더')
-            .map((account) => ({ name: account.name, part: account.part }))}
+            .map((account) => ({ name: account.name, part: account.part, hasKey: keyedLeaderIds.has(account.id) }))}
+          teamLeaderHasKey={leadersFor(accounts, '팀리더').some((leader) => keyedLeaderIds.has(leader.id))}
+          anyLeaderHasKey={leadersFor(accounts, '리더 전체').some((leader) => keyedLeaderIds.has(leader.id))}
           onIdentityChange={setIdentity}
           onIssueUpdate={updateIssue}
           onSubmitIssue={submitIssue}

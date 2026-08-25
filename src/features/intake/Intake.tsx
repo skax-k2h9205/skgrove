@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CheckCircle2,
   ChevronDown,
@@ -27,7 +27,11 @@ type IntakeProps = {
   myAccountId: string;
   issues: Issue[];
   // 특정 파트리더에게 바로 보낼 수 있게 활성 파트리더 목록을 받는다.
-  partLeaders: { name: string; part: string }[];
+  // hasKey: 그 리더가 암호화 열람 키를 설정했는지(대나무숲 대상 필터용).
+  partLeaders: { name: string; part: string; hasKey: boolean }[];
+  // '팀리더'/'리더 전체' 대상에 암호화 키를 설정한 리더가 있는지.
+  teamLeaderHasKey: boolean;
+  anyLeaderHasKey: boolean;
   onIdentityChange: (identity: Identity) => void;
   onIssueUpdate: (issue: Issue) => void;
   // 익명 접수는 App에서 대상 리더 공개키로 암호화하므로 비동기다.
@@ -47,7 +51,7 @@ const steps: Array<{ id: IntakeStep; label: string }> = [
   { id: 'complete', label: '접수 완료' },
 ];
 
-export function Intake({ identity, currentUser, myAccountId, issues, partLeaders, onIdentityChange, onIssueUpdate, onSubmitIssue }: IntakeProps) {
+export function Intake({ identity, currentUser, myAccountId, issues, partLeaders, teamLeaderHasKey, anyLeaderHasKey, onIdentityChange, onIssueUpdate, onSubmitIssue }: IntakeProps) {
   const [step, setStep] = useState<IntakeStep>('scope');
   const [target, setTarget] = useState<Target>('팀리더');
   const [visibility, setVisibility] = useState<IssueVisibility>('리더만 보기');
@@ -84,6 +88,27 @@ export function Intake({ identity, currentUser, myAccountId, issues, partLeaders
   // 암호화 글(익명 전체 / 실명 '리더만 보기')은 본문이 서버로 안 가므로 외부 AI 검토를 생략한다.
   const skipReview = identity === '익명' || encryptedNamed;
 
+  // 암호화가 필요한 접수는 '암호화 키를 설정한 리더'에게만 보낼 수 있다(안 그러면 평문 유출/차단).
+  // 그래서 대상 목록에서 키 없는 리더를 숨긴다 — 사용자가 차단 화면을 만나지 않게.
+  const needsEncryptedTarget = identity === '익명' || encryptedNamed;
+  const selectablePartLeaders = needsEncryptedTarget ? partLeaders.filter((l) => l.hasKey) : partLeaders;
+  const showTeamLeaderTarget = !needsEncryptedTarget || teamLeaderHasKey;
+  const showAllLeadersTarget = !needsEncryptedTarget || anyLeaderHasKey;
+  const hasEncryptedTarget = showTeamLeaderTarget || showAllLeadersTarget || selectablePartLeaders.length > 0;
+  const noEncryptedTarget = needsEncryptedTarget && !hasEncryptedTarget;
+
+  // 선택된 대상이 (암호화 필요 상황에서) 키 없는 리더로 남아 있으면 유효한 대상으로 바꿔준다.
+  useEffect(() => {
+    if (!needsEncryptedTarget) return;
+    const valid =
+      (target === '팀리더' && showTeamLeaderTarget) ||
+      (target === '리더 전체' && showAllLeadersTarget) ||
+      selectablePartLeaders.some((l) => l.name === target);
+    if (valid) return;
+    setTarget(showTeamLeaderTarget ? '팀리더' : selectablePartLeaders[0]?.name ?? (showAllLeadersTarget ? '리더 전체' : ''));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsEncryptedTarget, target, showTeamLeaderTarget, showAllLeadersTarget, partLeaders]);
+
   const currentStepIndex = steps.findIndex((item) => item.id === step);
   const myIssues = issues.filter(
     (issue) => issue.author === '실명' && issue.submitterEmail?.toLowerCase() === currentUser.email.toLowerCase(),
@@ -101,6 +126,11 @@ export function Intake({ identity, currentUser, myAccountId, issues, partLeaders
     // 버튼이 잠겨 있어도 다른 경로로 호출될 수 있으니 여기서 한 번 더 막는다.
     // 익명은 외부 AI 검토를 건너뛰므로 reviewReady 게이트를 적용하지 않는다.
     if ((!skipReview && !reviewReady) || !title.trim() || !body.trim()) return;
+    // 암호화가 필요한데 키를 설정한 리더가 하나도 없으면 접수를 막는다(평문 유출 방지).
+    if (noEncryptedTarget) {
+      setSubmitError('아직 암호화 열람 키를 설정한 리더가 없어 이 방식(익명/리더전용)으로는 접수할 수 없어요. 리더에게 키 설정을 요청해 주세요.');
+      return;
+    }
     // 실명 '리더만 보기'는 작성자도 복호화해야 하므로 본인 키가 필요하다.
     // 없으면 키 설정 모달을 띄우고 멈춘다(설정 완료 후 재제출).
     if (encryptedNamed && myAccountId) {
@@ -310,19 +340,22 @@ export function Intake({ identity, currentUser, myAccountId, issues, partLeaders
             <div className="form-grid">
               <label>
                 전달 대상
-                <select value={target} onChange={(event) => setTarget(event.target.value)}>
-                  <option value="팀리더">팀리더</option>
-                  {partLeaders.length > 0 && (
+                <select value={target} onChange={(event) => setTarget(event.target.value)} disabled={noEncryptedTarget}>
+                  {showTeamLeaderTarget && <option value="팀리더">팀리더</option>}
+                  {selectablePartLeaders.length > 0 && (
                     <optgroup label="파트리더에게 직접">
-                      {partLeaders.map((leader) => (
+                      {selectablePartLeaders.map((leader) => (
                         <option key={leader.name} value={leader.name}>
                           {leader.name} · {leader.part}
                         </option>
                       ))}
                     </optgroup>
                   )}
-                  <option value="리더 전체">리더 전체</option>
+                  {showAllLeadersTarget && <option value="리더 전체">리더 전체</option>}
                 </select>
+                {needsEncryptedTarget && !noEncryptedTarget && (
+                  <span className="field-hint">암호화 열람 키를 설정한 리더만 표시돼요(안전한 전달을 위해).</span>
+                )}
               </label>
               <label>
                 공개 범위
@@ -440,13 +473,19 @@ export function Intake({ identity, currentUser, myAccountId, issues, partLeaders
                 </p>
               )}
 
+              {noEncryptedTarget && (
+                <p className="form-error">
+                  아직 암호화 열람 키를 설정한 리더가 없어 이 방식(익명/리더전용)으로는 접수할 수 없어요.
+                  리더에게 "리더 관리함 → 암호화 키 설정"을 요청해 주세요.
+                </p>
+              )}
               <div className="form-actions">
                 <button className="secondary-button" onClick={() => setStep('scope')}>
                   이전
                 </button>
                 <button
                   className="primary-button"
-                  disabled={!title.trim() || !body.trim()}
+                  disabled={!title.trim() || !body.trim() || noEncryptedTarget}
                   onClick={() => {
                     // 내용이 바뀌었으니 이전 검토 결과를 물려받지 않는다.
                     setReviewReady(false);

@@ -49,6 +49,14 @@ export function rowToRecord(row: LeaderKeyRow): LeaderKeyRecord {
 // ── 원격 I/O ──
 const TABLE = 'leader_keys';
 
+/** 암호화 키를 설정한 리더의 accountId 목록. 대나무숲 대상 필터(키 있는 리더만 노출)에 쓴다. */
+export async function loadLeaderKeyAccountIds(): Promise<string[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase.from(TABLE).select('account_id');
+  if (error || !data) return [];
+  return (data as { account_id: string }[]).map((row) => row.account_id);
+}
+
 /** 여러 계정의 공개키를 한 번에 조회(암호화 제출용). 없으면 그 계정은 결과에서 빠진다. */
 export async function loadLeaderPublicKeys(accountIds: string[]): Promise<Record<string, JsonWebKey>> {
   const out: Record<string, JsonWebKey> = {};
