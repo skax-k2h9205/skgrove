@@ -3,6 +3,7 @@ import type { RecipientKey } from './crypto/issueCrypto';
 export type Section =
   | 'dashboard'
   | 'mypage'
+  | 'guide'
   | 'intake'
   | 'leader'
   | 'agenda'

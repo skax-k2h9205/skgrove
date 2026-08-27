@@ -58,6 +58,7 @@ import { LoginScreen } from './features/auth/LoginScreen';
 import { SlackPartPrompt } from './features/auth/SlackPartPrompt';
 import { Connect } from './features/connect/Connect';
 import { Dashboard } from './features/dashboard/Dashboard';
+import { GuidePage } from './features/guide/GuidePage';
 import { HumorBoard } from './features/humor/HumorBoard';
 import { Intake } from './features/intake/Intake';
 import { LeaderInbox } from './features/leader/LeaderInbox';
@@ -1956,6 +1957,7 @@ export function App() {
           <ChangePassword />
         </>
       )}
+      {active === 'guide' && <GuidePage currentUser={currentUser} />}
       {active === 'connect' && <Connect members={connectMembers} />}
       {active === 'memory' && <Memory currentUser={currentUser} />}
       {active === 'metrics' && <Metrics currentUser={currentUser} />}

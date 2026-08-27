@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Bell, Camera, HeartHandshake, LogOut, MessageSquarePlus } from 'lucide-react';
+import { Bell, BookOpen, Camera, HeartHandshake, LogOut, MessageSquarePlus } from 'lucide-react';
 import { hasLeaderRole, isConnectioner, isPlatformOwner, isTeamLeader } from '../auth';
 import { navGroups, sections } from '../navigation';
 import type { CurrentUser, Section } from '../types';
@@ -183,6 +183,14 @@ export function AppShell({
             </button>
             {/* 좁은 폭에서는 라벨을 감추고 아이콘만 남긴다(CSS). 감춰도 뜻이
                 전달되게 title 과 aria-label 을 함께 둔다. */}
+            <button
+              className={active === 'guide' ? 'icon-button active' : 'icon-button'}
+              onClick={() => onSectionChange('guide')}
+              title="사용 가이드"
+              aria-label="사용 가이드"
+            >
+              <BookOpen size={19} />
+            </button>
             <button
               className="primary-button intake-cta"
               onClick={() => onSectionChange('intake')}

@@ -13422,3 +13422,22 @@ button.notif-row {
   border-radius: 8px;
   margin: 4px 0;
 }
+
+/* ── 사용 가이드(배너 · 인앱 가이드 페이지) ── */
+.guide-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  background: linear-gradient(120deg, #e8f2fb, #eef6ff); border: 1px solid #cfe3f5; border-radius: 14px;
+  padding: 14px 18px; margin-bottom: 16px; }
+.guide-banner-text { display: flex; align-items: center; gap: 12px; color: #0a4d8c; }
+.guide-banner-text strong { display: block; font-size: 15px; }
+.guide-banner-text span { font-size: 13px; color: #41506a; }
+.guide-banner-actions { display: flex; align-items: center; gap: 8px; }
+
+.guide-screen { display: flex; flex-direction: column; gap: 12px; }
+.guide-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.guide-toolbar-title { display: flex; align-items: center; gap: 8px; color: #41506a; font-size: 13.5px; }
+.guide-toolbar-actions { display: flex; align-items: center; gap: 10px; }
+.guide-switch { display: inline-flex; background: #eef2f8; border: 1px solid #dde4ef; border-radius: 999px; padding: 3px; }
+.guide-switch button { border: 0; background: transparent; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: #41506a; cursor: pointer; }
+.guide-switch button.on { background: #006bb8; color: #fff; }
+.guide-frame-wrap { border: 1px solid #d5dced; border-radius: 14px; overflow: hidden; background: #f5f7fb; height: calc(100vh - 190px); min-height: 520px; }
+.guide-frame { width: 100%; height: 100%; border: 0; display: block; }

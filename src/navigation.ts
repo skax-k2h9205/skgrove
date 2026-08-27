@@ -2,6 +2,7 @@ import type { ElementType } from 'react';
 import {
   BarChart3,
   Bell,
+  BookOpen,
   CalendarDays,
   FileCheck2,
   Home,
@@ -57,6 +58,8 @@ export const sections: AppSection[] = [
      개인 영역은 헤더 우측 사용자 칩이 입구다(사진 변경도 거기 붙어 있다).
      다만 헤더 제목을 뽑으려면 sections 목록에는 있어야 한다. */
   { id: 'mypage', label: '마이페이지', icon: IdCard, owner: '본인' },
+  /* 사용 가이드도 사이드바 밖. 헤더의 도움말 버튼과 홈 배너가 입구다. */
+  { id: 'guide', label: '사용 가이드', icon: BookOpen, owner: '공통' },
 ];
 
 const bySection = (id: Section) => sections.find((section) => section.id === id)!;
