@@ -1957,7 +1957,7 @@ export function App() {
           <ChangePassword />
         </>
       )}
-      {active === 'guide' && <GuidePage currentUser={currentUser} />}
+      {active === 'guide' && <GuidePage />}
       {active === 'connect' && <Connect members={connectMembers} />}
       {active === 'memory' && <Memory currentUser={currentUser} />}
       {active === 'metrics' && <Metrics currentUser={currentUser} />}
