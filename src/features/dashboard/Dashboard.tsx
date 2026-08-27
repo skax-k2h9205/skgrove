@@ -1,5 +1,6 @@
-import type { ElementType } from 'react';
+import { useState, type ElementType } from 'react';
 import {
+  BookOpen,
   CalendarClock,
   FileCheck2,
   Inbox,
@@ -7,6 +8,7 @@ import {
   Plus,
   Store,
   Vote,
+  X,
   Zap,
 } from 'lucide-react';
 import { PanelHeader } from '../../components/PanelHeader';
@@ -107,8 +109,52 @@ export function Dashboard({
     onSectionChange('intake');
   };
 
+  // 첫 로그인 안내 배너. 한 번 닫으면 계정별로 다시 뜨지 않는다(localStorage).
+  const guideSeenKey = `guideSeen:v1:${currentUser.email}`;
+  const [showGuideBanner, setShowGuideBanner] = useState(() => {
+    try {
+      return localStorage.getItem(guideSeenKey) !== '1';
+    } catch {
+      return false;
+    }
+  });
+  const dismissGuideBanner = () => {
+    try {
+      localStorage.setItem(guideSeenKey, '1');
+    } catch {
+      /* noop */
+    }
+    setShowGuideBanner(false);
+  };
+
   return (
     <section className="screen ig-home">
+      {showGuideBanner && (
+        <div className="guide-banner">
+          <div className="guide-banner-text">
+            <BookOpen size={20} />
+            <div>
+              <strong>처음이신가요? 화면으로 보는 사용 가이드</strong>
+              <span>각 동작에 번호를 붙여 따라 하기 쉽게 정리했어요.</span>
+            </div>
+          </div>
+          <div className="guide-banner-actions">
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => {
+                dismissGuideBanner();
+                onSectionChange('guide');
+              }}
+            >
+              가이드 보기
+            </button>
+            <button className="icon-button" type="button" aria-label="닫기" title="닫기" onClick={dismissGuideBanner}>
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
       {/*
         스토리 트레이 = 마감이 있는 것. 첫 칸은 인스타의 '내 스토리'와 같은 자리라
         만들기(= 의견 접수)를 둔다. 히어로를 없앤 대신 여기가 시작점이 된다.
