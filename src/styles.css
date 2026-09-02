@@ -12038,7 +12038,7 @@ button.notif-row {
 .home-feed-card.k-agenda { background: var(--tint-primary); }
 .home-feed-card.k-action { background: var(--tint-success); }
 .home-feed-card.k-gathering { background: var(--tint-neutral); }
-.home-feed-card.k-humor { background: var(--tint-danger); }
+.home-feed-card.k-memory { background: var(--tint-success); }
 .home-feed-card.k-market { background: var(--tint-neutral); }
 
 .home-feed-bg {
@@ -12074,7 +12074,7 @@ button.notif-row {
 }
 .home-feed-card.k-agenda .home-feed-plain { color: var(--tint-primary-ink); }
 .home-feed-card.k-action .home-feed-plain { color: var(--tint-success-ink); }
-.home-feed-card.k-humor .home-feed-plain { color: var(--tint-danger-ink); }
+.home-feed-card.k-memory .home-feed-plain { color: var(--tint-success-ink); }
 
 .home-feed-plain strong {
   -webkit-box-orient: vertical;

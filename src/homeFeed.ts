@@ -1,10 +1,9 @@
-// 홈 통합 피드 — 5개 도메인(안건·액션·번개·유머·장터)을 하나의 최신순 목록으로 접는다.
+// 홈 통합 피드 — 5개 도메인(안건·액션·번개·팀추억·장터)을 하나의 최신순 목록으로 접는다.
 // 화면 없이 정렬·개수·매핑을 테스트할 수 있도록 순수 함수로 둔다. 카드의 색·아이콘·라벨은
 // 화면(Dashboard)이 kind 로 정하고, 여기서는 데이터만 만든다.
-import { resolveMedia, youtubeThumb } from './humorRules';
-import type { ActionItem, Agenda, Gathering, HumorPost, MarketItem, Section } from './types';
+import type { ActionItem, Agenda, Gathering, MarketItem, Section, TeamMemory } from './types';
 
-export type HomeFeedKind = 'agenda' | 'action' | 'gathering' | 'humor' | 'market';
+export type HomeFeedKind = 'agenda' | 'action' | 'gathering' | 'memory' | 'market';
 
 export type HomeFeedItem = {
   id: string; // 도메인 접두어. 예: 'gathering:GAT-1' — 도메인이 달라도 키가 겹치지 않게
@@ -17,33 +16,20 @@ export type HomeFeedItem = {
 };
 
 // 팀 하나의 최근 소식을 다 담을 만큼 넉넉히. 너무 낮으면 항목 많은 도메인(안건 등)이
-// 상한을 채워 유머처럼 건수 적은 도메인이 통째로 안 보이는 문제가 생긴다.
+// 상한을 채워 팀추억처럼 건수 적은 도메인이 통째로 안 보이는 문제가 생긴다.
 export const HOME_FEED_LIMIT = 60;
 
 export type HomeFeedSources = {
   agendas: Agenda[];
   actionItems: ActionItem[];
   gatherings: Gathering[];
-  humorPosts: HumorPost[];
+  memories: TeamMemory[];
   marketItems: MarketItem[];
 };
 
-// 유머 배경 = 사용자가 붙인 이미지, 또는 유튜브 링크면 그 영상 썸네일. AI 생성 썸네일은 쓰지 않는다.
-function humorImage(post: HumorPost): string | undefined {
-  const media = resolveMedia(post.mediaUrl);
-  if (media?.type === 'image') return media.src;
-  if (media?.type === 'youtube') return youtubeThumb(post.mediaUrl);
-  return undefined;
-}
-
-// 유머는 제목이 없다. 본문 첫 줄을 제목처럼 쓰되 너무 길면 자른다.
-function humorTitle(body: string): string {
-  const firstLine = body
-    .split('\n')
-    .map((line) => line.trim())
-    .find(Boolean);
-  if (!firstLine) return '유머';
-  return firstLine.length > 40 ? `${firstLine.slice(0, 40)}…` : firstLine;
+// 팀추억 썸네일 = 첨부한 사진·영상 중 미리보기 URL 이 있는 첫 자산. 없으면 색 타일로 폴백.
+function memoryImage(memory: TeamMemory): string | undefined {
+  return memory.assets.find((asset) => asset.previewUrl)?.previewUrl;
 }
 
 export function buildHomeFeed(sources: HomeFeedSources): HomeFeedItem[] {
@@ -84,15 +70,16 @@ export function buildHomeFeed(sources: HomeFeedSources): HomeFeedItem[] {
         meta: gathering.canceled ? '취소됨' : gathering.kind === 'flash' ? '번개' : '공모',
       }),
     ),
-    ...sources.humorPosts.map(
-      (post): HomeFeedItem => ({
-        id: `humor:${post.id}`,
-        section: 'humor',
-        kind: 'humor',
-        title: humorTitle(post.body),
-        createdAt: post.createdAt,
-        imageUrl: humorImage(post),
-        meta: `♥ ${post.likedBy.length}`,
+    ...sources.memories.map(
+      (memory): HomeFeedItem => ({
+        id: `memory:${memory.id}`,
+        section: 'memory',
+        kind: 'memory',
+        title: memory.title,
+        // 팀추억엔 생성시각이 없다. 행사 날짜(date, YYYY-MM-DD)를 정렬 키로 쓴다.
+        createdAt: memory.date,
+        imageUrl: memoryImage(memory),
+        meta: memory.place || undefined,
       }),
     ),
     ...sources.marketItems.map(
