@@ -2,7 +2,7 @@ import type { ManagedAccount } from './types';
 import { normalizeTeamPart } from './auth';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
-import { withTenant } from './tenantContext';
+import { getCurrentTenantId, withTenant } from './tenantContext';
 
 const ACCOUNT_STORAGE_KEY = 'skgrove:accounts';
 const ACCOUNT_TABLE = 'accounts';
@@ -87,12 +87,22 @@ type AccountRow = {
   is_platform_owner?: boolean | null;
 };
 
+// 로그인 후(테넌트 확정)에는 결과를 반드시 현재 테넌트로 좁힌다. mount 의 전체 로드가
+// localStorage 에 남긴 '전 테넌트 명단'이나 스코프 조회 실패 시의 폴백을 통해 다른 팀
+// 계정(데모 등)이 계정관리에 새던 것을 막는다. 테넌트 없는 시스템 계정(관리자 시드)은 남긴다.
+// 로그인 전(currentTenantId=null)에는 로그인 매칭을 위해 전체를 그대로 둔다.
+export function scopeAccountsToTenant(accounts: ManagedAccount[]): ManagedAccount[] {
+  const tenantId = getCurrentTenantId();
+  if (!tenantId) return accounts;
+  return accounts.filter((account) => !account.tenantId || account.tenantId === tenantId);
+}
+
 export async function loadAccounts() {
   if (supabase) {
     const { data, error } = await withTenant(supabase.from(ACCOUNT_TABLE).select('*')).order('joined_at', { ascending: true });
 
     if (!error && data) {
-      const accounts = ensureAdminAccount(data.map(accountFromRow));
+      const accounts = scopeAccountsToTenant(ensureAdminAccount(data.map(accountFromRow)));
       rememberRemote(ACCOUNT_TABLE, data as unknown as Record<string, unknown>[], ACCOUNT_WRITE_KEYS);
       // 읽기는 DB를 다시 쓰지 않는다. 예전엔 saveAccounts로 전체 재저장했는데,
       // 옛 번들이 뜬 클라이언트가 photo_url 등을 못 읽은 채 저장하면 공유 데이터가 손상됐다.
@@ -112,7 +122,7 @@ export async function loadAccounts() {
     const parsed = JSON.parse(saved) as ManagedAccount[];
     // 로컬 캐시에도 옛 파트 이름이 남아 있다. DB 경로와 같은 정규화를 태운다.
     const fixed = parsed.map((account) => ({ ...account, part: normalizeTeamPart(account.part) }));
-    return fixed.length > 0 ? ensureAdminAccount(fixed) : seedAccounts;
+    return fixed.length > 0 ? scopeAccountsToTenant(ensureAdminAccount(fixed)) : seedAccounts;
   } catch {
     return seedAccounts;
   }
