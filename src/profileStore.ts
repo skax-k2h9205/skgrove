@@ -47,7 +47,7 @@ export async function loadProfiles(fallback: Profile[], currentUser: CurrentUser
     const { data, error } = await withTenant(supabase.from(PROFILE_TABLE).select('*')).order('part').order('name');
 
     if (!error && data) {
-      const loaded = (data as ProfileRow[]).map(profileFromRow);
+      const loaded = dedupeProfileRows(data as ProfileRow[]).map(profileFromRow);
       rememberRemote(PROFILE_TABLE, data as unknown as Record<string, unknown>[], PROFILE_WRITE_KEYS, profileId);
       // 테넌트 스코프 결과가 비어도 시드(fallback=SK mock)로 채우지 않는다 — 다른 팀에
       // SK 프로필(이선민 등)이 새어 들어가던 원인. 빈 팀은 빈 채로 둔다(본인 것만 병합).
@@ -99,6 +99,15 @@ function mergeCurrentUserProfile(profiles: Profile[], currentUser: CurrentUser) 
   } catch {
     return profiles;
   }
+}
+
+// 같은 사람이 이름키 행(시드 saveProfiles → profile_key=이름)과 이메일키 행(본인 진단
+// saveProfileForUser → profile_key=이메일)으로 두 번 저장되면 upsert 가 서로를 못 덮어
+// 동료성향 목록에 같은 이름이 두 번 뜬다. 같은 이름에 '주인 있는(owner_email) 행'이 있으면
+// 이름키 시드 행은 버려 한 명만 남긴다. 둘 다 주인이 있는 동명이인은 그대로 둔다(안 합침).
+export function dedupeProfileRows(rows: ProfileRow[]): ProfileRow[] {
+  const ownedNames = new Set(rows.filter((row) => row.owner_email).map((row) => row.name.trim()));
+  return rows.filter((row) => row.owner_email || !ownedNames.has(row.name.trim()));
 }
 
 function profileFromRow(row: ProfileRow): Profile {
