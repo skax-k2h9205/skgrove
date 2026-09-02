@@ -236,23 +236,25 @@ export function App() {
   const [slackNewUser, setSlackNewUser] = useState<AuthIdentity | null>(null);
   const [slackError, setSlackError] = useState('');
   const [active, setActive] = useState<Section>('dashboard');
-  const [issues, setIssues] = useState<Issue[]>(initialIssues);
-  const [agendas, setAgendas] = useState<Agenda[]>(initialAgendas);
+  // Supabase 연결 시(프로덕션)엔 목업 시드로 시작하지 않는다 — DB 로드 전까지 옛/가짜
+  // 데이터가 잠깐(느린 모바일에선 오래) 보이던 문제. 시드는 백엔드 없는 로컬 개발 폴백 전용.
+  const [issues, setIssues] = useState<Issue[]>(supabase ? [] : initialIssues);
+  const [agendas, setAgendas] = useState<Agenda[]>(supabase ? [] : initialAgendas);
   const [ballots, setBallots] = useState<AgendaBallot[]>([]);
   const [identity, setIdentity] = useState<Identity>('익명');
-  const [canSessions, setCanSessions] = useState<CanSession[]>(initialCanSessions);
-  const [canOpinions, setCanOpinions] = useState<CanOpinion[]>(initialCanOpinions);
+  const [canSessions, setCanSessions] = useState<CanSession[]>(supabase ? [] : initialCanSessions);
+  const [canOpinions, setCanOpinions] = useState<CanOpinion[]>(supabase ? [] : initialCanOpinions);
   const [selectedCanId, setSelectedCanId] = useState<string | null>(null);
-  const [actionItems, setActionItems] = useState<ActionItem[]>(initialActionItems);
+  const [actionItems, setActionItems] = useState<ActionItem[]>(supabase ? [] : initialActionItems);
   // DB(있으면)에서 비동기 로드하므로 초기값은 시드/기본값으로 두고 useEffect에서 덮어쓴다.
   const [canSteps, setCanSteps] = useState<CanStepConfig[]>(CAN_STEPS);
-  const [teaSessions, setTeaSessions] = useState<TeaSession[]>(initialTeaSessions);
+  const [teaSessions, setTeaSessions] = useState<TeaSession[]>(supabase ? [] : initialTeaSessions);
   const [teaSessionTypes, setTeaSessionTypes] = useState<string[]>(DEFAULT_TEA_SESSION_TYPES);
-  const [notifications, setNotifications] = useState<AppNotification[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<AppNotification[]>(supabase ? [] : initialNotifications);
   // 알림 발송 설정(팀 공용). 시스템 관리 화면에서 커넥셔너가 조정. DB에서 로드 전엔 기본값.
   const [notifySettings, setNotifySettings] = useState<NotifySettings>(DEFAULT_NOTIFY_SETTINGS);
-  const [humorPosts, setHumorPosts] = useState<HumorPost[]>(initialHumorPosts);
-  const [humorComments, setHumorComments] = useState<HumorComment[]>(initialHumorComments);
+  const [humorPosts, setHumorPosts] = useState<HumorPost[]>(supabase ? [] : initialHumorPosts);
+  const [humorComments, setHumorComments] = useState<HumorComment[]>(supabase ? [] : initialHumorComments);
   // 홈 통합 피드에 팀추억 사진을 올리기 위해 App 레벨로 끌어올린다(팀추억 페이지도 자체 로드).
   const [memories, setMemories] = useState<TeamMemory[]>([]);
   const [gatherings, setGatherings] = useState<Gathering[]>([]);
@@ -268,7 +270,7 @@ export function App() {
   const [notificationsReady, setNotificationsReady] = useState(false);
   // 계정별 아바타(색·사진). Avatar가 ProfilesContext로 읽는다. 로그인 후 DB에서 로드.
   // 색은 성향 프로필(profiles), 사진은 계정(accounts)에서 오며 여기서 합친다.
-  const [profileDirectory, setProfileDirectory] = useState<Profile[]>(initialProfiles);
+  const [profileDirectory, setProfileDirectory] = useState<Profile[]>(supabase ? [] : initialProfiles);
   // 현재 로그인한 사용자의 테넌트(팀) 파트 목록. 파트는 팀마다 다르므로 auth.teamParts(SK 고정)
   // 대신 여기서 계산해 컨텍스트로 내려준다. 테넌트를 못 찾으면 SK 기본 파트로 폴백.
   const tenantParts = useMemo(() => {
