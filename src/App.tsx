@@ -49,6 +49,7 @@ import { loadLeaderPublicKeys, loadLeaderKeyAccountIds, clearPrivateKeyCache } f
 import { encryptionPlan } from './issueEncryptionPolicy';
 import { identityFromSession, resolveAccount, type AuthIdentity } from './authLink';
 import { setCurrentTenantId } from './tenantContext';
+import { scopeCachesToTenant } from './cacheScope';
 import { loadTenants, createTenant, type Tenant, type NewTenantInput } from './tenantStore';
 import { PlatformConsole } from './features/platform/PlatformConsole';
 import { AgendaBoard } from './features/agenda/AgendaBoard';
@@ -358,6 +359,8 @@ export function App() {
     if (!currentUser) return;
     // 스코프 기준을 로드보다 먼저 확정(세션 복원 경로 포함).
     setCurrentTenantId(currentUser.tenantId ?? null);
+    // 다른 팀(테넌트) 계정으로 바뀌었으면 이전 테넌트의 로컬 캐시를 격리(비움) — 로드보다 먼저.
+    scopeCachesToTenant(currentUser.tenantId ?? null);
     let isMounted = true;
     loadProfiles(initialProfiles, currentUser).then((loaded) => {
       if (isMounted) setProfileDirectory(loaded);
