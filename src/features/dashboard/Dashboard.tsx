@@ -4,8 +4,8 @@ import {
   CalendarClock,
   FileCheck2,
   Inbox,
-  Laugh,
   Plus,
+  Sparkles,
   Store,
   Vote,
   X,
@@ -19,10 +19,10 @@ import type {
   CurrentUser,
   Gathering,
   GatheringSignup,
-  HumorPost,
   Identity,
   MarketItem,
   Section,
+  TeamMemory,
 } from '../../types';
 
 // 피드 타일의 좌상단 배지·색 타일에 쓰는 도메인별 라벨·아이콘·색 클래스.
@@ -31,7 +31,7 @@ const KIND_STYLE: Record<HomeFeedKind, { label: string; icon: ElementType; cls: 
   agenda: { label: '안건', icon: Vote, cls: 'k-agenda' },
   action: { label: '액션', icon: FileCheck2, cls: 'k-action' },
   gathering: { label: '모임', icon: CalendarClock, cls: 'k-gathering' },
-  humor: { label: '유머', icon: Laugh, cls: 'k-humor' },
+  memory: { label: '추억', icon: Sparkles, cls: 'k-memory' },
   market: { label: '장터', icon: Store, cls: 'k-market' },
 };
 
@@ -43,7 +43,7 @@ type DashboardProps = {
   actionItems: ActionItem[];
   gatherings: Gathering[];
   signups: GatheringSignup[];
-  humorPosts: HumorPost[];
+  memories: TeamMemory[];
   marketItems: MarketItem[];
   today: string;
   /** 'YYYY-MM-DDTHH:mm' 로컬 시각. 모임의 '아직 안 지났는가' 판정에 쓴다. */
@@ -64,7 +64,7 @@ export function Dashboard({
   actionItems,
   gatherings,
   signups,
-  humorPosts,
+  memories,
   marketItems,
   today,
   now,
@@ -92,13 +92,13 @@ export function Dashboard({
   /*
     홈 통합 피드. 모임(번개·공모)도 피드에 타일로 넣는다 — 번개는 위 스토리에도 뜨지만,
     피드는 "모든 최근 소식"을 모으는 곳이라 함께 보이는 게 자연스럽다.
-    안건·액션·모임·유머·장터를 buildHomeFeed 가 최신순으로 접는다.
+    안건·액션·모임·팀추억·장터를 buildHomeFeed 가 최신순으로 접는다.
   */
   const feedItems = buildHomeFeed({
     agendas,
     actionItems,
     gatherings,
-    humorPosts,
+    memories,
     marketItems,
   });
 
@@ -183,7 +183,7 @@ export function Dashboard({
 
       <div className="ig-col">
         {/*
-          홈 통합 피드. 안건·액션·번개·유머·장터의 최근 소식을 한 판에 최신순 3열로 모은다.
+          홈 통합 피드. 안건·액션·번개·팀추억·장터의 최근 소식을 한 판에 최신순 3열로 모은다.
           풀폭 포스트로 도메인마다 다른 리치 UI(투표 진행바·인라인 토글)를 두던 것을 걷어내고,
           같은 크기 타일 + 클릭 이동으로 통일했다. 정렬·개수·매핑은 buildHomeFeed(순수)가 맡는다.
         */}
@@ -223,7 +223,7 @@ export function Dashboard({
             <div className="ig-post-body ig-quiet">
               <PanelHeader icon={Inbox} title="아직 소식이 없어요" />
               <p>
-                안건·액션·모임·유머·장터에 새 소식이 올라오면 여기 최신순으로 모입니다. 위에서 한마디 남기면 여기부터 채워집니다.
+                안건·액션·모임·팀추억·장터에 새 소식이 올라오면 여기 최신순으로 모입니다. 위에서 한마디 남기면 여기부터 채워집니다.
               </p>
             </div>
           </article>

@@ -108,6 +108,7 @@ import {
   saveHumorComments,
   saveHumorPosts,
 } from './humorStore';
+import { loadMemories } from './memoryStore';
 import { makePoster } from './aiPoster';
 import { requestGatheringImage } from './gatheringImage';
 import {
@@ -174,6 +175,7 @@ import type {
   Section,
   TeaSession,
   TeaSessionStatus,
+  TeamMemory,
   TeamPart,
   VoteSelection,
 } from './types';
@@ -251,6 +253,8 @@ export function App() {
   const [notifySettings, setNotifySettings] = useState<NotifySettings>(DEFAULT_NOTIFY_SETTINGS);
   const [humorPosts, setHumorPosts] = useState<HumorPost[]>(initialHumorPosts);
   const [humorComments, setHumorComments] = useState<HumorComment[]>(initialHumorComments);
+  // 홈 통합 피드에 팀추억 사진을 올리기 위해 App 레벨로 끌어올린다(팀추억 페이지도 자체 로드).
+  const [memories, setMemories] = useState<TeamMemory[]>([]);
   const [gatherings, setGatherings] = useState<Gathering[]>([]);
   const [gatheringSignups, setGatheringSignups] = useState<GatheringSignup[]>([]);
   /*
@@ -406,6 +410,9 @@ export function App() {
     });
     loadHumorPosts().then((loaded) => {
       if (isMounted) setHumorPosts(loaded);
+    });
+    loadMemories([]).then((loaded) => {
+      if (isMounted) setMemories(loaded);
     });
     loadHumorComments().then((loaded) => {
       if (isMounted) setHumorComments(loaded);
@@ -1769,7 +1776,7 @@ export function App() {
           actionItems={actionItems}
           gatherings={gatherings}
           signups={gatheringSignups}
-          humorPosts={humorPosts}
+          memories={memories}
           marketItems={marketItems}
           today={today()}
           now={nowStamp()}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildHomeFeed, HOME_FEED_LIMIT, type HomeFeedSources } from './homeFeed';
-import type { ActionItem, Agenda, Gathering, HumorPost, MarketItem } from './types';
+import type { ActionItem, Agenda, Gathering, MarketItem, TeamMemory } from './types';
 
 const agenda = (patch: Partial<Agenda> = {}): Agenda =>
   ({ id: 'AG1', title: '회의실 예약 규칙', status: '투표중', createdAt: '2026-08-01', ...patch }) as Agenda;
@@ -11,13 +11,16 @@ const action = (patch: Partial<ActionItem> = {}): ActionItem =>
 const gathering = (patch: Partial<Gathering> = {}): Gathering =>
   ({ id: 'GAT1', kind: 'callup', title: '점심 공모', createdAt: '2026-08-03', canceled: false, ...patch }) as Gathering;
 
-const humor = (patch: Partial<HumorPost> = {}): HumorPost =>
-  ({ id: 'H1', author: '김승현', body: '오늘의 짤', mediaUrl: '', createdAt: '2026-08-04', likedBy: [], ...patch }) as HumorPost;
+// 팀추억: 행사 날짜(date)를 정렬 키로, assets 중 previewUrl 있는 첫 자산을 썸네일로 쓴다.
+const memory = (patch: Partial<TeamMemory> = {}): TeamMemory =>
+  ({ id: 1, title: '워크샵 회고', date: '2026-08-04', place: '양양', assets: [], ...patch }) as TeamMemory;
+
+const asset = (previewUrl?: string) => ({ previewUrl }) as TeamMemory['assets'][number];
 
 const market = (patch: Partial<MarketItem> = {}): MarketItem =>
   ({ id: 'M1', kind: 'auction', title: '기계식 키보드', createdAt: '2026-08-05', ...patch }) as MarketItem;
 
-const empty: HomeFeedSources = { agendas: [], actionItems: [], gatherings: [], humorPosts: [], marketItems: [] };
+const empty: HomeFeedSources = { agendas: [], actionItems: [], gatherings: [], memories: [], marketItems: [] };
 
 describe('buildHomeFeed', () => {
   it('빈 입력이면 빈 배열', () => {
@@ -29,10 +32,10 @@ describe('buildHomeFeed', () => {
       agendas: [agenda({ createdAt: '2026-08-01' })],
       actionItems: [action({ createdAt: '2026-08-02' })],
       gatherings: [gathering({ createdAt: '2026-08-03' })],
-      humorPosts: [humor({ createdAt: '2026-08-04' })],
+      memories: [memory({ date: '2026-08-04' })],
       marketItems: [market({ createdAt: '2026-08-05' })],
     });
-    expect(feed.map((item) => item.kind)).toEqual(['market', 'humor', 'gathering', 'action', 'agenda']);
+    expect(feed.map((item) => item.kind)).toEqual(['market', 'memory', 'gathering', 'action', 'agenda']);
   });
 
   it('도메인 접두어 id·section·kind 를 붙인다', () => {
@@ -47,7 +50,7 @@ describe('buildHomeFeed', () => {
     expect(buildHomeFeed({ ...empty, actionItems: many })).toHaveLength(HOME_FEED_LIMIT);
   });
 
-  it('안건·액션은 이미지가 없고, 번개·유머·장터는 이미지가 있으면 담는다', () => {
+  it('안건·액션은 이미지가 없고, 번개·팀추억·장터는 이미지가 있으면 담는다', () => {
     const feed = buildHomeFeed({
       ...empty,
       agendas: [agenda()],
@@ -58,16 +61,15 @@ describe('buildHomeFeed', () => {
     expect(byKind.gathering).toBe('https://x/y.jpg');
   });
 
-  it('유머 배경 = 붙인 이미지 / 유튜브면 영상 썸네일 / 그 외엔 없음(AI 생성 썸네일 미사용)', () => {
-    const withImage = buildHomeFeed({ ...empty, humorPosts: [humor({ mediaUrl: 'https://x/pic.png' })] });
-    expect(withImage[0].imageUrl).toBe('https://x/pic.png');
+  it('팀추억 썸네일 = previewUrl 있는 첫 자산 / 없으면 없음', () => {
+    const withPhoto = buildHomeFeed({
+      ...empty,
+      memories: [memory({ assets: [asset(undefined), asset('https://x/pic.png')] })],
+    });
+    expect(withPhoto[0].imageUrl).toBe('https://x/pic.png');
 
-    const withYoutube = buildHomeFeed({ ...empty, humorPosts: [humor({ mediaUrl: 'https://youtu.be/dQw4w9WgXcQ' })] });
-    expect(withYoutube[0].imageUrl).toBe('https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
-
-    // 미디어 없음 + (옛) imageUrl 있어도 이제 배경으로 쓰지 않는다.
-    const noMedia = buildHomeFeed({ ...empty, humorPosts: [humor({ mediaUrl: '', imageUrl: 'https://x/thumb.png' })] });
-    expect(noMedia[0].imageUrl).toBeUndefined();
+    const noPhoto = buildHomeFeed({ ...empty, memories: [memory({ assets: [] })] });
+    expect(noPhoto[0].imageUrl).toBeUndefined();
   });
 
   it('메타에 도메인별 상태를 담는다 (취소된 번개 표시 포함)', () => {
