@@ -11,11 +11,11 @@ const MIN_PASSWORD_LENGTH = 6;
 // Slack 로그인 노출 시에만 쓰는 지원 브라우저 안내(Slack이 구버전 브라우저를 막아서).
 const SUPPORTED_BROWSERS = 'Chrome 137+ · Edge 136+ · Firefox 139+ · Safari 26+';
 
-// 인증은 6자리 코드 방식(OTP). 회사메일 보안이 링크를 미리 열어 토큰을 태워버리는 문제를
+// 인증은 8자리 코드 방식(OTP). 회사메일 보안이 링크를 미리 열어 토큰을 태워버리는 문제를
 // 코드 입력으로 피한다.
 //  login        : 이메일+비번 로그인
 //  signup       : 이름·메일·비번·파트 입력 → 확인 코드 발송
-//  verify-signup: 발송된 6자리 코드 입력 → 인증 완료 → 로그인
+//  verify-signup: 발송된 8자리 코드 입력 → 인증 완료 → 로그인
 //  reset        : 메일 입력 → 재설정 코드 발송
 //  verify-reset : 코드 + 새 비번 입력 → 재설정 완료 → 로그인
 type View = 'login' | 'signup' | 'verify-signup' | 'reset' | 'verify-reset';
@@ -146,7 +146,7 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
           return;
         }
         setView('verify-signup');
-        setNotice('메일로 6자리 인증 코드를 보냈어요. 코드를 입력해 주세요.');
+        setNotice('메일로 8자리 인증 코드를 보냈어요. 코드를 입력해 주세요.');
         return;
       }
 
@@ -173,7 +173,7 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
           return;
         }
         setView('verify-reset');
-        setNotice('가입된 계정이라면 6자리 재설정 코드를 보냈어요. 코드와 새 비밀번호를 입력해 주세요.');
+        setNotice('가입된 계정이라면 8자리 재설정 코드를 보냈어요. 코드와 새 비밀번호를 입력해 주세요.');
         return;
       }
 
@@ -240,7 +240,7 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
             <strong>
               <KeyRound size={15} /> 비밀번호 재설정
             </strong>
-            <span>사내메일로 6자리 코드를 보내드려요. 코드로 새 비밀번호를 정합니다.</span>
+            <span>사내메일로 8자리 코드를 보내드려요. 코드로 새 비밀번호를 정합니다.</span>
           </div>
         )}
         {view === 'verify-signup' && (
@@ -248,7 +248,7 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
             <strong>
               <ShieldCheck size={15} /> 이메일 인증
             </strong>
-            <span>메일로 받은 6자리 코드를 입력하면 가입이 완료돼요.</span>
+            <span>메일로 받은 8자리 코드를 입력하면 가입이 완료돼요.</span>
           </div>
         )}
 
@@ -295,7 +295,7 @@ export function LoginScreen({ onSlackLogin, authError }: LoginScreenProps) {
         {isCode && (
           <label>
             인증 코드
-            <input value={code} inputMode="numeric" autoComplete="one-time-code" onChange={(e) => setCode(e.target.value)} placeholder="메일로 받은 6자리" />
+            <input value={code} inputMode="numeric" autoComplete="one-time-code" maxLength={8} onChange={(e) => setCode(e.target.value)} placeholder="메일로 받은 8자리" />
           </label>
         )}
 
