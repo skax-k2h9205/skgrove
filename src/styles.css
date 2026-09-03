@@ -7015,7 +7015,7 @@ textarea {
 
 /* ── 캔미팅 팀 취합 ── */
 .can-merge { display: grid; gap: 14px; }
-.can-merge > label { display: grid; gap: 6px; font-size: var(--text-caption); color: var(--color-muted); }
+.can-merge > label { display: grid; gap: 6px; font-size: var(--text-meta); color: var(--color-muted); }
 .can-merge > label input { width: 100%; }
 
 /* 완료 세션 선택 리스트 */
@@ -7037,12 +7037,12 @@ textarea {
 .can-merge-pick input { width: 18px; height: 18px; flex: none; }
 .can-merge-pick span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .can-merge-pick strong { color: var(--color-ink); }
-.can-merge-pick em { font-style: normal; font-size: var(--text-caption); color: var(--color-muted); }
+.can-merge-pick em { font-style: normal; font-size: var(--text-meta); color: var(--color-muted); }
 
 /* 취합 결과 */
 .can-merge-summary { display: grid; gap: 8px; }
 .can-merge-group { display: grid; gap: 4px; }
-.can-merge-group strong { color: var(--color-primary); font-size: var(--text-caption); }
+.can-merge-group strong { color: var(--color-primary); font-size: var(--text-meta); }
 .can-merge-group ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
 .can-merge-group li { line-height: 1.5; }
 .can-merge-parts { border-top: 1px solid var(--color-border); padding-top: 10px; }
@@ -7552,7 +7552,7 @@ textarea {
   border-radius: 999px;
   background: var(--color-surface);
   color: var(--color-muted);
-  font-size: var(--text-caption);
+  font-size: var(--text-meta);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
@@ -7589,7 +7589,7 @@ textarea {
   border-radius: 8px;
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   color: var(--color-primary);
-  font-size: var(--text-caption);
+  font-size: var(--text-meta);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
