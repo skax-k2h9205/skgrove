@@ -9,6 +9,7 @@ import {
   Download,
   FileText,
   Heart,
+  Layers,
   ListChecks,
   Pencil,
   Plus,
@@ -54,6 +55,10 @@ const AI_AGGREGATE_PROMPT =
   '다음은 캔미팅에서 Step(단계)별로 선정된 팀원 의견입니다. ' +
   '각 Step 안에서만(다른 Step과 절대 섞지 말고) 유사·중복 의견을 병합해 그 Step의 결론을 도출해 주세요. ' +
   'Step별로 핵심 결론 1~3개로 간결하게 정리하고, 원문 뉘앙스는 유지하되 없는 내용을 새로 지어내지 마세요.';
+
+// 팀 취합 결과(휘발). aiGroups=AI가 파트 전체를 공통 주제로 종합, perPart=파트(세션)별 원본.
+type MergePart = { session: CanSession; groups: CanResultGroup[] };
+type MergeResult = { title: string; loading: boolean; aiGroups: CanResultGroup[]; perPart: MergePart[] };
 
 // 취합 표시용 정규화 키(공백 정리·끝 문장부호 제거·소문자화)로 동일/근접 중복을 제거.
 const normalizeOpinion = (text: string) =>
@@ -192,6 +197,13 @@ export function Meetings({
   const [teaCopyNotice, setTeaCopyNotice] = useState<string>('');
   const [teaAnnounceConfirm, setTeaAnnounceConfirm] = useState<boolean>(false);
 
+  // ── 캔미팅 팀 취합(완료 세션 결과 병합) — 휘발 상태. 저장하지 않고 화면·PPT로만. ──
+  const [mergeMode, setMergeMode] = useState(false); // 취합 만들기(세션 선택) 화면 여부
+  const [mergeSel, setMergeSel] = useState<string[]>([]); // 선택한 완료 세션 id
+  const [mergeTitle, setMergeTitle] = useState('');
+  const [mergeResult, setMergeResult] = useState<MergeResult | null>(null);
+  const [mergePptxLoading, setMergePptxLoading] = useState(false);
+
   // 세션 전환 시 AI 취합 결과·조회 단계·후속 조치 입력값을 초기화 (세션 간 상태 누수 방지)
   useEffect(() => {
     setAiGroups(null);
@@ -212,6 +224,136 @@ export function Meetings({
 
   const stepLabelOf = (id: string) => canSteps.find((step) => step.id === id)?.label ?? id;
   const activeStep = draft.step || canSteps[0]?.id || '';
+
+  // ── 팀 취합 ──
+  // 취합 대상 = 완료된 세션(결과 확정). 같은 주제를 파트별로 진행한 세션들을 여기서 고른다.
+  const completedSessions = sessions.filter(
+    (s) => s.stage === 'summary' && s.resultSummary.trim().length > 0,
+  );
+  const selectedOf = (sessionId: string, stepId: string) =>
+    opinions.filter((o) => o.sessionId === sessionId && o.selected && o.step === stepId);
+
+  // 취합 결과의 헤더(팀명·시행일시·방법·주제) — 화면 표와 PPT 가 같은 값을 쓴다.
+  // 팀명은 취합 제목이 아니라 실제 세션들의 팀명을 유지한다.
+  const mergeHeaderOf = (m: MergeResult) => {
+    // 팀명은 각 세션에 적힌 teamName 그대로(중복 제거). 파트명이 아니라 세션의 팀명을 쓴다.
+    const teams = [...new Set(m.perPart.map((p) => p.session.teamName).filter(Boolean))];
+    const dates = m.perPart.map((p) => p.session.heldAt).filter(Boolean).sort();
+    const heldRange = dates.length
+      ? dates[0] === dates[dates.length - 1]
+        ? dates[0]
+        : `${dates[0]} ~ ${dates[dates.length - 1]}`
+      : '';
+    const methods = [...new Set(m.perPart.map((p) => p.session.method).filter(Boolean))].join(', ');
+    return { teams: teams.join(', '), heldRange, methods, topic: m.perPart[0]?.session.topic || '' };
+  };
+
+  const closeMerge = () => {
+    setMergeMode(false);
+    setMergeResult(null);
+    setMergeSel([]);
+    setMergeTitle('');
+  };
+
+  const runMerge = async () => {
+    const chosen = sessions.filter((s) => mergeSel.includes(s.id));
+    if (chosen.length < 2) return;
+    // Step별로 선택 세션들의 '선정 의견'을 모은다(파트 경계 넘어 종합).
+    const rawGroups = canSteps
+      .map((step) => ({
+        label: step.label,
+        points: chosen.flatMap((s) => selectedOf(s.id, step.id).map((o) => o.content)),
+      }))
+      .filter((g) => g.points.length > 0);
+    // 파트(세션)별 원본 — 출처 보존.
+    const perPart: MergePart[] = chosen.map((s) => ({
+      session: s,
+      groups: canSteps
+        .map((step) => ({
+          label: step.label,
+          items: selectedOf(s.id, step.id).map((o) => ({ id: o.id, content: o.content })),
+        }))
+        .filter((g) => g.items.length > 0),
+    }));
+
+    const title = mergeTitle.trim() || '팀 취합';
+    setMergeResult({ title, loading: true, aiGroups: [], perPart });
+    // 기존 캔미팅 AI 취합을 그대로 재사용. 실패/미설정 시 단순 중복 제거로 폴백.
+    const res = await summarizeCanMeeting(AI_AGGREGATE_PROMPT, rawGroups);
+    const source =
+      res.ok && res.groups
+        ? res.groups
+        : rawGroups.map((g) => ({ label: g.label, points: [...new Set(g.points.map((p) => p.trim()))] }));
+    const aiGroups: CanResultGroup[] = source.map((g) => ({
+      label: g.label,
+      items: g.points.map((p, i) => ({ id: `${g.label}#${i}`, content: p })),
+    }));
+    setMergeResult((prev) => (prev ? { ...prev, loading: false, aiGroups } : prev));
+  };
+
+  const mergeToText = () => {
+    if (!mergeResult) return '';
+    const lines = [`[팀 취합] ${mergeResult.title}`, ''];
+    lines.push('■ AI 팀 종합');
+    mergeResult.aiGroups.forEach((g) => {
+      lines.push(`· ${g.label}`);
+      g.items.forEach((i) => lines.push(`   - ${i.content}`));
+    });
+    lines.push('', '■ 파트별 원본');
+    mergeResult.perPart.forEach((p) => {
+      lines.push(`[${p.session.teamName || p.session.topic || '세션'}]`);
+      p.groups.forEach((g) => {
+        lines.push(`· ${g.label}`);
+        g.items.forEach((i) => lines.push(`   - ${i.content}`));
+      });
+    });
+    return lines.join('\n');
+  };
+  const copyMerge = async () => {
+    try {
+      await navigator.clipboard.writeText(mergeToText());
+      onNotifyStatus('취합 결과를 복사했어요.', 'ok');
+    } catch {
+      onNotifyStatus('복사에 실패했어요.', 'error');
+    }
+  };
+  const exportMergePptx = async () => {
+    if (!mergeResult || mergePptxLoading) return;
+    setMergePptxLoading(true);
+    try {
+      const pptxgen = (await import('pptxgenjs')).default;
+      const pptx = new pptxgen();
+      const slide = pptx.addSlide();
+      const head = (text: string) => ({
+        text,
+        options: { bold: true, fill: { color: 'EFF3EC' }, color: '17352F', valign: 'middle' as const },
+      });
+      const body = (text: string) => ({ text, options: { valign: 'top' as const } });
+      const border = { type: 'solid' as const, color: 'D5DED6', pt: 1 };
+      // 개별 세션 PPT와 동일 템플릿. 팀명은 실제 팀명 유지, 취합 제목은 슬라이드 제목에.
+      const { teams, heldRange, methods, topic } = mergeHeaderOf(mergeResult);
+
+      slide.addText(`Can Meeting 결과 정리 · ${mergeResult.title}`, { x: 0.4, y: 0.3, fontSize: 20, bold: true, color: '2F5597' });
+      slide.addTable(
+        [
+          [head('팀명'), body(teams || '-'), head('참석자'), body('각 파트 전원')],
+          [head('시행일시'), body(heldRange || '-'), head('방법'), body(methods || '-')],
+          [head('주제'), { text: topic || '-', options: { colspan: 3, valign: 'middle' as const } }],
+        ],
+        { x: 0.4, y: 0.9, w: 9.2, colW: [1.5, 3.1, 1.5, 3.1], border, fontSize: 11, rowH: 0.4 },
+      );
+      slide.addTable(
+        mergeResult.aiGroups.map((g) => [head(g.label), body(g.items.map((i) => `• ${i.content}`).join('\n'))]),
+        { x: 0.4, y: 2.4, w: 9.2, colW: [2.2, 7.0], border, fontSize: 11, valign: 'top' },
+      );
+      await pptx.writeFile({ fileName: `캔미팅_팀취합_${mergeResult.title}_${heldRange || ''}.pptx` });
+    } catch (error) {
+      console.error('merge PPT export failed', error);
+      onNotifyStatus('PPT 생성에 실패했어요. 잠시 후 다시 시도해주세요.', 'error');
+    } finally {
+      setMergePptxLoading(false);
+    }
+  };
 
   // 세션별 의견/선정 수를 1회 스캔으로 집계 (목록 카드에서 재사용)
   const opinionCountBySession = opinions.reduce((acc, opinion) => {
@@ -281,7 +423,144 @@ export function Meetings({
       {tab === 'can' && (
         <div className="can-flow">
           {/* ===== 세션 목록 ===== */}
-          {!session && (
+          {/* 팀 취합 결과(휘발) */}
+          {!session && mergeResult && (
+            <section className="panel can-merge">
+              <div className="can-session-head">
+                <div>
+                  <h2>{mergeResult.title}</h2>
+                  <p className="can-hint">팀 취합 · 완료 세션 {mergeResult.perPart.length}개를 팀 단위로 합쳤어요.</p>
+                </div>
+                <button className="secondary-button" onClick={closeMerge}>
+                  닫기
+                </button>
+              </div>
+              {mergeResult.loading ? (
+                <p className="can-hint">AI가 파트별 결과를 종합하는 중…</p>
+              ) : (
+                <>
+                  <div className="can-template">
+                    <div className="can-template-title">Can Meeting 결과 정리 · 팀 취합</div>
+                    <table className="can-template-head">
+                      <tbody>
+                        <tr>
+                          <th>팀명</th>
+                          <td>{mergeHeaderOf(mergeResult).teams || '—'}</td>
+                          <th>참석자</th>
+                          <td>각 파트 전원</td>
+                        </tr>
+                        <tr>
+                          <th>시행일시</th>
+                          <td>{mergeHeaderOf(mergeResult).heldRange || '—'}</td>
+                          <th>방법</th>
+                          <td>{mergeHeaderOf(mergeResult).methods || '—'}</td>
+                        </tr>
+                        <tr>
+                          <th>주제</th>
+                          <td colSpan={3}>{mergeHeaderOf(mergeResult).topic || '—'}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <table className="can-template-steps">
+                      <tbody>
+                        {mergeResult.aiGroups.map((group, gi) => (
+                          <tr key={`${group.label}-${gi}`}>
+                            <th>{group.label}</th>
+                            <td>
+                              <ul>
+                                {group.items.map((item) => (
+                                  <li key={item.id}>{item.content}</li>
+                                ))}
+                              </ul>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <details className="can-merge-parts">
+                    <summary>파트별 원본 ({mergeResult.perPart.length})</summary>
+                    {mergeResult.perPart.map((p) => (
+                      <div className="can-merge-part" key={p.session.id}>
+                        <h4>{p.session.parts?.length ? p.session.parts.join(', ') : p.session.teamName || '세션'}</h4>
+                        {p.groups.map((g) => (
+                          <div className="can-merge-group" key={g.label}>
+                            <strong>{g.label}</strong>
+                            <ul>
+                              {g.items.map((i) => (
+                                <li key={i.id}>{i.content}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </details>
+                  <div className="can-result-actions">
+                    <button className="secondary-button" onClick={copyMerge}>
+                      복사
+                    </button>
+                    <button className="secondary-button" onClick={exportMergePptx} disabled={mergePptxLoading}>
+                      <Download size={16} />
+                      {mergePptxLoading ? 'PPT 만드는 중…' : 'PPT로 내보내기'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+
+          {/* 팀 취합 만들기 — 완료 세션 다중 선택 */}
+          {!session && !mergeResult && mergeMode && (
+            <section className="panel can-merge">
+              <div className="can-session-head">
+                <div>
+                  <h2>팀 취합 만들기</h2>
+                  <p className="can-hint">같은 주제를 파트별로 진행한 완료 세션들을 골라 팀 단위로 합칩니다.</p>
+                </div>
+                <button className="secondary-button" onClick={closeMerge}>
+                  취소
+                </button>
+              </div>
+              <label>
+                취합 제목
+                <input
+                  value={mergeTitle}
+                  placeholder="예) 회의문화 개선 — 팀 종합"
+                  onChange={(e) => setMergeTitle(e.target.value)}
+                />
+              </label>
+              <div className="can-merge-list">
+                {completedSessions.length === 0 && <p className="can-empty">취합할 완료된 세션이 없어요.</p>}
+                {completedSessions.map((s) => {
+                  const on = mergeSel.includes(s.id);
+                  const picked = opinions.filter((o) => o.sessionId === s.id && o.selected).length;
+                  return (
+                    <label className={`can-merge-pick${on ? ' on' : ''}`} key={s.id}>
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={() =>
+                          setMergeSel((prev) => (on ? prev.filter((x) => x !== s.id) : [...prev, s.id]))
+                        }
+                      />
+                      <span>
+                        <strong>{s.topic || '(제목 미정)'}</strong>
+                        <em>
+                          {s.teamName || '팀 미정'} · 선정 {picked}건
+                        </em>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <button className="primary-button wide" disabled={mergeSel.length < 2} onClick={runMerge}>
+                {mergeSel.length < 2 ? '2개 이상 선택하세요' : `${mergeSel.length}개 세션 취합하기`}
+              </button>
+            </section>
+          )}
+
+          {!session && !mergeResult && !mergeMode && (
             /* 다른 화면과 같은 흰 카드 박스(.panel) 안에 둔다. 없으면 목록이 흰
                배경에 그대로 얹혀 경계가 사라진다. */
             <section className="panel can-list-panel">
@@ -291,10 +570,23 @@ export function Meetings({
                   <p className="can-hint">분기마다 진행되는 캔미팅을 모아봅니다.</p>
                 </div>
                 {isCanHost && (
-                  <button className="primary-button" onClick={onStartSession}>
-                    <Plus size={18} />
-                    신규 캔미팅 시작
-                  </button>
+                  <div className="can-head-actions">
+                    <button
+                      className="secondary-button"
+                      onClick={() => {
+                        setMergeSel([]);
+                        setMergeTitle('');
+                        setMergeMode(true);
+                      }}
+                    >
+                      <Layers size={16} />
+                      팀 취합
+                    </button>
+                    <button className="primary-button" onClick={onStartSession}>
+                      <Plus size={18} />
+                      신규 캔미팅 시작
+                    </button>
+                  </div>
                 )}
               </div>
               {/*

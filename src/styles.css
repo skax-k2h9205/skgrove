@@ -7010,6 +7010,46 @@ textarea {
   justify-content: space-between;
 }
 
+/* 목록 헤더 액션(팀 취합 + 신규 시작) */
+.can-head-actions { display: inline-flex; gap: 8px; }
+
+/* ── 캔미팅 팀 취합 ── */
+.can-merge { display: grid; gap: 14px; }
+.can-merge > label { display: grid; gap: 6px; font-size: var(--text-caption); color: var(--color-muted); }
+.can-merge > label input { width: 100%; }
+
+/* 완료 세션 선택 리스트 */
+.can-merge-list { display: grid; gap: 8px; }
+.can-merge-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.can-merge-pick.on {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 7%, transparent);
+}
+.can-merge-pick input { width: 18px; height: 18px; flex: none; }
+.can-merge-pick span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.can-merge-pick strong { color: var(--color-ink); }
+.can-merge-pick em { font-style: normal; font-size: var(--text-caption); color: var(--color-muted); }
+
+/* 취합 결과 */
+.can-merge-summary { display: grid; gap: 8px; }
+.can-merge-group { display: grid; gap: 4px; }
+.can-merge-group strong { color: var(--color-primary); font-size: var(--text-caption); }
+.can-merge-group ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.can-merge-group li { line-height: 1.5; }
+.can-merge-parts { border-top: 1px solid var(--color-border); padding-top: 10px; }
+.can-merge-parts > summary { cursor: pointer; font-weight: 600; color: var(--color-muted); }
+.can-merge-part { margin-top: 12px; display: grid; gap: 6px; }
+.can-merge-part h4 { margin: 0; font-size: var(--text-body); }
+
 .can-session-head h2 {
   font-size: var(--text-title);
   margin: 0;
