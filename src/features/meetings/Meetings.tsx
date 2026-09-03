@@ -16,7 +16,7 @@ import {
   Sparkles,
   UsersRound,
 } from 'lucide-react';
-import { hasTeamLeaderRole, isLeader } from '../../auth';
+import { isLeader } from '../../auth';
 import { useTenantParts } from '../../tenantParts';
 import { readCalendarEvents } from '../../calendarStore';
 import { CalendarLink } from './CalendarLink';
@@ -194,9 +194,9 @@ export function Meetings({
   // 티미팅 운영(세션 유형 관리·상태 변경)은 리더 + 커넥셔너.
   // 세션 제안 알림이 '커넥셔너 대행 리더'에게 가는 구조라 커넥셔너가 처리 주체다.
   const isHost = isLeader(currentUser);
-  // 캔미팅 진행자는 팀리더 역할만. 커넥셔너는 전권이라도 여기선 참여자로 의견을 낸다
-  // (진행자 화면이 열려버리면 정작 본인 의견을 제출할 수가 없다).
-  const isCanHost = hasTeamLeaderRole(currentUser);
+  // 캔미팅 진행자 = 리더 그룹(팀리더·파트리더·커넥셔너). 이들은 세션을 생성·진행할 수 있다.
+  // (진행자 화면이 열리면 본인 의견 제출 폼은 안 보이는 점은 감수 — 운영 편의를 위해 확장.)
+  const isCanHost = isLeader(currentUser);
   const session = sessions.find((item) => item.id === selectedId) ?? null;
 
   const stepLabelOf = (id: string) => canSteps.find((step) => step.id === id)?.label ?? id;
