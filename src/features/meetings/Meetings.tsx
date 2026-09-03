@@ -1083,7 +1083,9 @@ export function Meetings({
                   {!isCanHost && stage === 'setup' &&
                     waitingCard('진행자가 세션을 준비하고 있어요', '곧 의견 수집이 시작됩니다.')}
 
-                  {!isCanHost && stage === 'collect' && (
+                  {/* 의견 제출 폼은 모두에게 — 진행자(리더)도 본인 의견을 낼 수 있게.
+                      진행자는 위의 '수집 현황' 패널과 함께 이 제출 폼을 같이 본다. */}
+                  {stage === 'collect' && (
                     <>
                     <div className="can-two">
                       <div className="panel form-panel">
