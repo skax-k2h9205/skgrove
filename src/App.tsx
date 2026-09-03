@@ -21,6 +21,7 @@ import {
   makeTeaSessionId,
   saveTeaSessionTypes,
   saveTeaSessions,
+  deleteTeaSessionRemote,
 } from './teaStore';
 import { CAN_STEPS, type CanStepConfig } from './canConfig';
 import { AppShell } from './components/AppShell';
@@ -957,6 +958,17 @@ export function App() {
 
   const updateTeaSessionStatus = (id: string, status: TeaSessionStatus) => {
     persistTeaSessions(teaSessions.map((session) => (session.id === id ? { ...session, status } : session)));
+  };
+
+  // 본인이 올린 제안 세션 수정(제목·유형·설명). 권한은 화면에서 제안자 본인으로 제한한다.
+  const editTeaSession = (id: string, patch: Pick<TeaSession, 'title' | 'type' | 'desc'>) => {
+    persistTeaSessions(teaSessions.map((session) => (session.id === id ? { ...session, ...patch } : session)));
+  };
+
+  // 본인이 올린 제안 세션 삭제. 로컬·상태에서 빼고 DB 행도 제거한다.
+  const deleteTeaSession = (id: string) => {
+    persistTeaSessions(teaSessions.filter((session) => session.id !== id));
+    void deleteTeaSessionRemote(id);
   };
 
   // 이번 회차 날짜를 그 세션에 적어둔다. 공지문에만 쓰고 흘려보내면
@@ -1899,6 +1911,8 @@ export function App() {
           onAddTeaSession={addTeaSession}
           onUpdateTeaStatus={updateTeaSessionStatus}
           onToggleTeaLike={toggleTeaLike}
+          onEditTeaSession={editTeaSession}
+          onDeleteTeaSession={deleteTeaSession}
           onSetTeaMemo={setTeaSessionMemo}
           onSetTeaHeldAt={setTeaSessionHeldAt}
           onTeaTypesChange={updateTeaSessionTypes}

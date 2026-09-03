@@ -10,9 +10,11 @@ import {
   FileText,
   Heart,
   ListChecks,
+  Pencil,
   Plus,
   Radio,
   Send,
+  Trash2,
   Share2,
   Sparkles,
   UsersRound,
@@ -24,7 +26,6 @@ import { CalendarLink } from './CalendarLink';
 import type { CanStepConfig } from '../../canConfig';
 import { makeStepId } from '../../canStepsStore';
 import { PanelHeader } from '../../components/PanelHeader';
-import { Avatar } from '../../components/Avatar';
 import type { ToastTone } from '../../components/Toast';
 import { makeActionItemId } from '../../actionItemStore';
 import { summarizeCanMeeting } from '../../aiSummarize';
@@ -104,6 +105,8 @@ type MeetingsProps = {
   onAddTeaSession: (session: Omit<TeaSession, 'id' | 'status' | 'memo'>) => void;
   onUpdateTeaStatus: (id: string, status: TeaSessionStatus) => void;
   onToggleTeaLike: (id: string) => void;
+  onEditTeaSession: (id: string, patch: { title: string; type: string; desc: string }) => void;
+  onDeleteTeaSession: (id: string) => void;
   onSetTeaMemo: (id: string, memo: string) => void;
   onSetTeaHeldAt: (id: string, heldAt: string) => void;
   onTeaTypesChange: (types: string[]) => void;
@@ -137,6 +140,8 @@ export function Meetings({
   onAddTeaSession,
   onUpdateTeaStatus,
   onToggleTeaLike,
+  onEditTeaSession,
+  onDeleteTeaSession,
   onSetTeaMemo,
   onSetTeaHeldAt,
   onTeaTypesChange,
@@ -177,6 +182,8 @@ export function Meetings({
   // 마운트 시 한 번 읽는다 — 화면을 보는 동안 localStorage 가 바뀔 일은 없다.
   const [calendarEvents] = useState<CalendarMetricEvent[]>(() => readCalendarEvents());
   const [teaFilter, setTeaFilter] = useState<string>('전체');
+  // 제안자 본인이 자기 세션을 인라인 편집 중일 때의 초안. null이면 편집 아님.
+  const [teaEdit, setTeaEdit] = useState<{ id: string; title: string; type: string; desc: string } | null>(null);
   const [teaGroups, setTeaGroups] = useState<TeaGroup[] | null>(null);
   const [teaMemoDrafts, setTeaMemoDrafts] = useState<Record<string, string>>({});
   const [teaRoundDate, setTeaRoundDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
@@ -1398,57 +1405,120 @@ export function Meetings({
                     const showMemo = session.status === '완료' && (isHost || session.memo.trim().length > 0);
                     const likes = session.likedBy ?? [];
                     const iLiked = likes.includes(currentUser.name);
+                    // 제안자 본인은 아직 '제안' 상태인 자기 세션을 수정·삭제할 수 있다.
+                    const isMine = session.presenter === currentUser.name && session.status === '제안';
                     return (
                       <div className="tea-topic-item" key={session.id}>
                         <div className="tea-topic-row">
-                          <div className="tea-topic-main">
-                            <div className="tea-topic-tags">
-                              <span className="can-badge">{session.type}</span>
-                              <span className="can-badge subtle">{session.part}</span>
-                              <small>발표 {session.presenter}</small>
-                            </div>
-                            <strong>{session.title}</strong>
-                            {session.desc.trim() && <p className="tea-topic-desc">{session.desc}</p>}
-                            <CalendarLink
-                              session={{ heldAt: session.heldAt, title: session.title, type: '티미팅' }}
-                              events={calendarEvents}
-                            />
-                            <div className="tea-like-row">
-                              <button
-                                type="button"
-                                className={`tea-like${iLiked ? ' liked' : ''}`}
-                                onClick={() => onToggleTeaLike(session.id)}
-                                aria-pressed={iLiked}
-                                title={iLiked ? '관심 취소' : '관심 있어요'}
-                              >
-                                <Heart size={15} />
-                                {likes.length > 0 && <span>{likes.length}</span>}
-                              </button>
-                              {likes.length > 0 && (
-                                <div className="tea-like-people" title={likes.join(', ')}>
-                                  {likes.slice(0, 5).map((n) => (
-                                    <Avatar key={n} name={n} className="tea-like-ava" />
-                                  ))}
-                                  {likes.length > 5 && <span className="tea-like-more">외 {likes.length - 5}명</span>}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          {isHost ? (
-                            <div className="segmented tea-status-seg">
-                              {statusFlow.map((st) => (
+                          {teaEdit?.id === session.id ? (
+                            <div className="tea-topic-main tea-edit">
+                              <input
+                                className="tea-edit-title"
+                                value={teaEdit.title}
+                                placeholder="세션 제목"
+                                onChange={(e) => setTeaEdit({ ...teaEdit, title: e.target.value })}
+                              />
+                              <select value={teaEdit.type} onChange={(e) => setTeaEdit({ ...teaEdit, type: e.target.value })}>
+                                {teaSessionTypes.map((t) => (
+                                  <option key={t} value={t}>
+                                    {t}
+                                  </option>
+                                ))}
+                              </select>
+                              <textarea
+                                value={teaEdit.desc}
+                                placeholder="간단 설명 (선택)"
+                                onChange={(e) => setTeaEdit({ ...teaEdit, desc: e.target.value })}
+                              />
+                              <div className="tea-edit-actions">
                                 <button
-                                  key={st}
-                                  className={session.status === st ? 'selected' : ''}
-                                  onClick={() => onUpdateTeaStatus(session.id, st)}
+                                  className="primary-button"
+                                  disabled={!teaEdit.title.trim()}
+                                  onClick={() => {
+                                    onEditTeaSession(session.id, {
+                                      title: teaEdit.title.trim(),
+                                      type: teaEdit.type,
+                                      desc: teaEdit.desc.trim(),
+                                    });
+                                    setTeaEdit(null);
+                                  }}
                                 >
-                                  {st}
+                                  저장
                                 </button>
-                              ))}
+                                <button className="secondary-button" onClick={() => setTeaEdit(null)}>
+                                  취소
+                                </button>
+                              </div>
                             </div>
                           ) : (
-                            <span className={`tea-status-badge ${session.status}`}>{session.status}</span>
+                            <div className="tea-topic-main">
+                              <div className="tea-topic-tags">
+                                <span className="can-badge">{session.type}</span>
+                                <span className="can-badge subtle">{session.part}</span>
+                                <small>발표 {session.presenter}</small>
+                              </div>
+                              <strong>{session.title}</strong>
+                              {session.desc.trim() && <p className="tea-topic-desc">{session.desc}</p>}
+                              <CalendarLink
+                                session={{ heldAt: session.heldAt, title: session.title, type: '티미팅' }}
+                                events={calendarEvents}
+                              />
+                              <div className="tea-like-row">
+                                <button
+                                  type="button"
+                                  className={`tea-like${iLiked ? ' liked' : ''}`}
+                                  onClick={() => onToggleTeaLike(session.id)}
+                                  aria-pressed={iLiked}
+                                  title={likes.length > 0 ? likes.join(', ') : '관심 있어요'}
+                                >
+                                  <Heart size={15} />
+                                  {likes.length > 0 && <span>{likes.length}</span>}
+                                </button>
+                              </div>
+                            </div>
                           )}
+                          <div className="tea-topic-side">
+                            {isHost ? (
+                              <div className="segmented tea-status-seg">
+                                {statusFlow.map((st) => (
+                                  <button
+                                    key={st}
+                                    className={session.status === st ? 'selected' : ''}
+                                    onClick={() => onUpdateTeaStatus(session.id, st)}
+                                  >
+                                    {st}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className={`tea-status-badge ${session.status}`}>{session.status}</span>
+                            )}
+                            {isMine && teaEdit?.id !== session.id && (
+                              <span className="tea-own-actions">
+                                <button
+                                  type="button"
+                                  title="수정"
+                                  onClick={() =>
+                                    setTeaEdit({ id: session.id, title: session.title, type: session.type, desc: session.desc })
+                                  }
+                                >
+                                  <Pencil size={14} />
+                                  수정
+                                </button>
+                                <button
+                                  type="button"
+                                  className="danger"
+                                  title="삭제"
+                                  onClick={() => {
+                                    if (window.confirm('이 제안 세션을 삭제할까요?')) onDeleteTeaSession(session.id);
+                                  }}
+                                >
+                                  <Trash2 size={14} />
+                                  삭제
+                                </button>
+                              </span>
+                            )}
+                          </div>
                         </div>
                         {showMemo && (
                           <label className="tea-memo-label">

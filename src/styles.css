@@ -7456,25 +7456,31 @@ textarea {
 
 .tea-topic-list {
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 
 .tea-topic-item {
-  background: var(--tint-primary);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 14px;
   display: grid;
   gap: 10px;
-  padding: var(--space-3) 14px;
+  padding: 16px 18px;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.tea-topic-item:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+  box-shadow: 0 6px 22px rgba(15, 40, 70, 0.08);
 }
 
 .tea-topic-row {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
   justify-content: space-between;
 }
+.tea-topic-main { flex: 1 1 260px; }
 
 .tea-topic-desc {
   color: var(--color-muted);
@@ -7511,27 +7517,64 @@ textarea {
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.tea-like:hover { border-color: var(--tint-danger); color: var(--tint-danger-ink); }
+.tea-like:hover { border-color: var(--color-heart); color: var(--color-heart); }
 .tea-like.liked {
-  background: var(--tint-danger);
-  border-color: var(--tint-danger);
-  color: var(--tint-danger-ink);
+  background: color-mix(in srgb, var(--color-heart) 12%, transparent);
+  border-color: var(--color-heart);
+  color: var(--color-heart);
   font-weight: 600;
 }
 .tea-like.liked svg { fill: currentColor; }
 
-/* 누른 사람 아바타 — Slack 리액션처럼 겹쳐 쌓는다. hover 시 이름 목록(title) */
-.tea-like-people { display: inline-flex; align-items: center; }
-.tea-like-people .tea-like-ava {
-  width: 22px;
-  height: 22px;
-  font-size: 10px;
-  margin-left: -6px;
-  border: 2px solid var(--color-surface);
-  box-sizing: border-box;
+/* 누른 사람은 하트에 마우스를 올리면 이름 목록(title tooltip)으로 본다 — Slack 리액션식. */
+
+/* 카드 우측 컬럼: 상태 배지는 위, 수정·삭제는 아래(카드 바닥)로 내려 하트와 같은 줄에 둔다. */
+.tea-topic-side {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
 }
-.tea-like-people .tea-like-ava:first-child { margin-left: 0; }
-.tea-like-more { margin-left: 6px; font-size: var(--text-caption); color: var(--color-muted); }
+
+/* 제안자 본인 액션(수정·삭제) — 색을 입힌 또렷한 pill. 수정=파랑, 삭제=빨강. */
+.tea-own-actions { display: inline-flex; gap: 6px; }
+.tea-own-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 40%, var(--color-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tea-own-actions button:hover {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+.tea-own-actions button.danger {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+}
+.tea-own-actions button.danger:hover {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 18%, transparent);
+}
+
+/* 인라인 편집 폼 */
+.tea-edit { gap: 8px; }
+.tea-edit .tea-edit-title { font-weight: 600; }
+.tea-edit input, .tea-edit select, .tea-edit textarea { width: 100%; }
+.tea-edit textarea { min-height: 56px; resize: vertical; }
+.tea-edit-actions { display: flex; gap: 8px; }
+.tea-edit-actions .primary-button, .tea-edit-actions .secondary-button { padding: 6px 14px; }
 
 .tea-topic-main strong {
   font-size: var(--text-body);
