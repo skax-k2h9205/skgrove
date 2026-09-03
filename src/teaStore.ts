@@ -48,6 +48,14 @@ export async function loadTeaSessions(): Promise<TeaSession[]> {
   }
 }
 
+// 제안 세션 1건 삭제(제안자 본인). upsert 기반 save 로는 '뺀 행'이 DB 에서 안 지워지므로
+// 명시적으로 delete 한다.
+export async function deleteTeaSessionRemote(id: string) {
+  if (!supabase) return;
+  const { error } = await supabase.from(SESSIONS_TABLE).delete().eq('id', id);
+  if (error) console.warn('tea_sessions 삭제 실패.', error);
+}
+
 export async function saveTeaSessions(sessions: TeaSession[]) {
   try {
     window.localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
