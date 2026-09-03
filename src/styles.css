@@ -7490,6 +7490,49 @@ textarea {
   min-width: 0;
 }
 
+/* 관심(좋아요) 영역 — 제안된 세션의 수요 신호. 전원이 토글할 수 있다. */
+.tea-like-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.tea-like {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tea-like:hover { border-color: var(--tint-danger); color: var(--tint-danger-ink); }
+.tea-like.liked {
+  background: var(--tint-danger);
+  border-color: var(--tint-danger);
+  color: var(--tint-danger-ink);
+  font-weight: 600;
+}
+.tea-like.liked svg { fill: currentColor; }
+
+/* 누른 사람 아바타 — Slack 리액션처럼 겹쳐 쌓는다. hover 시 이름 목록(title) */
+.tea-like-people { display: inline-flex; align-items: center; }
+.tea-like-people .tea-like-ava {
+  width: 22px;
+  height: 22px;
+  font-size: 10px;
+  margin-left: -6px;
+  border: 2px solid var(--color-surface);
+  box-sizing: border-box;
+}
+.tea-like-people .tea-like-ava:first-child { margin-left: 0; }
+.tea-like-more { margin-left: 6px; font-size: var(--text-caption); color: var(--color-muted); }
+
 .tea-topic-main strong {
   font-size: var(--text-body);
   line-height: 1.5;

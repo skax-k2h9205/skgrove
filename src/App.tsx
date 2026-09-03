@@ -936,10 +936,23 @@ export function App() {
   };
 
   const addTeaSession = (session: Omit<TeaSession, 'id' | 'status' | 'memo'>) => {
-    const created: TeaSession = { ...session, id: makeTeaSessionId(), status: '제안', memo: '' };
+    const created: TeaSession = { ...session, id: makeTeaSessionId(), status: '제안', memo: '', likedBy: [] };
     persistTeaSessions([created, ...teaSessions]);
     // 티미팅 세션 제안 → 커넥셔너 대행 리더에게 알림(인앱) + 커넥셔너 채널(슬랙 1회)
     notify(teaProposalDrafts(created, leadersFor(accounts, '리더 전체'), today()));
+  };
+
+  // 제안된 세션에 관심(좋아요) 토글 — 전원 가능. 이름 기준(유머 좋아요와 동일 규약).
+  const toggleTeaLike = (id: string) => {
+    if (!currentUser) return;
+    const me = currentUser.name;
+    persistTeaSessions(
+      teaSessions.map((session) => {
+        if (session.id !== id) return session;
+        const likes = session.likedBy ?? [];
+        return { ...session, likedBy: likes.includes(me) ? likes.filter((n) => n !== me) : [...likes, me] };
+      }),
+    );
   };
 
   const updateTeaSessionStatus = (id: string, status: TeaSessionStatus) => {
@@ -1885,6 +1898,7 @@ export function App() {
           teaSessionTypes={teaSessionTypes}
           onAddTeaSession={addTeaSession}
           onUpdateTeaStatus={updateTeaSessionStatus}
+          onToggleTeaLike={toggleTeaLike}
           onSetTeaMemo={setTeaSessionMemo}
           onSetTeaHeldAt={setTeaSessionHeldAt}
           onTeaTypesChange={updateTeaSessionTypes}
