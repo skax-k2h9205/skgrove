@@ -8,6 +8,7 @@ import {
   Coffee,
   Download,
   FileText,
+  Heart,
   ListChecks,
   Plus,
   Radio,
@@ -23,6 +24,7 @@ import { CalendarLink } from './CalendarLink';
 import type { CanStepConfig } from '../../canConfig';
 import { makeStepId } from '../../canStepsStore';
 import { PanelHeader } from '../../components/PanelHeader';
+import { Avatar } from '../../components/Avatar';
 import type { ToastTone } from '../../components/Toast';
 import { makeActionItemId } from '../../actionItemStore';
 import { summarizeCanMeeting } from '../../aiSummarize';
@@ -101,6 +103,7 @@ type MeetingsProps = {
   teaSessionTypes: string[];
   onAddTeaSession: (session: Omit<TeaSession, 'id' | 'status' | 'memo'>) => void;
   onUpdateTeaStatus: (id: string, status: TeaSessionStatus) => void;
+  onToggleTeaLike: (id: string) => void;
   onSetTeaMemo: (id: string, memo: string) => void;
   onSetTeaHeldAt: (id: string, heldAt: string) => void;
   onTeaTypesChange: (types: string[]) => void;
@@ -133,6 +136,7 @@ export function Meetings({
   teaSessionTypes,
   onAddTeaSession,
   onUpdateTeaStatus,
+  onToggleTeaLike,
   onSetTeaMemo,
   onSetTeaHeldAt,
   onTeaTypesChange,
@@ -1230,7 +1234,9 @@ export function Meetings({
       {tab === 'tea' &&
         (() => {
           const statusFlow: TeaSessionStatus[] = ['제안', '채택', '완료', '보류'];
-          const filtered = teaFilter === '전체' ? teaSessions : teaSessions.filter((s) => s.type === teaFilter);
+          // 관심(좋아요) 많은 순 → 같은 수는 안정 정렬로 기존(최신) 순서 유지. 수요 신호를 위로.
+          const filteredBase = teaFilter === '전체' ? teaSessions : teaSessions.filter((s) => s.type === teaFilter);
+          const filtered = [...filteredBase].sort((a, b) => (b.likedBy?.length ?? 0) - (a.likedBy?.length ?? 0));
           const roundCandidates = teaSessions.filter((s) => s.status === '제안' || s.status === '채택');
           const roundSession = teaSessions.find((s) => s.id === teaRoundSessionId) ?? null;
           const partShort = (part: string) => part.replace('혁신파트', '').replace('혁신', '').replace('파트', '');
@@ -1390,6 +1396,8 @@ export function Meetings({
                   {filtered.map((session) => {
                     const memo = teaMemoDrafts[session.id] ?? session.memo;
                     const showMemo = session.status === '완료' && (isHost || session.memo.trim().length > 0);
+                    const likes = session.likedBy ?? [];
+                    const iLiked = likes.includes(currentUser.name);
                     return (
                       <div className="tea-topic-item" key={session.id}>
                         <div className="tea-topic-row">
@@ -1405,6 +1413,26 @@ export function Meetings({
                               session={{ heldAt: session.heldAt, title: session.title, type: '티미팅' }}
                               events={calendarEvents}
                             />
+                            <div className="tea-like-row">
+                              <button
+                                type="button"
+                                className={`tea-like${iLiked ? ' liked' : ''}`}
+                                onClick={() => onToggleTeaLike(session.id)}
+                                aria-pressed={iLiked}
+                                title={iLiked ? '관심 취소' : '관심 있어요'}
+                              >
+                                <Heart size={15} />
+                                {likes.length > 0 && <span>{likes.length}</span>}
+                              </button>
+                              {likes.length > 0 && (
+                                <div className="tea-like-people" title={likes.join(', ')}>
+                                  {likes.slice(0, 5).map((n) => (
+                                    <Avatar key={n} name={n} className="tea-like-ava" />
+                                  ))}
+                                  {likes.length > 5 && <span className="tea-like-more">외 {likes.length - 5}명</span>}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           {isHost ? (
                             <div className="segmented tea-status-seg">

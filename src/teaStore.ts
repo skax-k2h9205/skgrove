@@ -10,7 +10,7 @@ import type { TeaSession, TeaSessionStatus, TeamPart } from './types';
 const SESSIONS_KEY = 'skgrove:teasessions';
 const SESSION_TYPES_KEY = TEA_SESSION_TYPES_KEY;
 const SESSIONS_TABLE = 'tea_sessions';
-const TEA_WRITE_KEYS = ['id','title','type','presenter','part','description','status','memo','held_at'];
+const TEA_WRITE_KEYS = ['id','title','type','presenter','part','description','status','memo','held_at','liked_by'];
 
 type TeaSessionRow = {
   id: string;
@@ -22,6 +22,7 @@ type TeaSessionRow = {
   status?: string | null;
   memo?: string | null;
   held_at?: string | null;
+  liked_by?: unknown;
 };
 
 export async function loadTeaSessions(): Promise<TeaSession[]> {
@@ -81,7 +82,7 @@ export function makeTeaSessionId() {
  * 없는 채로 두면 캘린더 대조가 문자열 메서드를 빈 값에 부르게 된다.
  */
 function withDefaults(session: TeaSession): TeaSession {
-  return { ...session, heldAt: session.heldAt ?? '' };
+  return { ...session, heldAt: session.heldAt ?? '', likedBy: session.likedBy ?? [] };
 }
 
 function sessionFromRow(row: TeaSessionRow): TeaSession {
@@ -96,6 +97,7 @@ function sessionFromRow(row: TeaSessionRow): TeaSession {
     memo: row.memo ?? '',
     // 컬럼이 생기기 전에 들어간 행은 null 이다. 빈 값이면 캘린더 대조에서 자연히 빠진다.
     heldAt: row.held_at ?? '',
+    likedBy: Array.isArray(row.liked_by) ? (row.liked_by as string[]) : [],
   };
 }
 
@@ -113,5 +115,6 @@ function sessionToRow(session: TeaSession): TeaSessionRow {
     status: session.status,
     memo: session.memo || '',
     held_at: session.heldAt ?? '',
+    liked_by: session.likedBy ?? [],
   };
 }
