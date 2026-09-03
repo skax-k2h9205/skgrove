@@ -1301,7 +1301,7 @@ export function Meetings({
               <section className="panel form-panel">
                 <PanelHeader icon={Send} title="세션 제안 · 자발 채널" />
                 <p className="can-hint">
-                  티미팅에서 발표하고 싶은 세션을 상시 제안할 수 있어요. 발표자를 준비시켜야 하므로 실명(본인)으로 제안됩니다.
+                  티미팅에서 발표하고 싶은 세션을 상시 제안할 수 있어요. 발표자를 준비시켜야 하므로 제안자로 제안됩니다.
                 </p>
                 <label>
                   세션 제목
@@ -1326,7 +1326,7 @@ export function Meetings({
                     </select>
                   </label>
                   <label>
-                    발표자 (실명)
+                    제안자
                     <input value={currentUser.name} disabled />
                   </label>
                 </div>
