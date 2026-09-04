@@ -17,6 +17,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
     "@types/three": "^0.185.4",
+    "@vercel/functions": "^3.9.5",
     "@vitejs/plugin-react": "^4.3.4",
     "lucide-react": "^0.468.0",
     "pptxgenjs": "^4.0.1",
