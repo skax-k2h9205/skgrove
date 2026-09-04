@@ -10,6 +10,7 @@
 //   OPENROUTER_API_KEY   : OpenRouter 키(sk-or-...)
 //   OPENROUTER_MODEL     : 모델(기본 anthropic/claude-haiku-4.5)
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { waitUntil } from '@vercel/functions';
 
 const OPENROUTER = 'https://openrouter.ai/api/v1/chat/completions';
 const SLACK_API = 'https://slack.com/api';
@@ -134,8 +135,7 @@ export async function POST(request: Request): Promise<Response> {
     return new Response('ok');
   }
 
-  // 3초 내 ack 실패 시 슬랙이 재시도한다 → 재시도는 스킵해 중복 답변을 막는다.
-  // (첫 요청은 함수가 끝까지 살아서 답을 게시한다 — Vercel 함수는 3초에 죽지 않음.)
+  // 재시도는 스킵(중복 방지). 아래에서 즉시 200을 주므로 사실상 재시도는 안 오지만 안전장치.
   if (request.headers.get('x-slack-retry-num')) {
     return new Response('ok');
   }
@@ -145,33 +145,27 @@ export async function POST(request: Request): Promise<Response> {
     | { type?: string; text?: string; channel?: string; ts?: string; thread_ts?: string; bot_id?: string }
     | undefined;
 
-  // 봇 자신의 메시지(bot_id)는 무시(무한루프 방지). app_mention 만 처리.
-  console.log('[slack-events] event.type=', event?.type, 'hasToken=', Boolean(token), 'bot_id=', event?.bot_id);
-  // 처리 중 무슨 일이 나도 슬랙엔 항상 200을 준다 — 실패 응답이 쌓이면 슬랙이 이벤트 배달을 꺼버린다.
-  try {
-    if (token && event && event.type === 'app_mention' && !event.bot_id && event.channel && event.ts) {
-      const channel = event.channel;
-      const threadTs = event.thread_ts || event.ts;
-      const history = await threadMessages(token, channel, threadTs);
-      const messages: ChatMessage[] = history.length
-        ? history
-        : [{ role: 'user', content: stripMentions(event.text ?? '') }];
-      const reply = await callClaude(messages);
-      const sent = await slackPost('chat.postMessage', token, { channel, thread_ts: threadTs, text: reply });
-      await dbg({
-        stage: 'processed',
-        channel,
-        replyLen: reply.length,
-        postOk: sent.ok,
-        postError: (sent as { error?: string }).error ?? null,
-        hasToken: Boolean(token),
-      });
-    } else {
-      await dbg({ stage: 'skipped', eventType: event?.type, hasToken: Boolean(token), botId: event?.bot_id ?? null });
-    }
-  } catch (error) {
-    await dbg({ stage: 'error', message: String(error) });
+  // 핵심: 슬랙엔 즉시 200을 주고(3초 규칙), Claude 호출·게시는 waitUntil 로 백그라운드 처리한다.
+  // 동기로 처리하면 응답이 5초씩 늦어 슬랙이 '배달 실패'로 보고 배달을 조여버린다.
+  if (token && event && event.type === 'app_mention' && !event.bot_id && event.channel && event.ts) {
+    const channel = event.channel;
+    const threadTs = event.thread_ts || event.ts;
+    const text = event.text ?? '';
+    waitUntil(handleMention(token, channel, threadTs, text));
   }
 
   return new Response('ok');
+}
+
+// 백그라운드 처리: 스레드 맥락 → Claude → 답글 게시. dbg 로 결과 기록.
+async function handleMention(token: string, channel: string, threadTs: string, text: string): Promise<void> {
+  try {
+    const history = await threadMessages(token, channel, threadTs);
+    const messages: ChatMessage[] = history.length ? history : [{ role: 'user', content: stripMentions(text) }];
+    const reply = await callClaude(messages);
+    const sent = await slackPost('chat.postMessage', token, { channel, thread_ts: threadTs, text: reply });
+    await dbg({ stage: 'processed', channel, replyLen: reply.length, postOk: sent.ok, postError: (sent as { error?: string }).error ?? null });
+  } catch (error) {
+    await dbg({ stage: 'error', message: String(error) });
+  }
 }
