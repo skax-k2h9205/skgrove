@@ -56,6 +56,22 @@ async function callClaude(messages: ChatMessage[]): Promise<string> {
   }
 }
 
+// 진단 로그를 Supabase(slack_debug)에 남긴다 — Vercel CLI 로그엔 함수 stdout 이 안 떠서.
+async function dbg(info: Record<string, unknown>): Promise<void> {
+  const url = env('VITE_SUPABASE_URL');
+  const anon = env('VITE_SUPABASE_ANON_KEY');
+  if (!url || !anon) return;
+  try {
+    await fetch(`${url}/rest/v1/slack_debug`, {
+      method: 'POST',
+      headers: { apikey: anon, Authorization: `Bearer ${anon}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ info }),
+    });
+  } catch {
+    /* 진단 실패는 무시 */
+  }
+}
+
 async function slackPost(method: string, token: string, body: Record<string, unknown>) {
   const res = await fetch(`${SLACK_API}/${method}`, {
     method: 'POST',
@@ -97,6 +113,7 @@ export async function POST(request: Request): Promise<Response> {
 
   // 서명 검증(챌린지 포함 모든 요청이 서명됨).
   if (!verifySignature(raw, request.headers.get('x-slack-request-timestamp'), request.headers.get('x-slack-signature'))) {
+    await dbg({ stage: 'bad_signature', hasSecret: Boolean(env('SLACK_SIGNING_SECRET')) });
     return new Response('bad signature', { status: 401 });
   }
 
@@ -135,12 +152,20 @@ export async function POST(request: Request): Promise<Response> {
         ? history
         : [{ role: 'user', content: stripMentions(event.text ?? '') }];
       const reply = await callClaude(messages);
-      console.log('[slack-events] reply len=', reply.length, 'first=', reply.slice(0, 40));
       const sent = await slackPost('chat.postMessage', token, { channel, thread_ts: threadTs, text: reply });
-      console.log('[slack-events] postMessage ok=', sent.ok, 'err=', (sent as { error?: string }).error);
+      await dbg({
+        stage: 'processed',
+        channel,
+        replyLen: reply.length,
+        postOk: sent.ok,
+        postError: (sent as { error?: string }).error ?? null,
+        hasToken: Boolean(token),
+      });
+    } else {
+      await dbg({ stage: 'skipped', eventType: event?.type, hasToken: Boolean(token), botId: event?.bot_id ?? null });
     }
   } catch (error) {
-    console.error('[slack-events] processing error', error);
+    await dbg({ stage: 'error', message: String(error) });
   }
 
   return new Response('ok');
