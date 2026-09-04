@@ -151,6 +151,8 @@ export async function POST(request: Request): Promise<Response> {
   // 3초 규칙: 즉시 임시 응답(ephemeral)을 주고, 실제 답변은 waitUntil 로 response_url 에 보낸다.
   const ctype = request.headers.get('content-type') || '';
   if (ctype.includes('application/x-www-form-urlencoded')) {
+    // 진단: 슬래시 도착·서명통과 여부 기록(응답은 안 막게 waitUntil).
+    waitUntil(dbg({ stage: 'slash_recv', sigOk, hasSecret: Boolean(env('SLACK_SIGNING_SECRET')), skew: ts ? Math.round(Date.now() / 1000 - Number(ts)) : null }));
     if (!sigOk) return new Response('bad signature', { status: 401 });
     const params = new URLSearchParams(raw);
     const text = params.get('text') ?? '';
