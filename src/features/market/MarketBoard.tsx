@@ -9,11 +9,14 @@ import {
   Hourglass,
   MapPin,
   Package,
+  MessageCircle,
   Pencil,
   Plus,
+  Send,
   Trash2,
   Trophy,
 } from 'lucide-react';
+import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
 import {
   bidBlockedReason,
@@ -37,13 +40,15 @@ import {
   timeLeft,
   winner,
 } from '../../marketRules';
-import type { CurrentUser, MarketBid, MarketItem, MarketStatus } from '../../types';
+import type { CurrentUser, MarketBid, MarketComment, MarketItem, MarketStatus } from '../../types';
 import { ItemPoster } from './ItemPoster';
 import { MarketForm, type MarketDraft } from './MarketForm';
 
 type MarketBoardProps = {
   items: MarketItem[];
   bids: MarketBid[];
+  comments: MarketComment[];
+  onAddComment: (itemId: string, body: string) => void;
   currentUser: CurrentUser;
   /** 'YYYY-MM-DDTHH:mm' 로컬 시각. 상태 파생의 기준이라 App 이 한 곳에서 만든다. */
   now: string;
@@ -87,6 +92,8 @@ function gridBadge(item: MarketItem, status: MarketStatus): { text: string; tone
 export function MarketBoard({
   items,
   bids,
+  comments,
+  onAddComment,
   currentUser,
   now,
   imagePendingIds,
@@ -110,6 +117,15 @@ export function MarketBoard({
   const [bidError, setBidError] = useState('');
   // 삭제는 되돌릴 수 없어 상세 안에서 펼치는 확인 UI로 받는다(유머와 같은 방식).
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // 게시글별 댓글 입력 초안(유머와 동일 규약).
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+
+  const submitComment = (itemId: string) => {
+    const body = (commentDrafts[itemId] ?? '').trim();
+    if (!body) return;
+    onAddComment(itemId, body);
+    setCommentDrafts((prev) => ({ ...prev, [itemId]: '' }));
+  };
 
   const visible = sortItems(
     items.filter((item) => {
@@ -184,6 +200,9 @@ export function MarketBoard({
     const itemBids = bidsFor(selected.id, bids);
     const top = leadingBid(selected, bids);
     const won = winner(selected, bids, now);
+    const itemComments = comments
+      .filter((comment) => comment.itemId === selected.id)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
     const isSeller = selected.seller === currentUser.name;
     const isWinner = won?.name === currentUser.name;
     const blocked = bidBlockedReason(selected, bids, now, currentUser.name);
@@ -414,6 +433,36 @@ export function MarketBoard({
                   ))}
                 </ul>
               )}
+            </div>
+
+            <div className="market-comments">
+              <p className="roster-title">
+                <MessageCircle size={15} /> 댓글 {itemComments.length}
+              </p>
+              {itemComments.map((comment) => (
+                <div className="market-comment" key={comment.id}>
+                  <Avatar name={comment.author} />
+                  <div className="market-comment-body">
+                    <strong>{comment.author}</strong>
+                    <p>{comment.body}</p>
+                    <small>{comment.createdAt}</small>
+                  </div>
+                </div>
+              ))}
+              {itemComments.length === 0 && <p className="field-note">첫 댓글을 남겨보세요.</p>}
+              <div className="market-comment-input">
+                <input
+                  value={commentDrafts[selected.id] ?? ''}
+                  placeholder="댓글 달기"
+                  onChange={(event) => setCommentDrafts({ ...commentDrafts, [selected.id]: event.target.value })}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') submitComment(selected.id);
+                  }}
+                />
+                <button className="secondary-button" onClick={() => submitComment(selected.id)} aria-label="댓글 등록">
+                  <Send size={15} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
