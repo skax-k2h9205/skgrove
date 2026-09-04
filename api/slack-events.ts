@@ -1,8 +1,14 @@
-// SKonnection 슬랙 이벤트 수신 — 채널에서 @멘션하면 Claude가 티미팅 아젠다 아이디에이션을 돕는다.
+// SKonnection 슬랙 봇 — @멘션 또는 /티미팅 슬래시로 Claude가 티미팅 아젠다 아이디에이션을 돕는다.
 //
-// 슬랙 설정: Event Subscriptions 켜기 → Request URL = https://<배포>/api/slack-events
-//   → Subscribe to bot events: app_mention → 저장 → 재설치.
-// 스코프: app_mentions:read, chat:write, channels:history(스레드 맥락 읽기).
+// ⚠️ Socket Mode 는 반드시 OFF. 켜져 있으면 슬랙이 이 HTTP Request URL 로 안 보내고
+//    WebSocket 으로만 보내서, 이벤트/커맨드가 하나도 안 온다(서버리스는 상시 소켓 유지 불가).
+//
+// 슬랙 설정:
+//   - Event Subscriptions ON → Request URL = https://<배포>/api/slack-events
+//       → Subscribe to bot events: app_mention
+//   - Slash Commands → /티미팅 → 같은 Request URL
+//   - 저장 후 재설치.
+// 스코프: app_mentions:read, chat:write, channels:history(스레드 맥락 읽기), commands.
 //
 // 서버 환경변수:
 //   SLACK_SIGNING_SECRET : 슬랙 앱 Basic Information 의 Signing Secret(서명 검증용)
@@ -26,12 +32,20 @@ const SYSTEM =
   '(1) 방향이 모호하면 1~2개의 짧은 확인 질문을 먼저 합니다(대상·목적·성격). ' +
   '(2) 구체적이면 바로 티미팅 아젠다 후보 3~5개를 제안합니다. 각 후보는 "제목 · 한 줄 설명 · 세션 유형" 형식으로. ' +
   '(3) 이어지는 대화에서 고른 후보를 함께 다듬어 갑니다. ' +
-  '간결하고 실용적으로, 한국어로, 슬랙에 어울리게 답합니다(과한 마크다운 금지).';
+  '간결하고 실용적으로, 한국어로 답합니다. ' +
+  '슬랙 서식만 사용하세요: 굵게는 *별표 하나* (예: *대상*), 절대 **별표 두 개**를 쓰지 마세요. #, ## 같은 헤더 문법도 쓰지 마세요.';
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
 function stripMentions(text: string): string {
   return String(text || '').replace(/<@[A-Z0-9]+>/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// 마크다운(**굵게**, ### 헤더)을 슬랙 mrkdwn 으로 정리. 모델이 **를 자주 흘려서 안전망으로 변환.
+function toSlackMrkdwn(text: string): string {
+  return String(text || '')
+    .replace(/\*\*([^*\n]+?)\*\*/g, '*$1*') // **굵게** → *굵게*
+    .replace(/^#{1,6}\s+/gm, ''); // 헤더 문법 제거
 }
 
 async function callClaude(messages: ChatMessage[]): Promise<string> {
@@ -51,7 +65,7 @@ async function callClaude(messages: ChatMessage[]): Promise<string> {
     const data = (await res.json().catch(() => null)) as
       | { choices?: { message?: { content?: string } }[] }
       | null;
-    return data?.choices?.[0]?.message?.content?.trim() || '음… 조금만 더 구체적으로 말씀해 주실래요?';
+    return toSlackMrkdwn(data?.choices?.[0]?.message?.content?.trim() || '') || '음… 조금만 더 구체적으로 말씀해 주실래요?';
   } catch (error) {
     return `답변 생성 중 오류가 났어요: ${String(error)}`;
   }
@@ -111,19 +125,9 @@ function verifySignature(rawBody: string, timestamp: string | null, signature: s
 
 // 진단: 설치된 봇 토큰의 정체성 + 실제 부여된 스코프(x-oauth-scopes 헤더)를 돌려준다.
 // app_mentions:read 가 없으면 → 재설치가 스코프를 안 붙인 것(멘션 이벤트 안 옴의 원인).
-export async function GET(request: Request): Promise<Response> {
+export async function GET(): Promise<Response> {
   const token = env('SLACK_BOT_TOKEN');
   if (!token) return Response.json({ ok: false, reason: 'SLACK_BOT_TOKEN not set' });
-
-  // ?post=<채널ID> 로 그 채널에 테스트 메시지 게시(보내는 쪽 증명). 채널ID 없으면 커넥터 채널 env.
-  const url = new URL(request.url);
-  const postParam = url.searchParams.get('post');
-  if (postParam !== null) {
-    const channel = postParam || env('SLACK_CHANNEL_CONNECTOR') || env('SLACK_CHANNEL_TEAM') || '';
-    if (!channel) return Response.json({ ok: false, reason: 'no channel (SLACK_CHANNEL_CONNECTOR 미설정 & 파라미터 없음)' });
-    const sent = await slackPost('chat.postMessage', token, { channel, text: '🔧 SKonnection 봇 발신 테스트 — 이 메시지가 보이면 chat.postMessage 정상입니다.' });
-    return Response.json({ posted_to: channel, ok: sent.ok, error: (sent as { error?: string }).error ?? null });
-  }
 
   const res = await fetch(`${SLACK_API}/auth.test`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
   const scopes = res.headers.get('x-oauth-scopes');
@@ -151,8 +155,6 @@ export async function POST(request: Request): Promise<Response> {
   // 3초 규칙: 즉시 임시 응답(ephemeral)을 주고, 실제 답변은 waitUntil 로 response_url 에 보낸다.
   const ctype = request.headers.get('content-type') || '';
   if (ctype.includes('application/x-www-form-urlencoded')) {
-    // 진단: 슬래시 도착·서명통과 여부 기록(응답은 안 막게 waitUntil).
-    waitUntil(dbg({ stage: 'slash_recv', sigOk, hasSecret: Boolean(env('SLACK_SIGNING_SECRET')), skew: ts ? Math.round(Date.now() / 1000 - Number(ts)) : null }));
     if (!sigOk) return new Response('bad signature', { status: 401 });
     const params = new URLSearchParams(raw);
     const text = params.get('text') ?? '';
@@ -174,11 +176,8 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ challenge: body.challenge });
   }
 
-  // 진단 중: 서명 실패여도 200을 반환해 슬랙이 배달을 끄지 않게 한다. 대신 기록만 남긴다.
-  if (!sigOk) {
-    await dbg({ stage: 'bad_signature_but_200', hasSecret: Boolean(env('SLACK_SIGNING_SECRET')), ts, skew: ts ? Math.round(Date.now() / 1000 - Number(ts)) : null });
-    return new Response('ok');
-  }
+  // 서명 검증 실패는 거부.
+  if (!sigOk) return new Response('bad signature', { status: 401 });
 
   // 재시도는 스킵(중복 방지). 아래에서 즉시 200을 주므로 사실상 재시도는 안 오지만 안전장치.
   if (request.headers.get('x-slack-retry-num')) {
