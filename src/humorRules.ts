@@ -16,41 +16,41 @@ function rankOf(counts: Map<string, number>, limit: number): Ranker[] {
     .slice(0, limit);
 }
 
-// 이번 달 글 수 집계(글쓰기왕)
-function posterCounts(posts: HumorPost[], month: string): Map<string, number> {
+// 글 수 집계(글쓰기왕). month 를 주면 그 달만, 없으면 전체 누적.
+function posterCounts(posts: HumorPost[], month?: string): Map<string, number> {
   const counts = new Map<string, number>();
   posts
-    .filter((post) => monthOf(post.createdAt) === month)
+    .filter((post) => !month || monthOf(post.createdAt) === month)
     .forEach((post) => counts.set(post.author, (counts.get(post.author) ?? 0) + 1));
   return counts;
 }
 
-// 이번 달 댓글 수 집계(댓글왕)
-function commenterCounts(comments: HumorComment[], month: string): Map<string, number> {
+// 댓글 수 집계(댓글왕). month 없으면 전체 누적.
+function commenterCounts(comments: HumorComment[], month?: string): Map<string, number> {
   const counts = new Map<string, number>();
   comments
-    .filter((comment) => monthOf(comment.createdAt) === month)
+    .filter((comment) => !month || monthOf(comment.createdAt) === month)
     .forEach((comment) => counts.set(comment.author, (counts.get(comment.author) ?? 0) + 1));
   return counts;
 }
 
-// 이번 달 자기 글이 받은 좋아요 합 집계(빵터짐왕)
-function likedCounts(posts: HumorPost[], month: string): Map<string, number> {
+// 자기 글이 받은 좋아요 합 집계(빵터짐왕). month 없으면 전체 누적.
+function likedCounts(posts: HumorPost[], month?: string): Map<string, number> {
   const counts = new Map<string, number>();
   posts
-    .filter((post) => monthOf(post.createdAt) === month)
+    .filter((post) => !month || monthOf(post.createdAt) === month)
     .forEach((post) => counts.set(post.author, (counts.get(post.author) ?? 0) + post.likedBy.length));
   return counts;
 }
 
-// ── 상위 N 랭킹(명예의 전당 1~3등) ──
-export function rankPosters(posts: HumorPost[], month: string, limit = 3): Ranker[] {
+// ── 상위 N 랭킹(명예의 전당 1~3등). month 생략 시 전체 기준. ──
+export function rankPosters(posts: HumorPost[], month?: string, limit = 3): Ranker[] {
   return rankOf(posterCounts(posts, month), limit);
 }
-export function rankCommenters(comments: HumorComment[], month: string, limit = 3): Ranker[] {
+export function rankCommenters(comments: HumorComment[], month?: string, limit = 3): Ranker[] {
   return rankOf(commenterCounts(comments, month), limit);
 }
-export function rankLiked(posts: HumorPost[], month: string, limit = 3): Ranker[] {
+export function rankLiked(posts: HumorPost[], month?: string, limit = 3): Ranker[] {
   return rankOf(likedCounts(posts, month), limit);
 }
 

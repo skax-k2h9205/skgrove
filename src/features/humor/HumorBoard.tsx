@@ -307,10 +307,11 @@ export function HumorBoard({
   }
 
   // ── 목록 화면 ────────────────────────────────
+  // 명예의 전당은 전체 누적 기준(month 생략). 아래 '지난 달 수상자' 한 줄만 월간 스포트라이트.
   const rankers: RankerCard[] = [
-    { key: 'liked', icon: Laugh, title: '빵터짐왕', unit: '좋아요', list: rankLiked(posts, thisMonth) },
-    { key: 'poster', icon: PenLine, title: '글쓰기왕', unit: '글', list: rankPosters(posts, thisMonth) },
-    { key: 'commenter', icon: MessageCircle, title: '댓글왕', unit: '댓글', list: rankCommenters(comments, thisMonth) },
+    { key: 'liked', icon: Laugh, title: '빵터짐왕', unit: '좋아요', list: rankLiked(posts) },
+    { key: 'poster', icon: PenLine, title: '글쓰기왕', unit: '글', list: rankPosters(posts) },
+    { key: 'commenter', icon: MessageCircle, title: '댓글왕', unit: '댓글', list: rankCommenters(comments) },
   ];
 
   const lastWinners = [
@@ -345,7 +346,7 @@ export function HumorBoard({
       <section className="panel humor-hall">
         <div className="market-hall-head">
           <Trophy size={18} />
-          <strong>이번 달 명예의 전당</strong>
+          <strong>명예의 전당</strong>
         </div>
         {rankers.some((card) => card.list.length > 0) ? (
           <div className="humor-rank-grid">
@@ -373,7 +374,7 @@ export function HumorBoard({
           </div>
         ) : (
           <p className="market-hall-empty">
-            아직 이번 달 웃음왕이 없어요. 글 올리고 좋아요·댓글을 받아 첫 주인공이 되어보세요.
+            아직 웃음왕이 없어요. 글 올리고 좋아요·댓글을 받아 첫 주인공이 되어보세요.
           </p>
         )}
         <p className="humor-hall-foot">
