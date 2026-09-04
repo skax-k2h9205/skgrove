@@ -111,9 +111,20 @@ function verifySignature(rawBody: string, timestamp: string | null, signature: s
 
 // 진단: 설치된 봇 토큰의 정체성 + 실제 부여된 스코프(x-oauth-scopes 헤더)를 돌려준다.
 // app_mentions:read 가 없으면 → 재설치가 스코프를 안 붙인 것(멘션 이벤트 안 옴의 원인).
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   const token = env('SLACK_BOT_TOKEN');
   if (!token) return Response.json({ ok: false, reason: 'SLACK_BOT_TOKEN not set' });
+
+  // ?post=<채널ID> 로 그 채널에 테스트 메시지 게시(보내는 쪽 증명). 채널ID 없으면 커넥터 채널 env.
+  const url = new URL(request.url);
+  const postParam = url.searchParams.get('post');
+  if (postParam !== null) {
+    const channel = postParam || env('SLACK_CHANNEL_CONNECTOR') || env('SLACK_CHANNEL_TEAM') || '';
+    if (!channel) return Response.json({ ok: false, reason: 'no channel (SLACK_CHANNEL_CONNECTOR 미설정 & 파라미터 없음)' });
+    const sent = await slackPost('chat.postMessage', token, { channel, text: '🔧 SKonnection 봇 발신 테스트 — 이 메시지가 보이면 chat.postMessage 정상입니다.' });
+    return Response.json({ posted_to: channel, ok: sent.ok, error: (sent as { error?: string }).error ?? null });
+  }
+
   const res = await fetch(`${SLACK_API}/auth.test`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
   const scopes = res.headers.get('x-oauth-scopes');
   const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
