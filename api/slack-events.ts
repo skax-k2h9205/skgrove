@@ -124,6 +124,7 @@ export async function POST(request: Request): Promise<Response> {
     | undefined;
 
   // 봇 자신의 메시지(bot_id)는 무시(무한루프 방지). app_mention 만 처리.
+  console.log('[slack-events] event.type=', event?.type, 'hasToken=', Boolean(token), 'bot_id=', event?.bot_id);
   if (token && event && event.type === 'app_mention' && !event.bot_id && event.channel && event.ts) {
     const channel = event.channel;
     const threadTs = event.thread_ts || event.ts;
@@ -132,7 +133,9 @@ export async function POST(request: Request): Promise<Response> {
       ? history
       : [{ role: 'user', content: stripMentions(event.text ?? '') }];
     const reply = await callClaude(messages);
-    await slackPost('chat.postMessage', token, { channel, thread_ts: threadTs, text: reply });
+    console.log('[slack-events] reply len=', reply.length, 'first=', reply.slice(0, 40));
+    const sent = await slackPost('chat.postMessage', token, { channel, thread_ts: threadTs, text: reply });
+    console.log('[slack-events] postMessage ok=', sent.ok, 'err=', (sent as { error?: string }).error);
   }
 
   return new Response('ok');
