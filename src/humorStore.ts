@@ -41,12 +41,14 @@ type HumorCommentRow = {
   author: string;
   body?: string | null;
   created_at?: string | null;
+  liked_by?: unknown;
+  parent_id?: string | null;
 };
 
 // 우리가 저장할 때 쓰는 컬럼. 원격 스냅샷을 만들 때 이 컬럼만 비교한다
 // (created_at 기본값 등 우리가 안 건드리는 값 때문에 매번 '바뀐 것'으로 보이지 않게).
 const POST_WRITE_KEYS = ['id', 'author', 'body', 'media_url', 'created_at', 'liked_by'];
-const COMMENT_WRITE_KEYS = ['id', 'post_id', 'author', 'body', 'created_at'];
+const COMMENT_WRITE_KEYS = ['id', 'post_id', 'author', 'body', 'created_at', 'liked_by', 'parent_id'];
 
 /** localStorage 캐시만 읽는다. 없으면 빈 배열 — 시드로 떨어지지 않는다. */
 function readLocal<T>(key: string): T[] {
@@ -181,6 +183,8 @@ function commentFromRow(row: HumorCommentRow): HumorComment {
     author: row.author,
     body: row.body ?? '',
     createdAt: row.created_at ?? '',
+    likedBy: Array.isArray(row.liked_by) ? (row.liked_by as string[]) : [],
+    parentId: row.parent_id ?? undefined,
   };
 }
 
@@ -191,5 +195,7 @@ function commentToRow(comment: HumorComment): HumorCommentRow {
     author: comment.author,
     body: comment.body || null,
     created_at: comment.createdAt || null,
+    liked_by: comment.likedBy ?? [],
+    parent_id: comment.parentId ?? null,
   };
 }

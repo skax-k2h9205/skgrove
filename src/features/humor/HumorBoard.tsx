@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ElementType } from 'react';
-import { AlertTriangle, ArrowLeft, Crown, FileText, Hourglass, Image as ImageIcon, Laugh, Link2, MessageCircle, Medal, PenLine, PlayCircle, Send, Sparkles, Trash2, Trophy, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Crown, FileText, Hourglass, Image as ImageIcon, Laugh, Link2, MessageCircle, Medal, PenLine, PlayCircle, Sparkles, Trash2, Trophy, X } from 'lucide-react';
 import { Avatar } from '../../components/Avatar';
+import { CommentThread } from '../../components/CommentThread';
 import { PanelHeader } from '../../components/PanelHeader';
 import { monthOf, rankCommenters, rankLiked, rankPosters, resolveMedia, topCommenter, topLiked, topPoster, youtubeThumb } from '../../humorRules';
 import type { Media, Ranker } from '../../humorRules';
@@ -15,7 +16,9 @@ type HumorBoardProps = {
   imagePendingIds: string[];
   onAddPost: (draft: { body: string; mediaUrl: string }) => void;
   onToggleLike: (postId: string) => void;
-  onAddComment: (postId: string, body: string) => void;
+  onAddComment: (postId: string, body: string, parentId?: string) => void;
+  onEditComment: (commentId: string, body: string) => void;
+  onToggleCommentLike: (commentId: string) => void;
   onEditPost: (postId: string, draft: { body: string; mediaUrl: string }) => void;
   onDeletePost: (postId: string) => void;
   onDeleteComment: (commentId: string) => void;
@@ -94,6 +97,8 @@ export function HumorBoard({
   onAddPost,
   onToggleLike,
   onAddComment,
+  onEditComment,
+  onToggleCommentLike,
   onEditPost,
   onDeletePost,
   onDeleteComment,
@@ -108,7 +113,6 @@ export function HumorBoard({
   const [body, setBody] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
   const [sort, setSort] = useState<'latest' | 'popular'>('latest');
-  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   // 글 수정: 상세 화면에서 본인 글의 내용/미디어를 인라인 편집.
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState('');
@@ -151,16 +155,8 @@ export function HumorBoard({
     return map;
   }, [comments]);
 
-  const submitComment = (postId: string) => {
-    const draft = commentDrafts[postId]?.trim();
-    if (!draft) return;
-    onAddComment(postId, draft);
-    setCommentDrafts({ ...commentDrafts, [postId]: '' });
-  };
-
   // 삭제는 admin@sk.com 전용(canModerate = isAdmin). 작성자 본인도 삭제 불가.
   const canDeletePost = (_post: HumorPost) => canModerate;
-  const canDeleteComment = (_comment: HumorComment) => canModerate;
   const canEditPost = (post: HumorPost) => post.author === currentUser.name; // 수정은 본인 글만
 
   const startEditPost = (post: HumorPost) => {
@@ -270,37 +266,15 @@ export function HumorBoard({
               댓글 {postComments.length}
             </span>
           </div>
-          <div className="humor-comments">
-            {postComments.map((comment) => (
-              <div className="humor-comment" key={comment.id}>
-                <Avatar name={comment.author} />
-                <div className="humor-comment-body">
-                  <strong>{comment.author}</strong>
-                  <p>{comment.body}</p>
-                  <small>{comment.createdAt}</small>
-                </div>
-                {canDeleteComment(comment) && (
-                  <button className="humor-icon-btn" aria-label="댓글 삭제" onClick={() => onDeleteComment(comment.id)}>
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </div>
-            ))}
-            {postComments.length === 0 && <p className="humor-comment-empty">첫 댓글을 남겨보세요.</p>}
-            <div className="humor-comment-input">
-              <input
-                value={commentDrafts[detailPost.id] ?? ''}
-                placeholder="댓글 달기"
-                onChange={(event) => setCommentDrafts({ ...commentDrafts, [detailPost.id]: event.target.value })}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') submitComment(detailPost.id);
-                }}
-              />
-              <button className="secondary-button" onClick={() => submitComment(detailPost.id)}>
-                <Send size={15} />
-              </button>
-            </div>
-          </div>
+          <CommentThread
+            comments={postComments}
+            currentUser={currentUser}
+            canModerate={canModerate}
+            onAdd={(parentId, body) => onAddComment(detailPost.id, body, parentId ?? undefined)}
+            onEdit={onEditComment}
+            onDelete={onDeleteComment}
+            onToggleLike={onToggleCommentLike}
+          />
         </article>
       </section>
     );

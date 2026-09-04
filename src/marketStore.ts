@@ -14,7 +14,7 @@ const BIDS_KEY = 'skgrove:marketBids';
 const COMMENTS_KEY = 'skgrove:marketComments';
 const ITEMS_TABLE = 'market_items';
 const COMMENTS_TABLE = 'market_comments';
-const COMMENT_WRITE_KEYS = ['id', 'item_id', 'author', 'body', 'created_at'];
+const COMMENT_WRITE_KEYS = ['id', 'item_id', 'author', 'body', 'created_at', 'liked_by', 'parent_id'];
 const ITEM_WRITE_KEYS = ['id', 'kind', 'title', 'description', 'start_price', 'min_step', 'close_at',
   'extended_to', 'place', 'image_url', 'poster', 'seller', 'created_at', 'canceled',
   'seller_done', 'buyer_done'];
@@ -54,6 +54,8 @@ type CommentRow = {
   author?: string | null;
   body?: string | null;
   created_at?: string | null;
+  liked_by?: unknown;
+  parent_id?: string | null;
 };
 
 function readLocal<T>(key: string, fallback: T[]): T[] {
@@ -209,6 +211,8 @@ function commentFromRow(row: CommentRow): MarketComment {
     author: row.author ?? '',
     body: row.body ?? '',
     createdAt: row.created_at ?? '',
+    likedBy: Array.isArray(row.liked_by) ? (row.liked_by as string[]) : [],
+    parentId: row.parent_id ?? undefined,
   };
 }
 function commentToRow(comment: MarketComment): CommentRow {
@@ -218,6 +222,8 @@ function commentToRow(comment: MarketComment): CommentRow {
     author: comment.author,
     body: comment.body,
     created_at: comment.createdAt,
+    liked_by: comment.likedBy ?? [],
+    parent_id: comment.parentId ?? null,
   };
 }
 
