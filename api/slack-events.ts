@@ -111,11 +111,9 @@ function verifySignature(rawBody: string, timestamp: string | null, signature: s
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
 
-  // 서명 검증(챌린지 포함 모든 요청이 서명됨).
-  if (!verifySignature(raw, request.headers.get('x-slack-request-timestamp'), request.headers.get('x-slack-signature'))) {
-    await dbg({ stage: 'bad_signature', hasSecret: Boolean(env('SLACK_SIGNING_SECRET')) });
-    return new Response('bad signature', { status: 401 });
-  }
+  const ts = request.headers.get('x-slack-request-timestamp');
+  const sig = request.headers.get('x-slack-signature');
+  const sigOk = verifySignature(raw, ts, sig);
 
   let body: { type?: string; challenge?: string; event?: Record<string, unknown> };
   try {
@@ -124,9 +122,16 @@ export async function POST(request: Request): Promise<Response> {
     return new Response('bad request', { status: 400 });
   }
 
-  // URL 검증 챌린지.
+  // URL 검증 챌린지(서명 통과 시에만).
   if (body.type === 'url_verification') {
+    if (!sigOk) return new Response('bad signature', { status: 401 });
     return Response.json({ challenge: body.challenge });
+  }
+
+  // 진단 중: 서명 실패여도 200을 반환해 슬랙이 배달을 끄지 않게 한다. 대신 기록만 남긴다.
+  if (!sigOk) {
+    await dbg({ stage: 'bad_signature_but_200', hasSecret: Boolean(env('SLACK_SIGNING_SECRET')), ts, skew: ts ? Math.round(Date.now() / 1000 - Number(ts)) : null });
+    return new Response('ok');
   }
 
   // 3초 내 ack 실패 시 슬랙이 재시도한다 → 재시도는 스킵해 중복 답변을 막는다.
