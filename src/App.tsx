@@ -1041,16 +1041,43 @@ export function App() {
     );
   };
 
-  const addHumorComment = (postId: string, body: string) => {
+  const addHumorComment = (postId: string, body: string, parentId?: string) => {
     if (!currentUser || !body.trim()) return;
     const commentId = makeHumorCommentId();
-    const comment: HumorComment = { id: commentId, postId, author: currentUser.name, body: body.trim(), createdAt: today() };
+    const comment: HumorComment = {
+      id: commentId,
+      postId,
+      author: currentUser.name,
+      body: body.trim(),
+      createdAt: today(),
+      likedBy: [],
+      parentId,
+    };
     persistHumorComments([...humorComments, comment]);
     // 남의 글에 댓글 → 작성자에게 인앱 알림
     const post = humorPosts.find((item) => item.id === postId);
     if (post && post.author !== currentUser.name) {
       notify([humorCommentDraft(post, currentUser.name, today(), commentId)]);
     }
+  };
+
+  const editHumorComment = (commentId: string, body: string) => {
+    if (!currentUser || !body.trim()) return;
+    persistHumorComments(
+      humorComments.map((c) => (c.id === commentId && c.author === currentUser.name ? { ...c, body: body.trim() } : c)),
+    );
+  };
+
+  const toggleHumorCommentLike = (commentId: string) => {
+    if (!currentUser) return;
+    const me = currentUser.name;
+    persistHumorComments(
+      humorComments.map((c) => {
+        if (c.id !== commentId) return c;
+        const likes = c.likedBy ?? [];
+        return { ...c, likedBy: likes.includes(me) ? likes.filter((n) => n !== me) : [...likes, me] };
+      }),
+    );
   };
 
   const editHumorPost = (postId: string, draft: { body: string; mediaUrl: string }) => {
@@ -1075,8 +1102,9 @@ export function App() {
   const deleteHumorComment = (commentId: string) => {
     const comment = humorComments.find((item) => item.id === commentId);
     if (!comment || !currentUser) return;
-    if (!isAdmin(currentUser)) return; // 삭제는 admin@sk.com 전용
-    persistHumorComments(humorComments.filter((item) => item.id !== commentId));
+    if (comment.author !== currentUser.name && !isAdmin(currentUser)) return; // 본인 또는 관리자
+    // 대댓글도 함께 삭제
+    persistHumorComments(humorComments.filter((item) => item.id !== commentId && item.parentId !== commentId));
   };
 
   // 115: 특정 대상에게 직접 메시지
@@ -1501,7 +1529,7 @@ export function App() {
     void saveMarketComments(next);
   };
 
-  const addMarketComment = (itemId: string, body: string) => {
+  const addMarketComment = (itemId: string, body: string, parentId?: string) => {
     if (!currentUser || !body.trim()) return;
     const commentId = makeMarketCommentId();
     const comment: MarketComment = {
@@ -1510,6 +1538,8 @@ export function App() {
       author: currentUser.name,
       body: body.trim(),
       createdAt: today(),
+      likedBy: [],
+      parentId,
     };
     persistMarketComments([...marketComments, comment]);
     // 남의 게시글에 댓글 → 판매자에게 인앱 알림
@@ -1517,6 +1547,32 @@ export function App() {
     if (item && item.seller !== currentUser.name) {
       notify([marketCommentDraft(item, currentUser.name, today(), commentId)]);
     }
+  };
+
+  const editMarketComment = (commentId: string, body: string) => {
+    if (!currentUser || !body.trim()) return;
+    persistMarketComments(
+      marketComments.map((c) => (c.id === commentId && c.author === currentUser.name ? { ...c, body: body.trim() } : c)),
+    );
+  };
+
+  const deleteMarketComment = (commentId: string) => {
+    const comment = marketComments.find((item) => item.id === commentId);
+    if (!comment || !currentUser) return;
+    if (comment.author !== currentUser.name && !isAdmin(currentUser)) return; // 본인 또는 관리자
+    persistMarketComments(marketComments.filter((item) => item.id !== commentId && item.parentId !== commentId));
+  };
+
+  const toggleMarketCommentLike = (commentId: string) => {
+    if (!currentUser) return;
+    const me = currentUser.name;
+    persistMarketComments(
+      marketComments.map((c) => {
+        if (c.id !== commentId) return c;
+        const likes = c.likedBy ?? [];
+        return { ...c, likedBy: likes.includes(me) ? likes.filter((n) => n !== me) : [...likes, me] };
+      }),
+    );
   };
 
   const cancelMarketItem = (item: MarketItem) => {
@@ -1977,6 +2033,9 @@ export function App() {
           bids={marketBids}
           comments={marketComments}
           onAddComment={addMarketComment}
+          onEditComment={editMarketComment}
+          onDeleteComment={deleteMarketComment}
+          onToggleCommentLike={toggleMarketCommentLike}
           currentUser={currentUser}
           items={marketItems}
           now={nowStamp()}
@@ -2014,6 +2073,8 @@ export function App() {
           onAddPost={addHumorPost}
           onToggleLike={toggleHumorLike}
           onAddComment={addHumorComment}
+          onEditComment={editHumorComment}
+          onToggleCommentLike={toggleHumorCommentLike}
           onEditPost={editHumorPost}
           onDeletePost={deleteHumorPost}
           onDeleteComment={deleteHumorComment}

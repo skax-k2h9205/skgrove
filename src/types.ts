@@ -466,6 +466,8 @@ export type HumorComment = {
   author: string;
   body: string;
   createdAt: string;
+  likedBy?: string[]; // 댓글 좋아요(이름 목록)
+  parentId?: string; // 대댓글이면 부모 댓글 id. 없으면 최상위.
 };
 
 // ===== 번개 모임 / 일정공모 =====
@@ -590,6 +592,8 @@ export type MarketComment = {
   author: string;
   body: string;
   createdAt: string;
+  likedBy?: string[]; // 댓글 좋아요(이름 목록)
+  parentId?: string; // 대댓글이면 부모 댓글 id. 없으면 최상위.
 };
 
 // ── 커리어 관리(성장 카드) ──
