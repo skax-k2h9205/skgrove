@@ -8404,6 +8404,50 @@ button.notif-row {
   padding: var(--space-2) var(--space-3);
 }
 
+/* 이음장터 게시글 댓글 — 유머 댓글과 동일 규약 */
+.market-comments {
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: 10px;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+}
+.market-comment {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+}
+.market-comment .tiny-avatar {
+  flex: none;
+}
+.market-comment-body {
+  flex: 1;
+}
+.market-comment-body strong {
+  font-size: var(--text-body);
+}
+.market-comment-body p {
+  font-size: var(--text-body);
+  line-height: 1.5;
+  margin: 2px 0;
+}
+.market-comment-body small {
+  color: var(--color-muted);
+  font-size: var(--text-micro);
+}
+.market-comment-input {
+  display: flex;
+  gap: var(--space-2);
+}
+.market-comment-input input {
+  flex: 1;
+}
+.market-comment-input .secondary-button {
+  align-items: center;
+  display: flex;
+  padding: var(--space-2) var(--space-3);
+}
+
 @media (max-width: 720px) {
   .humor-hero {
     flex-direction: column;

@@ -179,6 +179,27 @@ export function humorCommentDraft(
   };
 }
 
+// 이음장터 게시글에 댓글이 달리면 판매자(등록자)에게 알린다.
+export function marketCommentDraft(
+  item: MarketItem,
+  commenterName: string,
+  now: string,
+  commentId: string,
+): NotificationDraft {
+  return {
+    kind: 'market',
+    recipientName: item.seller,
+    fromName: commenterName,
+    title: '이음장터 · 내 게시글에 댓글이 달렸어요',
+    body: item.title.length > 40 ? `${item.title.slice(0, 40)}…` : item.title,
+    section: 'market',
+    sourceId: commentId,
+    dedupeKey: dedupeKey('market', `${commentId}#comment`, item.seller),
+    createdAt: now,
+    read: false,
+  };
+}
+
 export function messageDraft(
   fromName: string,
   recipientName: string,

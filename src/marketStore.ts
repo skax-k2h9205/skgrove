@@ -6,12 +6,15 @@
 // 경매에서 그 버그는 "분명 넣었는데 없다"가 되어 신뢰를 가장 크게 깬다.
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
-import type { GatheringPoster, MarketBid, MarketItem, MarketKind } from './types';
+import type { GatheringPoster, MarketBid, MarketComment, MarketItem, MarketKind } from './types';
 import { getCurrentTenantId, tenantPath, withTenant } from './tenantContext';
 
 const ITEMS_KEY = 'skgrove:marketItems';
 const BIDS_KEY = 'skgrove:marketBids';
+const COMMENTS_KEY = 'skgrove:marketComments';
 const ITEMS_TABLE = 'market_items';
+const COMMENTS_TABLE = 'market_comments';
+const COMMENT_WRITE_KEYS = ['id', 'item_id', 'author', 'body', 'created_at'];
 const ITEM_WRITE_KEYS = ['id', 'kind', 'title', 'description', 'start_price', 'min_step', 'close_at',
   'extended_to', 'place', 'image_url', 'poster', 'seller', 'created_at', 'canceled',
   'seller_done', 'buyer_done'];
@@ -42,6 +45,14 @@ type BidRow = {
   item_id: string;
   name: string;
   amount?: number | null;
+  created_at?: string | null;
+};
+
+type CommentRow = {
+  id: string;
+  item_id: string;
+  author?: string | null;
+  body?: string | null;
   created_at?: string | null;
 };
 
@@ -188,6 +199,50 @@ export async function insertMarketBid(bid: MarketBid): Promise<boolean> {
     return false;
   }
   return true;
+}
+
+// ── 게시글 댓글 (유머 댓글과 동일 규약) ──
+function commentFromRow(row: CommentRow): MarketComment {
+  return {
+    id: row.id,
+    itemId: row.item_id,
+    author: row.author ?? '',
+    body: row.body ?? '',
+    createdAt: row.created_at ?? '',
+  };
+}
+function commentToRow(comment: MarketComment): CommentRow {
+  return {
+    id: comment.id,
+    item_id: comment.itemId,
+    author: comment.author,
+    body: comment.body,
+    created_at: comment.createdAt,
+  };
+}
+
+export async function loadMarketComments(): Promise<MarketComment[]> {
+  if (supabase) {
+    const { data, error } = await withTenant(supabase.from(COMMENTS_TABLE).select('*')).order('created_at', { ascending: true });
+    if (!error && data) {
+      const rows = (data as CommentRow[]).map(commentFromRow);
+      rememberRemote(COMMENTS_TABLE, data as unknown as Record<string, unknown>[], COMMENT_WRITE_KEYS);
+      writeLocal(COMMENTS_KEY, rows);
+      return rows;
+    }
+  }
+  return readLocal<MarketComment>(COMMENTS_KEY, []);
+}
+
+export async function saveMarketComments(comments: MarketComment[]) {
+  writeLocal(COMMENTS_KEY, comments);
+  await syncRows(COMMENTS_TABLE, comments.map(commentToRow));
+}
+
+let commentSequence = 0;
+export function makeMarketCommentId() {
+  commentSequence += 1;
+  return `MKC-${Date.now().toString(36).toUpperCase()}-${commentSequence.toString(36).toUpperCase()}`;
 }
 
 /**

@@ -87,6 +87,7 @@ import {
   gatheringCanceledDrafts,
   gatheringPromotedDraft,
   marketCanceledDrafts,
+  marketCommentDraft,
   marketOutbidDrafts,
   marketWonDrafts,
   teaProposalDrafts,
@@ -139,7 +140,10 @@ import {
   deleteMarketItemRecord,
   insertMarketBid,
   loadMarketBids,
+  loadMarketComments,
   loadMarketItems,
+  makeMarketCommentId,
+  saveMarketComments,
   saveMarketItems,
   uploadMarketImage,
 } from './marketStore';
@@ -167,6 +171,7 @@ import type {
   Gathering,
   GatheringSignup,
   MarketBid,
+  MarketComment,
   MarketItem,
   HumorComment,
   HumorPost,
@@ -268,6 +273,7 @@ export function App() {
   const [imagePendingIds, setImagePendingIds] = useState<string[]>([]);
   const [marketItems, setMarketItems] = useState<MarketItem[]>([]);
   const [marketBids, setMarketBids] = useState<MarketBid[]>([]);
+  const [marketComments, setMarketComments] = useState<MarketComment[]>([]);
   // 알림이 DB(있으면)에서 로드 완료됐는지. 마감 임박 체크는 이게 true여야 실행(중복 슬랙 방지).
   const [notificationsReady, setNotificationsReady] = useState(false);
   // 계정별 아바타(색·사진). Avatar가 ProfilesContext로 읽는다. 로그인 후 DB에서 로드.
@@ -428,6 +434,9 @@ export function App() {
     });
     loadMarketBids().then((loaded) => {
       if (isMounted) setMarketBids(loaded);
+    });
+    loadMarketComments().then((loaded) => {
+      if (isMounted) setMarketComments(loaded);
     });
     loadGatherings().then((loaded) => {
       if (isMounted) setGatherings(loaded);
@@ -1487,6 +1496,29 @@ export function App() {
     }
   };
 
+  const persistMarketComments = (next: MarketComment[]) => {
+    setMarketComments(next);
+    void saveMarketComments(next);
+  };
+
+  const addMarketComment = (itemId: string, body: string) => {
+    if (!currentUser || !body.trim()) return;
+    const commentId = makeMarketCommentId();
+    const comment: MarketComment = {
+      id: commentId,
+      itemId,
+      author: currentUser.name,
+      body: body.trim(),
+      createdAt: today(),
+    };
+    persistMarketComments([...marketComments, comment]);
+    // 남의 게시글에 댓글 → 판매자에게 인앱 알림
+    const item = marketItems.find((entry) => entry.id === itemId);
+    if (item && item.seller !== currentUser.name) {
+      notify([marketCommentDraft(item, currentUser.name, today(), commentId)]);
+    }
+  };
+
   const cancelMarketItem = (item: MarketItem) => {
     const bidders = marketBids.filter((bid) => bid.itemId === item.id).map((bid) => bid.name);
     if (bidders.length > 0) {
@@ -1943,6 +1975,8 @@ export function App() {
       {active === 'market' && (
         <MarketBoard
           bids={marketBids}
+          comments={marketComments}
+          onAddComment={addMarketComment}
           currentUser={currentUser}
           items={marketItems}
           now={nowStamp()}

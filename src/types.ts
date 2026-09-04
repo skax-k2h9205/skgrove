@@ -583,6 +583,15 @@ export type MarketBid = {
   createdAt: string; // ISO. 동액일 때와 선착순의 순서 근거
 };
 
+// 이음장터 게시글 댓글 (유머 댓글과 동일 구조, postId→itemId).
+export type MarketComment = {
+  id: string;
+  itemId: string;
+  author: string;
+  body: string;
+  createdAt: string;
+};
+
 // ── 커리어 관리(성장 카드) ──
 // 팀 공용 역량 세트(v1 고정). 개인이 자가 레벨을 매기고 리더가 합의한다.
 export const competencies = ['문제정의·기획', '실행·개발', '협업·소통', '도메인 전문성', 'AI 활용', '학습·성장'] as const;
