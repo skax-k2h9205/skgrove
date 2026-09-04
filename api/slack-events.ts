@@ -147,6 +147,18 @@ export async function POST(request: Request): Promise<Response> {
   const sig = request.headers.get('x-slack-signature');
   const sigOk = verifySignature(raw, ts, sig);
 
+  // 슬래시 커맨드는 form-encoded 로 온다(이벤트 JSON 이 아님) → 여기서 먼저 처리.
+  // 3초 규칙: 즉시 임시 응답(ephemeral)을 주고, 실제 답변은 waitUntil 로 response_url 에 보낸다.
+  const ctype = request.headers.get('content-type') || '';
+  if (ctype.includes('application/x-www-form-urlencoded')) {
+    if (!sigOk) return new Response('bad signature', { status: 401 });
+    const params = new URLSearchParams(raw);
+    const text = params.get('text') ?? '';
+    const responseUrl = params.get('response_url') ?? '';
+    if (responseUrl) waitUntil(handleSlash(text, responseUrl));
+    return Response.json({ response_type: 'ephemeral', text: '💡 티미팅 아이디어를 뽑는 중이에요… 잠시만요.' });
+  }
+
   let body: { type?: string; challenge?: string; event?: Record<string, unknown> };
   try {
     body = JSON.parse(raw);
@@ -186,6 +198,22 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   return new Response('ok');
+}
+
+// 슬래시 커맨드 백그라운드 처리: 입력을 Claude 에 넘겨 티미팅 아젠다 아이디어를 받아
+// response_url 로 답한다(ephemeral — 명령을 친 본인에게만 보임). response_url 은 30분·5회 유효.
+async function handleSlash(text: string, responseUrl: string): Promise<void> {
+  try {
+    const prompt = stripMentions(text).trim() || '팀 티미팅(가벼운 사내 세미나) 아젠다 아이디어를 추천해줘.';
+    const reply = await callClaude([{ role: 'user', content: prompt }]);
+    await fetch(responseUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ response_type: 'ephemeral', text: reply }),
+    });
+  } catch (error) {
+    await dbg({ stage: 'slash_error', message: String(error) });
+  }
 }
 
 // 백그라운드 처리: 스레드 맥락 → Claude → 답글 게시. dbg 로 결과 기록.
