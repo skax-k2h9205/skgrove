@@ -109,6 +109,26 @@ function verifySignature(rawBody: string, timestamp: string | null, signature: s
   }
 }
 
+// 진단: 설치된 봇 토큰의 정체성 + 실제 부여된 스코프(x-oauth-scopes 헤더)를 돌려준다.
+// app_mentions:read 가 없으면 → 재설치가 스코프를 안 붙인 것(멘션 이벤트 안 옴의 원인).
+export async function GET(): Promise<Response> {
+  const token = env('SLACK_BOT_TOKEN');
+  if (!token) return Response.json({ ok: false, reason: 'SLACK_BOT_TOKEN not set' });
+  const res = await fetch(`${SLACK_API}/auth.test`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+  const scopes = res.headers.get('x-oauth-scopes');
+  const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+  return Response.json({
+    ok: Boolean(data?.ok),
+    team: data?.team ?? null,
+    botUser: data?.user ?? null,
+    botId: data?.bot_id ?? null,
+    error: data?.error ?? null,
+    scopes,
+    hasAppMentionsRead: (scopes ?? '').split(',').map((s) => s.trim()).includes('app_mentions:read'),
+    hasChatWrite: (scopes ?? '').split(',').map((s) => s.trim()).includes('chat:write'),
+  });
+}
+
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
 
