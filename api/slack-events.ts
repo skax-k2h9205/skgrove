@@ -1,14 +1,11 @@
-// SKonnection 슬랙 봇 — @멘션 또는 /티미팅 슬래시로 Claude가 티미팅 아젠다 아이디에이션을 돕는다.
+// SKonnection 슬랙 봇 — 채널에서 @멘션하면 Claude가 티미팅 아젠다 아이디에이션을 돕는다(스레드 대화형).
 //
 // ⚠️ Socket Mode 는 반드시 OFF. 켜져 있으면 슬랙이 이 HTTP Request URL 로 안 보내고
-//    WebSocket 으로만 보내서, 이벤트/커맨드가 하나도 안 온다(서버리스는 상시 소켓 유지 불가).
+//    WebSocket 으로만 보내서, 이벤트가 하나도 안 온다(서버리스는 상시 소켓 유지 불가).
 //
-// 슬랙 설정:
-//   - Event Subscriptions ON → Request URL = https://<배포>/api/slack-events
-//       → Subscribe to bot events: app_mention
-//   - Slash Commands → /티미팅 → 같은 Request URL
-//   - 저장 후 재설치.
-// 스코프: app_mentions:read, chat:write, channels:history(스레드 맥락 읽기), commands.
+// 슬랙 설정: Event Subscriptions ON → Request URL = https://<배포>/api/slack-events
+//   → Subscribe to bot events: app_mention → 저장 → 재설치.
+// 스코프: app_mentions:read, chat:write, channels:history(스레드 맥락 읽기).
 //
 // 서버 환경변수:
 //   SLACK_SIGNING_SECRET : 슬랙 앱 Basic Information 의 Signing Secret(서명 검증용)
@@ -151,18 +148,6 @@ export async function POST(request: Request): Promise<Response> {
   const sig = request.headers.get('x-slack-signature');
   const sigOk = verifySignature(raw, ts, sig);
 
-  // 슬래시 커맨드는 form-encoded 로 온다(이벤트 JSON 이 아님) → 여기서 먼저 처리.
-  // 3초 규칙: 즉시 임시 응답(ephemeral)을 주고, 실제 답변은 waitUntil 로 response_url 에 보낸다.
-  const ctype = request.headers.get('content-type') || '';
-  if (ctype.includes('application/x-www-form-urlencoded')) {
-    if (!sigOk) return new Response('bad signature', { status: 401 });
-    const params = new URLSearchParams(raw);
-    const text = params.get('text') ?? '';
-    const responseUrl = params.get('response_url') ?? '';
-    if (responseUrl) waitUntil(handleSlash(text, responseUrl));
-    return Response.json({ response_type: 'ephemeral', text: '💡 티미팅 아이디어를 뽑는 중이에요… 잠시만요.' });
-  }
-
   let body: { type?: string; challenge?: string; event?: Record<string, unknown> };
   try {
     body = JSON.parse(raw);
@@ -199,22 +184,6 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   return new Response('ok');
-}
-
-// 슬래시 커맨드 백그라운드 처리: 입력을 Claude 에 넘겨 티미팅 아젠다 아이디어를 받아
-// response_url 로 답한다(ephemeral — 명령을 친 본인에게만 보임). response_url 은 30분·5회 유효.
-async function handleSlash(text: string, responseUrl: string): Promise<void> {
-  try {
-    const prompt = stripMentions(text).trim() || '팀 티미팅(가벼운 사내 세미나) 아젠다 아이디어를 추천해줘.';
-    const reply = await callClaude([{ role: 'user', content: prompt }]);
-    await fetch(responseUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ response_type: 'ephemeral', text: reply }),
-    });
-  } catch (error) {
-    await dbg({ stage: 'slash_error', message: String(error) });
-  }
 }
 
 // 백그라운드 처리: 스레드 맥락 → Claude → 답글 게시. dbg 로 결과 기록.
