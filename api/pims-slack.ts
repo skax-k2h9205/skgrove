@@ -208,8 +208,11 @@ async function handleSubmission(payload: Sub): Promise<Response> {
 async function afterBook(a: { token: string; date: string; roomUid: number; start: string; title: string; label: string; channelId: string; userId: string }): Promise<void> {
   const who = a.userId ? `<@${a.userId}> ` : '';
   const msg = `✅ ${who}회의실 예약 완료 — *${a.label}*`;
-  const r = a.channelId ? await slackApi('chat.postMessage', { channel: a.channelId, text: msg }) : { ok: false };
-  if (!r.ok && a.userId) await slackApi('chat.postMessage', { channel: a.userId, text: msg });
+  // 채널(C/G)에서 실행 → 그 채널에 공개. DM 등에서 실행 → 본인에게 DM(userId 로 보내는 게 안정적).
+  const isChannel = a.channelId && (a.channelId.startsWith('C') || a.channelId.startsWith('G'));
+  const target = isChannel ? a.channelId : a.userId;
+  const r = target ? await slackApi('chat.postMessage', { channel: target, text: msg }) : { ok: false };
+  if (!r.ok && a.userId && target !== a.userId) await slackApi('chat.postMessage', { channel: a.userId, text: msg });
   // 방금 만든 예약 uid 찾기(조회 후 room+시작+제목 매칭)
   const [Y, M, D] = a.date.split('-').map(Number);
   const rooms = await viewRooms(a.token, Y, M, D);
