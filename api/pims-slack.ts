@@ -63,18 +63,25 @@ function freeSlots(bookings: { s: string; e: string }[]): string[] {
   return free.filter(([s, e]) => e > s).map(([s, e]) => `${fromMin(s)}~${fromMin(e)}`);
 }
 
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+
 function format(rooms: Room[], y: number, m: number, d: number): string {
   const date = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const wd = WD[new Date(y, m - 1, d).getDay()];
   if (!rooms.length) return `${date} 회의실 정보를 못 가져왔어요. (토큰 만료면 리프레셔 확인)`;
-  let out = `*${date} 회의실 현황* _(09:00~18:00 기준)_`;
+  let out = `📅 *${date} (${wd}) 회의실 현황*  _09:00~18:00_`;
   for (const r of rooms) {
     const bookings = (r.scheduleTimeList || [])
       .filter((s) => s.startTime && s.endTime)
-      .map((s) => ({ s: s.startTime!.slice(11, 16), e: s.endTime!.slice(11, 16), name: s.eventName || '' }));
+      .map((s) => ({ s: s.startTime!.slice(11, 16), e: s.endTime!.slice(11, 16), name: s.eventName || '' }))
+      .sort((a, b) => toMin(a.s) - toMin(b.s));
     const free = freeSlots(bookings);
-    out += `\n\n*${r.conferenceRoomName}* (정원 ${r.limitNumber})`;
-    out += `\n🟢 빈시간: ${free.length ? free.join(', ') : '없음(종일 예약)'}`;
-    if (bookings.length) out += `\n🔴 예약: ${bookings.map((b) => `${b.s}~${b.e} ${b.name}`).join(', ')}`;
+    out += `\n\n*${r.conferenceRoomName}*  ·  정원 ${r.limitNumber}명`;
+    out += `\n🟢 *예약 가능*  ${free.length ? free.join('   |   ') : '없음 (종일 예약)'}`;
+    if (bookings.length) {
+      out += `\n🔴 예약됨`;
+      for (const b of bookings) out += `\n      • ${b.s}~${b.e}  ${b.name}`;
+    }
   }
   return out;
 }
