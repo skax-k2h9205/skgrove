@@ -170,8 +170,11 @@ async function handleSubmission(payload: Sub): Promise<Response> {
 
   const status = await pimsCreate(token, { roomUid, startTime, endTime, title, users });
   if (status === 201) {
-    const msg = `✅ 회의실 예약 완료 — *${date} ${start}~${fromMin(endMin)}* · ${title}`;
-    if (channelId) waitUntil(slackApi('chat.postMessage', { channel: userId || channelId, text: msg }));
+    const who = userId ? `<@${userId}> ` : '';
+    const msg = `✅ ${who}회의실 예약 완료 — *${date} ${start}~${fromMin(endMin)}* · ${title}`;
+    // 실행한 채널/DM 에 게시. 봇이 없는 채널이면 실패하니 본인 DM 으로 폴백.
+    const r = channelId ? await slackApi('chat.postMessage', { channel: channelId, text: msg }) : { ok: false };
+    if (!r.ok && userId) await slackApi('chat.postMessage', { channel: userId, text: msg });
     return Response.json({ response_action: 'clear' });
   }
   if (status === 409) return Response.json({ response_action: 'errors', errors: { start: '그 시간엔 이미 예약이 있어요. 다른 시간을 선택하세요.' } });
