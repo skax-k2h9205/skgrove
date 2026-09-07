@@ -39,7 +39,8 @@ async function getPimsToken(): Promise<string | null> {
   return j?.access_token ?? null;
 }
 
-type Room = { conferenceRoomManagementUid?: number; conferenceRoomName?: string; limitNumber?: number; scheduleTimeList?: { startTime?: string; endTime?: string; eventName?: string }[] };
+type Room = { conferenceRoomManagementUid?: number; conferenceRoomName?: string; limitNumber?: number; scheduleTimeList?: { scheduleManagementUid?: number; startTime?: string; endTime?: string; eventName?: string }[] };
+type Owned = { uid: number; slackUserId: string; label: string; date: string };
 type PimsUser = { projectUserUid?: number; userId?: string; nickName?: string };
 
 async function viewRooms(token: string, y: number, m: number, d: number): Promise<Room[]> {
@@ -53,6 +54,31 @@ async function fetchUsers(token: string): Promise<PimsUser[]> {
   const j = (await res.json().catch(() => null)) as PimsUser[] | { data?: PimsUser[] } | null;
   const arr = Array.isArray(j) ? j : j?.data;
   return Array.isArray(arr) ? arr : [];
+}
+
+async function deleteBooking(token: string, uid: number): Promise<boolean> {
+  const res = await fetch(`${PIMS}/schedule-management/delete/${uid}?repeatEventType=THIS`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'project-uid': PROJECT },
+  });
+  return res.ok;
+}
+
+// ── 소유권 기록(누가 슬랙으로 예약했나) — Supabase Storage pims/bookings.json ──
+async function readOwned(): Promise<Owned[]> {
+  const url = env('VITE_SUPABASE_URL'); const key = env('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !key) return [];
+  const res = await fetch(`${url}/storage/v1/object/pims/bookings.json`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+  if (!res.ok) return [];
+  const j = (await res.json().catch(() => [])) as Owned[];
+  return Array.isArray(j) ? j : [];
+}
+async function writeOwned(list: Owned[]): Promise<void> {
+  const url = env('VITE_SUPABASE_URL'); const key = env('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !key) return;
+  await fetch(`${url}/storage/v1/object/pims/bookings.json`, {
+    method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'x-upsert': 'true' },
+    body: JSON.stringify(list),
+  }).catch(() => {});
 }
 
 async function pimsCreate(token: string, p: { roomUid: number; startTime: string; endTime: string; title: string; users: number[] }): Promise<number> {
@@ -170,15 +196,66 @@ async function handleSubmission(payload: Sub): Promise<Response> {
 
   const status = await pimsCreate(token, { roomUid, startTime, endTime, title, users });
   if (status === 201) {
-    const who = userId ? `<@${userId}> ` : '';
-    const msg = `✅ ${who}회의실 예약 완료 — *${date} ${start}~${fromMin(endMin)}* · ${title}`;
-    // 실행한 채널/DM 에 게시. 봇이 없는 채널이면 실패하니 본인 DM 으로 폴백.
-    const r = channelId ? await slackApi('chat.postMessage', { channel: channelId, text: msg }) : { ok: false };
-    if (!r.ok && userId) await slackApi('chat.postMessage', { channel: userId, text: msg });
+    const label = `${date} ${start}~${fromMin(endMin)} · ${title}`;
+    waitUntil(afterBook({ token, date, roomUid, start, title, label, channelId, userId }));
     return Response.json({ response_action: 'clear' });
   }
   if (status === 409) return Response.json({ response_action: 'errors', errors: { start: '그 시간엔 이미 예약이 있어요. 다른 시간을 선택하세요.' } });
   return Response.json({ response_action: 'errors', errors: { title: `예약 실패 (status ${status})` } });
+}
+
+// 예약 성공 후: 완료 메시지 게시 + 방금 만든 예약의 uid 를 찾아 소유권 기록.
+async function afterBook(a: { token: string; date: string; roomUid: number; start: string; title: string; label: string; channelId: string; userId: string }): Promise<void> {
+  const who = a.userId ? `<@${a.userId}> ` : '';
+  const msg = `✅ ${who}회의실 예약 완료 — *${a.label}*`;
+  const r = a.channelId ? await slackApi('chat.postMessage', { channel: a.channelId, text: msg }) : { ok: false };
+  if (!r.ok && a.userId) await slackApi('chat.postMessage', { channel: a.userId, text: msg });
+  // 방금 만든 예약 uid 찾기(조회 후 room+시작+제목 매칭)
+  const [Y, M, D] = a.date.split('-').map(Number);
+  const rooms = await viewRooms(a.token, Y, M, D);
+  const room = rooms.find((r2) => r2.conferenceRoomManagementUid === a.roomUid);
+  const hit = (room?.scheduleTimeList || []).find((s) => s.startTime?.slice(11, 16) === a.start && (s.eventName || '') === a.title);
+  if (hit?.scheduleManagementUid && a.userId) {
+    const list = await readOwned();
+    list.push({ uid: hit.scheduleManagementUid, slackUserId: a.userId, label: a.label, date: a.date });
+    await writeOwned(list);
+  }
+}
+
+// /회의실취소 → 본인이 슬랙으로 만든 예약을 버튼과 함께 보여줌
+async function handleCancelList(userId: string, responseUrl: string): Promise<void> {
+  const mine = (await readOwned()).filter((b) => b.slackUserId === userId);
+  if (!mine.length) { await ephemeral(responseUrl, '취소할 수 있는 예약이 없어요. _(슬랙으로 예약한 것만 취소 가능)_'); return; }
+  const blocks: unknown[] = [{ type: 'section', text: { type: 'mrkdwn', text: '*내가 슬랙으로 예약한 목록* — 취소할 예약을 선택하세요.' } }];
+  for (const b of mine) {
+    blocks.push({
+      type: 'section', text: { type: 'mrkdwn', text: `• ${b.label}` },
+      accessory: {
+        type: 'button', text: { type: 'plain_text', text: '🗑 취소' }, style: 'danger', action_id: 'pims_cancel', value: String(b.uid),
+        confirm: { title: { type: 'plain_text', text: '예약 취소' }, text: { type: 'plain_text', text: `${b.label}\n정말 취소할까요?` }, confirm: { type: 'plain_text', text: '취소하기' }, deny: { type: 'plain_text', text: '닫기' } },
+      },
+    });
+  }
+  await fetch(responseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ response_type: 'ephemeral', blocks }) }).catch(() => {});
+}
+
+// 취소 버튼 클릭 처리
+type Action = { user?: { id?: string }; response_url?: string; actions?: { value?: string }[] };
+async function handleCancelAction(payload: Action): Promise<Response> {
+  const userId = payload.user?.id || '';
+  const uid = Number(payload.actions?.[0]?.value || '0');
+  const responseUrl = payload.response_url || '';
+  const reply = (text: string) => { if (responseUrl) waitUntil(fetch(responseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ response_type: 'ephemeral', replace_original: true, text }) }).then(() => undefined).catch(() => undefined)); };
+
+  const list = await readOwned();
+  const rec = list.find((b) => Number(b.uid) === uid && b.slackUserId === userId);
+  if (!rec) { reply('본인이 슬랙으로 예약한 것만 취소할 수 있어요.'); return new Response(''); }
+  const token = await getPimsToken();
+  if (!token) { reply('⚠️ PIMS 토큰이 없어요. 리프레셔 확인.'); return new Response(''); }
+  const ok = await deleteBooking(token, uid);
+  if (ok) { await writeOwned(list.filter((b) => Number(b.uid) !== uid)); reply(`🗑 취소 완료 — ${rec.label}`); }
+  else reply(`취소 실패 — 잠시 후 다시 시도해주세요.`);
+  return new Response('');
 }
 
 // ── 진입점 ──
@@ -200,15 +277,24 @@ export async function POST(request: Request): Promise<Response> {
   // 대화형(모달 제출/버튼) — payload= 로 옴
   const payloadRaw = params.get('payload');
   if (payloadRaw) {
-    try { return await handleSubmission(JSON.parse(payloadRaw) as Sub); } catch { return new Response(''); }
+    try {
+      const p = JSON.parse(payloadRaw) as { type?: string };
+      if (p.type === 'view_submission') return await handleSubmission(p as Sub);
+      if (p.type === 'block_actions') return await handleCancelAction(p as Action);
+      return new Response('');
+    } catch { return new Response(''); }
   }
 
   // 슬래시 커맨드
   const command = params.get('command') || '';
+  const responseUrl = params.get('response_url') ?? '';
   if (command.includes('예약')) {
     return openBookingModal(params.get('trigger_id') || '', params.get('channel_id') || '');
   }
-  const responseUrl = params.get('response_url') ?? '';
+  if (command.includes('취소')) {
+    if (responseUrl) waitUntil(handleCancelList(params.get('user_id') || '', responseUrl));
+    return Response.json({ response_type: 'ephemeral', text: '🔎 내 예약 조회 중…' });
+  }
   if (responseUrl) waitUntil(handleView(params.get('text') ?? '', responseUrl));
   return Response.json({ response_type: 'ephemeral', text: '🔎 회의실 조회 중…' });
 }
