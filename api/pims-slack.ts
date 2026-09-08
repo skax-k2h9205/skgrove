@@ -212,10 +212,21 @@ async function handleSubmission(payload: Sub): Promise<Response> {
 
 // 예약 성공 후: 완료 메시지 게시 + 방금 만든 예약의 uid 를 찾아 소유권 기록.
 async function afterBook(a: { token: string; date: string; roomUid: number; start: string; endStr: string; title: string; channelId: string; userId: string }): Promise<void> {
-  // 조회로 회의실명 + 방금 만든 예약 uid 를 얻는다(room 스코프라 uid 는 회의실별로 정확).
   const [Y, M, D] = a.date.split('-').map(Number);
-  const rooms = await viewRooms(a.token, Y, M, D);
-  const room = rooms.find((r2) => r2.conferenceRoomManagementUid === a.roomUid);
+  const owned = await readOwned();
+  const ownedUids = new Set(owned.map((b) => Number(b.uid)));
+  const findHit = (room: Room | undefined) =>
+    (room?.scheduleTimeList || []).find((s) => s.startTime?.slice(11, 16) === a.start && (s.eventName || '') === a.title && !ownedUids.has(Number(s.scheduleManagementUid)));
+
+  // PIMS 반영 지연(경합) 대비 — 조회를 최대 4회 재시도하며 방금 만든(아직 미기록) 예약을 찾는다.
+  let room: Room | undefined; let hit;
+  for (let i = 0; i < 4; i++) {
+    if (i) await new Promise((r) => setTimeout(r, 1500));
+    const rooms = await viewRooms(a.token, Y, M, D);
+    room = rooms.find((r2) => r2.conferenceRoomManagementUid === a.roomUid);
+    hit = findHit(room);
+    if (hit?.scheduleManagementUid) break;
+  }
   const roomName = room?.conferenceRoomName || '';
   const label = `${a.date} ${a.start}~${a.endStr} · ${roomName ? roomName + ' · ' : ''}${a.title}`;
 
@@ -226,13 +237,9 @@ async function afterBook(a: { token: string; date: string; roomUid: number; star
   const r = target ? await slackApi('chat.postMessage', { channel: target, text: msg }) : { ok: false };
   if (!r.ok && a.userId && target !== a.userId) await slackApi('chat.postMessage', { channel: a.userId, text: msg });
 
-  const hit = (room?.scheduleTimeList || []).find((s) => s.startTime?.slice(11, 16) === a.start && (s.eventName || '') === a.title);
   if (hit?.scheduleManagementUid && a.userId) {
-    const list = await readOwned();
-    if (!list.some((b) => Number(b.uid) === hit.scheduleManagementUid)) { // 같은 uid 중복 기록 방지
-      list.push({ uid: hit.scheduleManagementUid, slackUserId: a.userId, label, date: a.date });
-      await writeOwned(list);
-    }
+    owned.push({ uid: hit.scheduleManagementUid, slackUserId: a.userId, label, date: a.date });
+    await writeOwned(owned);
   }
 }
 
