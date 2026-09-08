@@ -112,12 +112,19 @@ function freeSlots(bookings: { s: string; e: string }[]): string[] {
   if (cur < CLOSE) free.push([cur, CLOSE]);
   return free.filter(([s, e]) => e > s).map(([s, e]) => `${fromMin(s)}~${fromMin(e)}`);
 }
+// 한국시간(KST) 기준 날짜 — Vercel 서버는 UTC 라 KST와 하루 어긋나는 것 방지.
+function kstParts(offsetDays = 0): { y: number; m: number; d: number } {
+  const k = new Date(Date.now() + 9 * 3600 * 1000 + offsetDays * 86400000);
+  return { y: k.getUTCFullYear(), m: k.getUTCMonth() + 1, d: k.getUTCDate() };
+}
+function kstToday(): string { const { y, m, d } = kstParts(); return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+
 function parseDate(text: string): { y: number; m: number; d: number } {
-  const t = (text || '').trim(); const now = new Date();
-  if (/내일/.test(t)) { const x = new Date(now.getTime() + 86400000); return { y: x.getFullYear(), m: x.getMonth() + 1, d: x.getDate() }; }
+  const t = (text || '').trim();
+  if (/내일/.test(t)) return kstParts(1);
   const md = t.match(/(\d{1,2})\s*[/월.\-]\s*(\d{1,2})/);
-  if (md) return { y: now.getFullYear(), m: Number(md[1]), d: Number(md[2]) };
-  return { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
+  if (md) return { y: kstParts().y, m: Number(md[1]), d: Number(md[2]) };
+  return kstParts();
 }
 function formatView(rooms: Room[], y: number, m: number, d: number): string {
   const date = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -144,7 +151,7 @@ function buildModal(rooms: Room[], users: PimsUser[], channelId: string) {
   const roomOpts = rooms.map((r) => ({ text: { type: 'plain_text', text: `${r.conferenceRoomName} (정원 ${r.limitNumber})` }, value: String(r.conferenceRoomManagementUid) }));
   const userOpts = users.map((u) => ({ text: { type: 'plain_text', text: `${u.nickName} (${u.userId})` }, value: String(u.projectUserUid) }));
   const durOpts = [['30분', '30'], ['1시간', '60'], ['1시간 30분', '90'], ['2시간', '120']].map(([t, v]) => ({ text: { type: 'plain_text', text: t }, value: v }));
-  const today = new Date().toISOString().slice(0, 10);
+  const today = kstToday();
   const t14 = { text: { type: 'plain_text', text: '14:00' }, value: '14:00' };
   return {
     type: 'modal', callback_id: 'pims_book', private_metadata: channelId,
@@ -164,8 +171,8 @@ function buildModal(rooms: Room[], users: PimsUser[], channelId: string) {
 async function openBookingModal(triggerId: string, channelId: string): Promise<Response> {
   const token = await getPimsToken();
   if (!token) return Response.json({ response_type: 'ephemeral', text: '⚠️ PIMS 토큰이 없어요. 리프레셔 확인.' });
-  const now = new Date();
-  const [rooms, users] = await Promise.all([viewRooms(token, now.getFullYear(), now.getMonth() + 1, now.getDate()), fetchUsers(token)]);
+  const { y, m, d } = kstParts();
+  const [rooms, users] = await Promise.all([viewRooms(token, y, m, d), fetchUsers(token)]);
   await slackApi('views.open', { trigger_id: triggerId, view: buildModal(rooms, users, channelId) });
   return new Response('');
 }
