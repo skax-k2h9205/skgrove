@@ -203,8 +203,7 @@ async function handleSubmission(payload: Sub): Promise<Response> {
 
   const status = await pimsCreate(token, { roomUid, startTime, endTime, title, users });
   if (status === 201) {
-    const label = `${date} ${start}~${fromMin(endMin)} · ${title}`;
-    waitUntil(afterBook({ token, date, roomUid, start, title, label, channelId, userId }));
+    waitUntil(afterBook({ token, date, roomUid, start, endStr: fromMin(endMin), title, channelId, userId }));
     return Response.json({ response_action: 'clear' });
   }
   if (status === 409) return Response.json({ response_action: 'errors', errors: { start: '그 시간엔 이미 예약이 있어요. 다른 시간을 선택하세요.' } });
@@ -212,23 +211,28 @@ async function handleSubmission(payload: Sub): Promise<Response> {
 }
 
 // 예약 성공 후: 완료 메시지 게시 + 방금 만든 예약의 uid 를 찾아 소유권 기록.
-async function afterBook(a: { token: string; date: string; roomUid: number; start: string; title: string; label: string; channelId: string; userId: string }): Promise<void> {
+async function afterBook(a: { token: string; date: string; roomUid: number; start: string; endStr: string; title: string; channelId: string; userId: string }): Promise<void> {
+  // 조회로 회의실명 + 방금 만든 예약 uid 를 얻는다(room 스코프라 uid 는 회의실별로 정확).
+  const [Y, M, D] = a.date.split('-').map(Number);
+  const rooms = await viewRooms(a.token, Y, M, D);
+  const room = rooms.find((r2) => r2.conferenceRoomManagementUid === a.roomUid);
+  const roomName = room?.conferenceRoomName || '';
+  const label = `${a.date} ${a.start}~${a.endStr} · ${roomName ? roomName + ' · ' : ''}${a.title}`;
+
   const who = a.userId ? `<@${a.userId}> ` : '';
-  const msg = `✅ ${who}회의실 예약 완료 — *${a.label}*`;
-  // 채널(C/G)에서 실행 → 그 채널에 공개. DM 등에서 실행 → 본인에게 DM(userId 로 보내는 게 안정적).
+  const msg = `✅ ${who}회의실 예약 완료 — *${label}*`;
   const isChannel = a.channelId && (a.channelId.startsWith('C') || a.channelId.startsWith('G'));
   const target = isChannel ? a.channelId : a.userId;
   const r = target ? await slackApi('chat.postMessage', { channel: target, text: msg }) : { ok: false };
   if (!r.ok && a.userId && target !== a.userId) await slackApi('chat.postMessage', { channel: a.userId, text: msg });
-  // 방금 만든 예약 uid 찾기(조회 후 room+시작+제목 매칭)
-  const [Y, M, D] = a.date.split('-').map(Number);
-  const rooms = await viewRooms(a.token, Y, M, D);
-  const room = rooms.find((r2) => r2.conferenceRoomManagementUid === a.roomUid);
+
   const hit = (room?.scheduleTimeList || []).find((s) => s.startTime?.slice(11, 16) === a.start && (s.eventName || '') === a.title);
   if (hit?.scheduleManagementUid && a.userId) {
     const list = await readOwned();
-    list.push({ uid: hit.scheduleManagementUid, slackUserId: a.userId, label: a.label, date: a.date });
-    await writeOwned(list);
+    if (!list.some((b) => Number(b.uid) === hit.scheduleManagementUid)) { // 같은 uid 중복 기록 방지
+      list.push({ uid: hit.scheduleManagementUid, slackUserId: a.userId, label, date: a.date });
+      await writeOwned(list);
+    }
   }
 }
 
