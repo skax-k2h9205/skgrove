@@ -56,11 +56,11 @@ async function fetchUsers(token: string): Promise<PimsUser[]> {
   return Array.isArray(arr) ? arr : [];
 }
 
-async function deleteBooking(token: string, uid: number): Promise<boolean> {
+async function deleteBooking(token: string, uid: number): Promise<{ ok: boolean; status: number }> {
   const res = await fetch(`${PIMS}/schedule-management/delete/${uid}?repeatEventType=THIS`, {
     method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'project-uid': PROJECT },
   });
-  return res.ok;
+  return { ok: res.ok, status: res.status };
 }
 
 // ── 소유권 기록(누가 슬랙으로 예약했나) — Supabase Storage pims/bookings.json ──
@@ -262,9 +262,9 @@ async function handleCancelAction(payload: Action): Promise<Response> {
   if (!rec) { reply('본인이 슬랙으로 예약한 것만 취소할 수 있어요.'); return new Response(''); }
   const token = await getPimsToken();
   if (!token) { reply('⚠️ PIMS 토큰이 없어요. 리프레셔 확인.'); return new Response(''); }
-  const ok = await deleteBooking(token, uid);
-  if (ok) { await writeOwned(list.filter((b) => Number(b.uid) !== uid)); reply(`🗑 취소 완료 — ${rec.label}`); }
-  else reply(`취소 실패 — 잠시 후 다시 시도해주세요.`);
+  const del = await deleteBooking(token, uid);
+  if (del.ok) { await writeOwned(list.filter((b) => Number(b.uid) !== uid)); reply(`🗑 취소 완료 — ${rec.label}`); }
+  else reply(`취소 실패 (상태 ${del.status}, uid ${uid}) — ${rec.label}`);
   return new Response('');
 }
 
