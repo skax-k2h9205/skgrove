@@ -245,10 +245,37 @@ async function afterBook(a: { token: string; date: string; roomUid: number; star
 
 // /회의실취소 → 본인이 슬랙으로 만든 예약을 버튼과 함께 보여줌
 async function handleCancelList(userId: string, responseUrl: string): Promise<void> {
-  const mine = (await readOwned()).filter((b) => b.slackUserId === userId);
+  const all = await readOwned();
+  const mine = all.filter((b) => b.slackUserId === userId);
   if (!mine.length) { await ephemeral(responseUrl, '취소할 수 있는 예약이 없어요. _(슬랙으로 예약한 것만 취소 가능)_'); return; }
+
+  // 각 기록이 PIMS 에 실제로 남아있는지 검증(날짜별 조회) → 이미 취소된 유령 기록은 숨기고 정리
+  const token = await getPimsToken();
+  let visible = mine;
+  if (token) {
+    const cache = new Map<string, Set<number>>();
+    const liveUids = async (date: string): Promise<Set<number>> => {
+      if (!cache.has(date)) {
+        const [Y, M, D] = date.split('-').map(Number);
+        const rooms = await viewRooms(token, Y, M, D);
+        const set = new Set<number>();
+        for (const r of rooms) for (const s of r.scheduleTimeList || []) if (s.scheduleManagementUid) set.add(Number(s.scheduleManagementUid));
+        cache.set(date, set);
+      }
+      return cache.get(date)!;
+    };
+    const existing: Owned[] = [];
+    for (const b of mine) if ((await liveUids(b.date)).has(Number(b.uid))) existing.push(b);
+    if (existing.length !== mine.length) { // 유령 기록 정리(내 것 중 PIMS 에 없는 것 제거)
+      const keep = new Set(existing.map((b) => Number(b.uid)));
+      await writeOwned(all.filter((b) => b.slackUserId !== userId || keep.has(Number(b.uid))));
+    }
+    visible = existing;
+  }
+  if (!visible.length) { await ephemeral(responseUrl, '취소할 수 있는 예약이 없어요. _(이미 취소된 예약은 목록에서 정리했어요)_'); return; }
+
   const blocks: unknown[] = [{ type: 'section', text: { type: 'mrkdwn', text: '*내가 슬랙으로 예약한 목록* — 취소할 예약을 선택하세요.' } }];
-  for (const b of mine) {
+  for (const b of visible) {
     blocks.push({
       type: 'section', text: { type: 'mrkdwn', text: `• ${b.label}` },
       accessory: {
