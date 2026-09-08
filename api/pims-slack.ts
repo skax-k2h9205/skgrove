@@ -268,6 +268,7 @@ async function handleCancelAction(payload: Action): Promise<Response> {
   if (!token) { reply('⚠️ PIMS 토큰이 없어요. 리프레셔 확인.'); return new Response(''); }
   const del = await deleteBooking(token, uid);
   if (del.ok) { await writeOwned(list.filter((b) => Number(b.uid) !== uid)); reply(`🗑 취소 완료 — ${rec.label}`); }
+  else if (del.status === 404) { await writeOwned(list.filter((b) => Number(b.uid) !== uid)); reply(`이미 취소됐거나 없는 예약이라 목록에서 정리했어요 — ${rec.label}`); }
   else reply(`취소 실패 (상태 ${del.status}, uid ${uid}) — ${rec.label}`);
   return new Response('');
 }
