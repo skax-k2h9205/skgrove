@@ -806,6 +806,13 @@ export function App() {
     persistCanSessions(canSessions.map((item) => (item.id === session.id ? session : item)));
   };
 
+  const deleteCanSession = (id: string) => {
+    persistCanSessions(canSessions.filter((item) => item.id !== id));
+    persistCanOpinions(canOpinions.filter((opinion) => opinion.sessionId !== id));
+    if (selectedCanId === id) setSelectedCanId(null);
+    notifyStatus('캔미팅 세션을 삭제했습니다.');
+  };
+
   const addCanOpinion = (opinion: Omit<CanOpinion, 'id' | 'selected'>) => {
     persistCanOpinions([...canOpinions, { ...opinion, id: makeCanOpinionId(), selected: false }]);
   };
@@ -1989,6 +1996,7 @@ export function App() {
           onSelectSession={setSelectedCanId}
           onStartSession={startCanSession}
           onUpdateSession={updateCanSession}
+          onDeleteSession={deleteCanSession}
           onAddOpinion={addCanOpinion}
           onToggleOpinion={toggleCanOpinion}
           onConfirmResult={confirmCanResult}

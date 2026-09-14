@@ -9769,18 +9769,80 @@ button.notif-row {
 
 .ig-live {
   align-items: center;
-  background: none;
-  border: 0;
   border-radius: var(--radius);
   display: flex;
-  gap: var(--space-4);
-  padding: var(--space-3);
-  text-align: left;
+  gap: var(--space-1);
   width: 100%;
 }
 
 .ig-live:hover {
   background: var(--color-sunken);
+}
+
+/* 카드의 클릭영역(세션 열기) — 예전 .ig-live 버튼 스타일을 그대로 물려받음 */
+.ig-live-main {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-3);
+  text-align: left;
+}
+
+/* 세션 수정·삭제 액션 */
+.ig-live-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding-right: var(--space-2);
+}
+
+.ig-live-act {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  cursor: pointer;
+  display: grid;
+  justify-items: center;
+  padding: 7px;
+}
+
+.ig-live-act:hover {
+  background: var(--color-btn-soft);
+  color: var(--color-ink);
+}
+
+.ig-live-act.danger:hover {
+  color: var(--color-danger);
+}
+
+/* 세션명 인라인 편집 */
+.ig-live-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-3);
+  width: 100%;
+}
+
+.ig-live-edit-input {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-body);
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.ig-live-edit-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .ig-live .ig-ring {
