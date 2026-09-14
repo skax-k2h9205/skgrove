@@ -663,26 +663,29 @@ export function Meetings({
                         </span>
                         <span className={done ? 'ig-live-badge done' : 'ig-live-badge'}>{stageLabelOf(item)}</span>
                       </button>
-                      <div className="ig-live-actions">
-                        <button
-                          className="ig-live-act"
-                          type="button"
-                          title="세션명 수정"
-                          onClick={() => setEditSession({ id: item.id, topic: item.topic, teamName: item.teamName })}
-                        >
-                          <Pencil size={15} />
-                        </button>
-                        <button
-                          className="ig-live-act danger"
-                          type="button"
-                          title="세션 삭제"
-                          onClick={() => {
-                            if (window.confirm('이 캔미팅 세션을 삭제할까요? 제출된 의견도 함께 삭제됩니다.')) onDeleteSession(item.id);
-                          }}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
+                      {/* 수정·삭제는 리더 그룹(팀리더·파트리더·커넥셔너)만 — 세션 생성 권한과 동일 */}
+                      {isCanHost && (
+                        <div className="ig-live-actions">
+                          <button
+                            className="ig-live-act"
+                            type="button"
+                            title="세션명 수정"
+                            onClick={() => setEditSession({ id: item.id, topic: item.topic, teamName: item.teamName })}
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            className="ig-live-act danger"
+                            type="button"
+                            title="세션 삭제"
+                            onClick={() => {
+                              if (window.confirm('이 캔미팅 세션을 삭제할까요? 제출된 의견도 함께 삭제됩니다.')) onDeleteSession(item.id);
+                            }}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
