@@ -90,6 +90,7 @@ type MeetingsProps = {
   onSelectSession: (id: string | null) => void;
   onStartSession: () => void;
   onUpdateSession: (session: CanSession) => void;
+  onDeleteSession: (id: string) => void;
   onAddOpinion: (opinion: Omit<CanOpinion, 'id' | 'selected'>) => void;
   onToggleOpinion: (id: string) => void;
   onConfirmResult: (sessionId: string, summary: string, groups: CanResultGroup[]) => void;
@@ -135,6 +136,7 @@ export function Meetings({
   onSelectSession,
   onStartSession,
   onUpdateSession,
+  onDeleteSession,
   onAddOpinion,
   onToggleOpinion,
   onConfirmResult,
@@ -203,6 +205,9 @@ export function Meetings({
   const [mergeTitle, setMergeTitle] = useState('');
   const [mergeResult, setMergeResult] = useState<MergeResult | null>(null);
   const [mergePptxLoading, setMergePptxLoading] = useState(false);
+
+  // 세션 목록에서 세션명(주제·팀명) 인라인 수정. null이면 편집 아님.
+  const [editSession, setEditSession] = useState<{ id: string; topic: string; teamName: string } | null>(null);
 
   // 세션 전환 시 AI 취합 결과·조회 단계·후속 조치 입력값을 초기화 (세션 간 상태 누수 방지)
   useEffect(() => {
@@ -600,30 +605,85 @@ export function Meetings({
                 {sessions.map((item) => {
                   const { total: count, picked } = opinionCountBySession.get(item.id) ?? { total: 0, picked: 0 };
                   const done = item.stage === 'summary' && item.resultSummary.trim().length > 0;
+                  // 세션명 인라인 편집 중
+                  if (editSession?.id === item.id) {
+                    const saveEdit = () => {
+                      onUpdateSession({ ...item, topic: editSession.topic.trim(), teamName: editSession.teamName.trim() });
+                      setEditSession(null);
+                      onNotifyStatus('세션명을 수정했어요.', 'ok');
+                    };
+                    return (
+                      <div className="ig-live editing" key={item.id}>
+                        <div className="ig-live-edit">
+                          <input
+                            className="ig-live-edit-input"
+                            value={editSession.topic}
+                            placeholder="세션명(주제)"
+                            autoFocus
+                            onChange={(e) => setEditSession({ ...editSession, topic: e.target.value })}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditSession(null); }}
+                          />
+                          <input
+                            className="ig-live-edit-input"
+                            value={editSession.teamName}
+                            placeholder="팀명"
+                            onChange={(e) => setEditSession({ ...editSession, teamName: e.target.value })}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditSession(null); }}
+                          />
+                          <div className="ig-live-edit-actions">
+                            <button className="primary-button" type="button" onClick={saveEdit}>저장</button>
+                            <button className="secondary-button" type="button" onClick={() => setEditSession(null)}>취소</button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
                   return (
-                    <button className="ig-live" key={item.id} onClick={() => onSelectSession(item.id)} type="button">
-                      <span className={done ? 'ig-ring seen' : 'ig-ring'}>
-                        <span className="ig-thumb">
-                          <Radio size={22} strokeWidth={1.6} />
+                    <div className="ig-live" key={item.id}>
+                      <button className="ig-live-main" onClick={() => onSelectSession(item.id)} type="button">
+                        <span className={done ? 'ig-ring seen' : 'ig-ring'}>
+                          <span className="ig-thumb">
+                            <Radio size={22} strokeWidth={1.6} />
+                          </span>
                         </span>
-                      </span>
-                      <span className="ig-live-body">
-                        <b>{item.topic || '(제목 미정)'}</b>
-                        <span>
-                          {item.teamName || '팀 미정'} · {item.heldAt ? item.heldAt.replace('T', ' ') : '일시 미정'}
+                        <span className="ig-live-body">
+                          <b>{item.topic || '(제목 미정)'}</b>
+                          <span>
+                            {item.teamName || '팀 미정'} · {item.heldAt ? item.heldAt.replace('T', ' ') : '일시 미정'}
+                          </span>
+                          <em>
+                            의견 {count} · 선정 {picked}
+                          </em>
+                          {/* dev 에서 들어온 '캘린더에서 확인됨' 줄. 라이브 행으로 바꾸면서
+                              빠뜨리면 캘린더 대조 결과를 볼 자리가 사라진다. */}
+                          <CalendarLink
+                            session={{ heldAt: item.heldAt, title: item.topic, type: '캔미팅' }}
+                            events={calendarEvents}
+                          />
                         </span>
-                        <em>
-                          의견 {count} · 선정 {picked}
-                        </em>
-                        {/* dev 에서 들어온 '캘린더에서 확인됨' 줄. 라이브 행으로 바꾸면서
-                            빠뜨리면 캘린더 대조 결과를 볼 자리가 사라진다. */}
-                        <CalendarLink
-                          session={{ heldAt: item.heldAt, title: item.topic, type: '캔미팅' }}
-                          events={calendarEvents}
-                        />
-                      </span>
-                      <span className={done ? 'ig-live-badge done' : 'ig-live-badge'}>{stageLabelOf(item)}</span>
-                    </button>
+                        <span className={done ? 'ig-live-badge done' : 'ig-live-badge'}>{stageLabelOf(item)}</span>
+                      </button>
+                      <div className="ig-live-actions">
+                        <button
+                          className="ig-live-act"
+                          type="button"
+                          title="세션명 수정"
+                          onClick={() => setEditSession({ id: item.id, topic: item.topic, teamName: item.teamName })}
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          className="ig-live-act danger"
+                          type="button"
+                          title="세션 삭제"
+                          onClick={() => {
+                            if (window.confirm('이 캔미팅 세션을 삭제할까요? 제출된 의견도 함께 삭제됩니다.')) onDeleteSession(item.id);
+                          }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
