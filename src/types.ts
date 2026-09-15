@@ -12,6 +12,7 @@ export type Section =
   | 'gatherings'
   | 'profiles'
   | 'connect'
+  | 'seating'
   | 'memory'
   | 'metrics'
   | 'growth'
