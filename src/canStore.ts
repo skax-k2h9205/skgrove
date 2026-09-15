@@ -61,7 +61,9 @@ export async function saveCanSessions(sessions: CanSession[]) {
 
 export async function loadCanOpinions(): Promise<CanOpinion[]> {
   if (supabase) {
-    const { data, error } = await withTenant(supabase.from(OPINIONS_TABLE).select('*'));
+    // order 가 없으면 selected 를 토글한 행이 다음 로드에서 맨 뒤로 튀어 순서가 매번 달랐다.
+    // id 는 시각(base36) + 순번이라 사전순 = 제출순.
+    const { data, error } = await withTenant(supabase.from(OPINIONS_TABLE).select('*')).order('id', { ascending: true });
     if (!error && data) {
       const opinions = (data as CanOpinionRow[]).map(opinionFromRow);
       rememberRemote(OPINIONS_TABLE, data as unknown as Record<string, unknown>[], OPINION_WRITE_KEYS);

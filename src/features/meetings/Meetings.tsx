@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 import {
   ArrowRight,
   Check,
@@ -63,6 +64,42 @@ type MergeResult = { title: string; loading: boolean; aiGroups: CanResultGroup[]
 // 취합 표시용 정규화 키(공백 정리·끝 문장부호 제거·소문자화)로 동일/근접 중복을 제거.
 const normalizeOpinion = (text: string) =>
   text.trim().replace(/\s+/g, ' ').replace(/[.。!?~\s]+$/u, '').toLowerCase();
+
+// 의견 한 건의 글자 수 상한. 3,000자 한 건이 목록 한 화면을 다 먹고 localStorage 쿼터까지 위협했다.
+const OPINION_MAX = 1000;
+const IDENTITIES: readonly Identity[] = ['익명', '실명'];
+
+// 긴 의견은 6줄에서 접는다. 줄바꿈은 살린다(예전엔 공백으로 뭉개져 화면과 PPT 가 달랐다).
+function OpinionText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 240 || text.split('\n').length > 6;
+  return (
+    <>
+      <p className={long && !open ? 'can-opinion-text clamped' : 'can-opinion-text'}>{text}</p>
+      {long && (
+        <button type="button" className="can-opinion-more" onClick={() => setOpen((v) => !v)}>
+          {open ? '접기' : '더 보기'}
+        </button>
+      )}
+    </>
+  );
+}
+
+// WAI-ARIA radiogroup — 방향키로 옮기고, Tab 은 그룹을 한 칸으로 센다(roving tabindex).
+function moveRadio<T extends string>(
+  event: KeyboardEvent<HTMLButtonElement>,
+  ids: readonly T[],
+  current: T,
+  pick: (id: T) => void,
+) {
+  const dir =
+    event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
+  if (!dir || ids.length === 0) return;
+  event.preventDefault();
+  const next = (Math.max(0, ids.indexOf(current)) + dir + ids.length) % ids.length;
+  pick(ids[next]);
+  event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('button')[next]?.focus();
+}
 
 const canMethods: CanMethod[] = ['온라인', '오프라인'];
 
@@ -165,6 +202,9 @@ export function Meetings({
     author: '익명',
     content: '',
   });
+  const [listFilter, setListFilter] = useState<string>('all'); // 내 파트 의견 목록의 Step 필터
+  const [submitNotice, setSubmitNotice] = useState(''); // 제출 직후 안내(스크린리더에도 읽힌다)
+  const contentRef = useRef<HTMLTextAreaElement>(null);
   const [aiGroups, setAiGroups] = useState<{ label: string; points: string[] }[] | null>(null); // Step별 AI 결론(선택)
   const [aiLoading, setAiLoading] = useState(false);
   const [resultMode, setResultMode] = useState<'original' | 'ai'>('original'); // 확정할 결과물 선택
@@ -705,6 +745,10 @@ export function Meetings({
               const sessionOpinions = opinions.filter((opinion) => opinion.sessionId === session.id);
               const selectedOpinions = sessionOpinions.filter((opinion) => opinion.selected);
               const myOpinions = sessionOpinions.filter((opinion) => opinion.part === currentUser.part);
+              // 최신이 위. 제출 직후 "어디 붙었지"를 없앤다(로드 순서는 canStore 가 id 로 고정).
+              const shownOpinions = (listFilter === 'all' ? myOpinions : myOpinions.filter((o) => o.step === listFilter))
+                .slice()
+                .reverse();
               const confirmed = session.resultSummary.trim().length > 0;
 
               const setStage = (next: CanStage) => {
@@ -722,16 +766,26 @@ export function Meetings({
               };
 
               const submitOpinion = () => {
-                if (!draft.content.trim()) return;
+                const content = draft.content.trim();
+                if (!content) return;
+                // 같은 Step 에 같은 문장이 이미 있으면 막는다 — 익명 제출은 두 카드를 구분할 방법이 없다.
+                const key = normalizeOpinion(content);
+                if (myOpinions.some((o) => o.step === activeStep && normalizeOpinion(o.content) === key)) {
+                  onNotifyStatus('같은 내용이 이미 제출되어 있어요.', 'error');
+                  return;
+                }
                 onAddOpinion({
                   sessionId: session.id,
                   part: currentUser.part,
                   step: activeStep,
-                  content: draft.content.trim(),
+                  content,
                   author: draft.author,
                   authorName: draft.author === '실명' ? currentUser.name : '',
                 });
                 setDraft({ ...draft, content: '' });
+                setSubmitNotice(`${stepLabelOf(activeStep)}에 제출했어요. 목록 맨 위에 추가됐어요.`);
+                // 제출 버튼은 내용이 비면 disabled 가 되어 포커스가 body 로 떨어진다. 입력창으로 되돌린다.
+                contentRef.current?.focus();
               };
 
               const confirmResult = () => {
@@ -985,7 +1039,7 @@ export function Meetings({
                     <span className="can-badge">{stepLabelOf(opinion.step)}</span>
                     <small>{authorLabel(opinion)}</small>
                   </div>
-                  <p>{opinion.content}</p>
+                  <OpinionText text={opinion.content} />
                 </article>
               );
 
@@ -994,9 +1048,16 @@ export function Meetings({
                 <div className="can-part-columns">
                   {session.parts.map((part) => {
                     const partOpinions = sessionOpinions.filter((opinion) => opinion.part === part);
-                    const groups = canSteps
-                      .map((step) => ({ step, items: partOpinions.filter((opinion) => opinion.step === step.id) }))
-                      .filter((group) => group.items.length > 0);
+                    const known = new Set(canSteps.map((step) => step.id));
+                    const groups = [
+                      ...canSteps.map((step) => ({
+                        key: step.id,
+                        label: step.label,
+                        items: partOpinions.filter((opinion) => opinion.step === step.id),
+                      })),
+                      // 단계를 지우면 그 의견이 어느 그룹에도 못 들어가 통째로 사라졌다. 따로 모아 보여준다.
+                      { key: '__orphan', label: '기타 (삭제된 단계)', items: partOpinions.filter((o) => !known.has(o.step)) },
+                    ].filter((group) => group.items.length > 0);
                     return (
                       <div className="can-part-column" key={part}>
                         <h3>
@@ -1004,14 +1065,14 @@ export function Meetings({
                         </h3>
                         {partOpinions.length === 0 && <p className="can-empty">해당 의견 없음</p>}
                         {groups.map((group) => (
-                          <div className="can-step-group" key={group.step.id}>
-                            <h4 className="can-step-group-title">{group.step.label}</h4>
+                          <div className="can-step-group" key={group.key}>
+                            <h4 className="can-step-group-title">{group.label}</h4>
                             {group.items.map((opinion) => (
                               <article className="can-opinion" key={opinion.id}>
                                 <div className="can-opinion-top">
                                   <small>{authorLabel(opinion)}</small>
                                 </div>
-                                <p>{opinion.content}</p>
+                                <OpinionText text={opinion.content} />
                               </article>
                             ))}
                           </div>
@@ -1208,7 +1269,12 @@ export function Meetings({
                           </div>
                         ))}
                       </div>
-                      {partColumns()}
+                      {/* 수집 중에 진행자가 볼 건 파트별 건수다. 의견 전량을 펼쳐 두면 그 아래 제출 폼까지
+                          수천 px 을 내려가야 했다. 기본은 접고, 펼치면 컬럼마다 스크롤한다. */}
+                      <details className="can-collapse">
+                        <summary>제출된 의견 전체 보기 · {sessionOpinions.length}건</summary>
+                        <div className="can-part-columns-capped">{partColumns()}</div>
+                      </details>
                       {isLive && (
                         <button className="primary-button wide" onClick={() => setStage('share')}>
                           수집 마감하고 공유
@@ -1456,72 +1522,162 @@ export function Meetings({
                     <div className="can-two">
                       <div className="panel form-panel">
                         <PanelHeader icon={Send} title="② 의견 제출" />
-                        <label>
-                          Step
+                        {!isLive && (
+                          <p className="can-form-locked" id="can-form-locked" role="status">
+                            지나간 단계를 조회 중이라 의견을 제출할 수 없어요.
+                          </p>
+                        )}
+                        {/* <label> 안에 버튼을 넣으면 첫 버튼이 라벨의 컨트롤로 잡힌다 — 'Step' 글자를 눌러도
+                            1번이 선택되고, 스크린리더는 첫 버튼 이름에 버튼 텍스트 전체를 붙여 읽었다. */}
+                        <div
+                          className="field-block"
+                          role="radiogroup"
+                          aria-labelledby="can-step-legend"
+                          aria-describedby="can-step-hint"
+                        >
+                          <span className="field-legend" id="can-step-legend">
+                            Step
+                          </span>
                           <div className="can-step-picker">
-                            {canSteps.map((item) => (
-                              <button
-                                key={item.id}
-                                className={activeStep === item.id ? 'selected' : ''}
-                                disabled={!isLive}
-                                onClick={() => setDraft({ ...draft, step: item.id })}
-                              >
-                                {item.label}
-                              </button>
-                            ))}
+                            {canSteps.map((item) => {
+                              const on = activeStep === item.id;
+                              return (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={on}
+                                  tabIndex={on ? 0 : -1}
+                                  className={on ? 'selected' : ''}
+                                  title={item.label}
+                                  disabled={!isLive}
+                                  onClick={() => setDraft({ ...draft, step: item.id })}
+                                  onKeyDown={(event) =>
+                                    moveRadio(event, canSteps.map((s) => s.id), activeStep, (id) =>
+                                      setDraft({ ...draft, step: id }),
+                                    )
+                                  }
+                                >
+                                  {item.label}
+                                </button>
+                              );
+                            })}
                           </div>
-                        </label>
-                        <p className="can-step-hint">{canSteps.find((s) => s.id === activeStep)?.hint}</p>
-                        <label>
-                          제출 방식
+                        </div>
+                        <p className="can-step-hint" id="can-step-hint">
+                          {canSteps.find((s) => s.id === activeStep)?.hint}
+                        </p>
+                        <div className="field-block" role="radiogroup" aria-labelledby="can-author-legend">
+                          <span className="field-legend" id="can-author-legend">
+                            제출 방식
+                          </span>
                           <div className="segmented">
-                            {(['익명', '실명'] as Identity[]).map((item) => (
-                              <button
-                                key={item}
-                                className={draft.author === item ? 'selected' : ''}
-                                disabled={!isLive}
-                                onClick={() => setDraft({ ...draft, author: item })}
-                              >
-                                {item}
-                              </button>
-                            ))}
+                            {IDENTITIES.map((item) => {
+                              const on = draft.author === item;
+                              return (
+                                <button
+                                  key={item}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={on}
+                                  tabIndex={on ? 0 : -1}
+                                  className={on ? 'selected' : ''}
+                                  disabled={!isLive}
+                                  onClick={() => setDraft({ ...draft, author: item })}
+                                  onKeyDown={(event) =>
+                                    moveRadio(event, IDENTITIES, draft.author, (author) => setDraft({ ...draft, author }))
+                                  }
+                                >
+                                  {item}
+                                </button>
+                              );
+                            })}
                           </div>
-                        </label>
+                        </div>
                         {draft.author === '실명' && (
                           <label>
                             이름
-                            <input value={currentUser.name} disabled />
+                            {/* disabled 는 탭 순서에서 빠져 어떤 이름으로 나가는지 확인할 수 없었다. */}
+                            <input value={currentUser.name} readOnly />
                           </label>
                         )}
                         <label>
                           내용
                           <textarea
+                            ref={contentRef}
                             value={draft.content}
+                            maxLength={OPINION_MAX}
                             placeholder="안건에 대한 의견을 자유롭게 남겨주세요"
                             disabled={!isLive}
-                            onChange={(event) => setDraft({ ...draft, content: event.target.value })}
+                            aria-describedby={isLive ? undefined : 'can-form-locked'}
+                            onChange={(event) => {
+                              setDraft({ ...draft, content: event.target.value });
+                              if (submitNotice) setSubmitNotice('');
+                            }}
                           />
+                          <span className="can-char-count">
+                            {draft.content.length} / {OPINION_MAX}
+                          </span>
                         </label>
                         <button
+                          type="button"
                           className="primary-button wide"
                           disabled={!draft.content.trim() || !isLive}
                           onClick={submitOpinion}
                         >
                           의견 제출
                         </button>
+                        {/* 항상 DOM 에 있어야 보조기술이 변경을 읽는다. 내용만 갈아끼운다. */}
+                        <p className="can-submit-status" role="status" aria-live="polite">
+                          {submitNotice}
+                        </p>
                       </div>
 
                       <div className="panel">
-                        <PanelHeader icon={UsersRound} title={`${currentUser.part} 의견`} />
-                        <div className="can-part-column bare">
+                        <PanelHeader icon={UsersRound} title={`${currentUser.part} 의견`} note={`${myOpinions.length}건`} />
+                        {myOpinions.length > 0 && canSteps.length > 1 && (
+                          <div className="can-step-picker compact" role="group" aria-label="Step 으로 거르기">
+                            <button
+                              type="button"
+                              className={listFilter === 'all' ? 'selected' : ''}
+                              aria-pressed={listFilter === 'all'}
+                              onClick={() => setListFilter('all')}
+                            >
+                              전체 {myOpinions.length}
+                            </button>
+                            {canSteps.map((step) => (
+                              <button
+                                key={step.id}
+                                type="button"
+                                className={listFilter === step.id ? 'selected' : ''}
+                                aria-pressed={listFilter === step.id}
+                                onClick={() => setListFilter(step.id)}
+                              >
+                                {step.label.replace(/^Step \d+ · /, '')} {myOpinions.filter((o) => o.step === step.id).length}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="can-part-column bare can-list-scroll">
                           {myOpinions.length === 0 && (
-                            <p className="can-empty">아직 제출된 의견이 없어요. 첫 의견을 남겨보세요.</p>
+                            <p className="can-empty">
+                              아직 {currentUser.part}에서 제출된 의견이 없어요. 첫 의견을 남겨보세요.
+                              <br />
+                              익명으로 내면 목록에 이름이 표시되지 않아요.
+                            </p>
                           )}
-                          {myOpinions.map(opinionCard)}
+                          {myOpinions.length > 0 && shownOpinions.length === 0 && (
+                            <p className="can-empty">이 Step에는 아직 의견이 없어요.</p>
+                          )}
+                          {shownOpinions.map(opinionCard)}
                         </div>
                       </div>
                     </div>
-                    <p className="can-flow-note">진행자가 수집을 마감하면 의견 공유로 넘어갑니다.</p>
+                    <p className="can-flow-note">
+                      {isLive
+                        ? '진행자가 수집을 마감하면 의견 공유로 넘어갑니다.'
+                        : '이 단계는 마감됐어요. 위 단계 표시에서 현재 단계로 돌아갈 수 있어요.'}
+                    </p>
                     </>
                   )}
 
