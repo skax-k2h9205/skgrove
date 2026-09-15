@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardCopy, Lock, LockOpen, Shuffle, Users } from 'lucide-react';
 import { PanelHeader } from '../../components/PanelHeader';
 import { EmptyState } from '../../components/EmptyState';
@@ -99,6 +99,8 @@ export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
   const [saved, setSaved] = useState('');
   // 확정한 뒤 손댄 것이 있는가. 팀원에게는 마지막으로 반영한 배치가 계속 보인다.
   const [dirty, setDirty] = useState(false);
+  // 아직 쓰지 않은 저장. 화면을 떠날 때 밀어내려고 들고 있는다.
+  const pending = useRef<{ room: string; payload: Draft } | null>(null);
 
   // 활성 계정 + 프로필 생년 → 배치 대상. 성별·불참은 이 화면의 입력으로 덮어쓴다.
   const roster = useMemo<(Seatable & { out: boolean })[]>(() => {
@@ -140,7 +142,12 @@ export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
     }));
   };
 
+  // 방마다 한 번만 불러온다. 예전에는 accounts 가 늦게 도착(시드 → 실제 명단)하면
+  // 이 효과가 다시 돌아, 손으로 바꾼 참석 체크를 모임 신청자 기준으로 되돌렸다.
+  const loadedFor = useRef<string | null>(null);
   useEffect(() => {
+    if (!accounts.length || loadedFor.current === room) return;
+    loadedFor.current = room;
     let alive = true;
     setLoading(true);
     void loadConfig<Confirmed | null>(confirmedKey(room), null).then(async (conf) => {
@@ -161,17 +168,17 @@ export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
           확정 뒤에도 조정할 수 있으므로, 초안이 확정본과 다르면 아직 반영하지 않은
           작업이다. 확정본으로 덮으면 그 작업이 새로고침 한 번에 사라진다.
         */
-        const pending =
+        const unpublished =
           draft &&
           LAYOUTS[draft.layout] &&
           JSON.stringify({ ...draft, manual: false }) !== JSON.stringify(asConf);
 
-        const use = pending ? draft : asConf;
+        const use = unpublished ? draft : asConf;
         setLayout(use.layout);
         setOut(use.out);
-        setManual(pending ? draft.manual : false);
+        setManual(unpublished ? draft.manual : false);
         if (use.lines) setLines(linesFromNames(use.lines, roster));
-        setDirty(Boolean(pending));
+        setDirty(Boolean(unpublished));
         setSeeded(room);
         setLoading(false);
         return;
@@ -203,7 +210,8 @@ export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
     return () => {
       alive = false;
     };
-    // 모임이 바뀔 때만. accounts 가 늦게 와도 roster 는 이름 조회용이라 재실행하지 않는다.
+    // accounts.length 는 '계정이 도착했는가'를 보려는 것이다. loadedFor 가 같은 방의
+    // 재실행을 막으므로, 명단이 나중에 갱신돼도 화면 상태를 되돌리지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room, accounts.length]);
 
@@ -216,12 +224,34 @@ export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
       manual,
       lines: lines.length ? lines.map((l) => [l.A.map((p) => p?.name ?? null), l.B.map((p) => p?.name ?? null)]) : null,
     };
+    pending.current = { room, payload };
     const timer = window.setTimeout(() => {
+      pending.current = null;
       void saveConfig(draftKey(room), payload);
       setSaved(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
     }, DRAFT_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [lines, layout, out, manual, loading, canEdit, room, seeded]);
+
+  /*
+    화면을 뜨거나 탭을 닫을 때 아직 안 쓴 저장을 밀어낸다.
+    묶는 시간(1.2초) 안에 나가면 타이머가 취소돼 체크가 통째로 사라졌다.
+  */
+  const flush = () => {
+    if (!pending.current) return;
+    const { room: where, payload } = pending.current;
+    pending.current = null;
+    void saveConfig(draftKey(where), payload);
+  };
+
+  useEffect(() => {
+    window.addEventListener('pagehide', flush);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      flush();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const editPerson = (name: string, patch: Person) => {
     const next = { ...people, [name]: { ...people[name], ...patch } };
