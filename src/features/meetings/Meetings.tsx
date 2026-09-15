@@ -14,6 +14,7 @@ import {
   ListChecks,
   Pencil,
   Plus,
+  Printer,
   Radio,
   Send,
   Trash2,
@@ -22,7 +23,8 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { isLeader } from '../../auth';
-import { canWriteCanSession } from '../../canRules';
+import { canDeleteOwnOpinion, canWriteCanSession } from '../../canRules';
+import { forgetMyOpinion, myOpinionIds, rememberMyOpinion } from '../../myOpinionStore';
 import { useTenantParts } from '../../tenantParts';
 import { readCalendarEvents } from '../../calendarStore';
 import { CalendarLink } from './CalendarLink';
@@ -129,7 +131,8 @@ type MeetingsProps = {
   onStartSession: () => void;
   onUpdateSession: (session: CanSession) => void;
   onDeleteSession: (id: string) => void;
-  onAddOpinion: (opinion: Omit<CanOpinion, 'id' | 'selected'>) => void;
+  onAddOpinion: (opinion: Omit<CanOpinion, 'id' | 'selected'>) => string;
+  onDeleteOpinion: (id: string) => void;
   onToggleOpinion: (id: string) => void;
   onConfirmResult: (sessionId: string, summary: string, groups: CanResultGroup[]) => void;
   onApplyFollowUp: (
@@ -176,6 +179,7 @@ export function Meetings({
   onUpdateSession,
   onDeleteSession,
   onAddOpinion,
+  onDeleteOpinion,
   onToggleOpinion,
   onConfirmResult,
   onApplyFollowUp,
@@ -198,6 +202,10 @@ export function Meetings({
   const [tab, setTab] = useState<'can' | 'tea'>(
     typeof window !== 'undefined' && window.location.hash.includes('tea') ? 'tea' : 'can',
   );
+  useEffect(() => {
+    setMyIds(selectedId ? myOpinionIds(currentUser.email, selectedId) : []);
+  }, [selectedId, currentUser.email]);
+
   const [draft, setDraft] = useState<Draft>({
     step: '',
     author: '익명',
@@ -206,6 +214,8 @@ export function Meetings({
   const [listFilter, setListFilter] = useState<string>('all'); // 내 파트 의견 목록의 Step 필터
   const [submitNotice, setSubmitNotice] = useState(''); // 제출 직후 안내(스크린리더에도 읽힌다)
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  // 이 브라우저가 기억하는 "내가 낸 의견" id. 익명 보호 때문에 DB 에는 작성자를 남기지 않는다.
+  const [myIds, setMyIds] = useState<string[]>([]);
   const [aiGroups, setAiGroups] = useState<{ label: string; points: string[] }[] | null>(null); // Step별 AI 결론(선택)
   const [aiLoading, setAiLoading] = useState(false);
   const [resultMode, setResultMode] = useState<'original' | 'ai'>('original'); // 확정할 결과물 선택
@@ -392,7 +402,21 @@ export function Meetings({
       );
       slide.addTable(
         mergeResult.aiGroups.map((g) => [head(g.label), body(g.items.map((i) => `• ${i.content}`).join('\n'))]),
-        { x: 0.4, y: 2.4, w: 9.2, colW: [2.2, 7.0], border, fontSize: 11, valign: 'top' },
+        {
+          x: 0.4,
+          y: 2.4,
+          w: 9.2,
+          colW: [2.2, 7.0],
+          border,
+          fontSize: 11,
+          valign: 'top',
+          // 슬라이드를 넘치면 다음 장으로. autoPage 는 원래 켜져 있지만, 줄 수를 영문 기준으로
+          // 세기 때문에 폭이 두 배인 한글은 "다 들어간다"고 판단해 한 장에 욱여넣고 잘렸다.
+          // charWeight 를 음수로 줘야 실제 줄 수에 맞게 나뉜다(실측: 1,564자 기준 1장 → 2장).
+          autoPage: true,
+          autoPageCharWeight: -0.4,
+          autoPageSlideStartY: 0.5,
+        },
       );
       await pptx.writeFile({ fileName: `캔미팅_팀취합_${mergeResult.title}_${heldRange || ''}.pptx` });
     } catch (error) {
@@ -547,6 +571,10 @@ export function Meetings({
                   <div className="can-result-actions">
                     <button className="secondary-button" onClick={copyMerge}>
                       복사
+                    </button>
+                    <button className="secondary-button" onClick={() => window.print()}>
+                      <Printer size={16} />
+                      인쇄 · PDF 저장
                     </button>
                     <button className="secondary-button" onClick={exportMergePptx} disabled={mergePptxLoading}>
                       <Download size={16} />
@@ -779,7 +807,7 @@ export function Meetings({
                   onNotifyStatus('같은 내용이 이미 제출되어 있어요.', 'error');
                   return;
                 }
-                onAddOpinion({
+                const onAddOpinionResult = onAddOpinion({
                   sessionId: session.id,
                   part: currentUser.part,
                   step: activeStep,
@@ -787,6 +815,11 @@ export function Meetings({
                   author: draft.author,
                   authorName: draft.author === '실명' ? currentUser.name : '',
                 });
+                const newId = onAddOpinionResult;
+                if (newId) {
+                  rememberMyOpinion(currentUser.email, session.id, newId);
+                  setMyIds((prev) => [...prev, newId]);
+                }
                 setDraft({ ...draft, content: '' });
                 setSubmitNotice(`${stepLabelOf(activeStep)}에 제출했어요. 목록 맨 위에 추가됐어요.`);
                 // 제출 버튼은 내용이 비면 disabled 가 되어 포커스가 body 로 떨어진다. 입력창으로 되돌린다.
@@ -1021,7 +1054,21 @@ export function Meetings({
                     head(group.label),
                     body(group.items.map((item) => `• ${item.content}`).join('\n')),
                   ]),
-                  { x: 0.4, y: 2.4, w: 9.2, colW: [2.2, 7.0], border, fontSize: 11, valign: 'top' },
+                  {
+                    x: 0.4,
+                    y: 2.4,
+                    w: 9.2,
+                    colW: [2.2, 7.0],
+                    border,
+                    fontSize: 11,
+                    valign: 'top',
+                    // 슬라이드를 넘치면 다음 장으로. autoPage 는 원래 켜져 있지만, 줄 수를 영문 기준으로
+                    // 세기 때문에 폭이 두 배인 한글은 "다 들어간다"고 판단해 한 장에 욱여넣고 잘렸다.
+                    // charWeight 를 음수로 줘야 실제 줄 수에 맞게 나뉜다(실측: 1,564자 기준 1장 → 2장).
+                    autoPage: true,
+                    autoPageCharWeight: -0.4,
+                    autoPageSlideStartY: 0.5,
+                  },
                 );
                 await pptx.writeFile({ fileName: `캔미팅_${session.teamName || 'result'}_${session.heldAt || ''}.pptx` });
               };
@@ -1038,20 +1085,42 @@ export function Meetings({
                 </div>
               );
 
+              const removeMyOpinion = (opinion: CanOpinion) => {
+                if (!window.confirm('이 의견을 삭제할까요? 되돌릴 수 없어요.')) return;
+                onDeleteOpinion(opinion.id);
+                forgetMyOpinion(currentUser.email, session.id, opinion.id);
+                setMyIds((prev) => prev.filter((id) => id !== opinion.id));
+                onNotifyStatus('의견을 삭제했어요.', 'ok');
+              };
+
               const opinionCard = (opinion: CanOpinion) => (
                 <article className="can-opinion" key={opinion.id}>
                   <div className="can-opinion-top">
                     <span className="can-badge">{stepLabelOf(opinion.step)}</span>
                     <small>{authorLabel(opinion)}</small>
+                    {canDeleteOwnOpinion(currentUser, opinion, session, myIds) && (
+                      <button
+                        type="button"
+                        className="can-opinion-del"
+                        title="내 의견 삭제"
+                        aria-label="내 의견 삭제"
+                        onClick={() => removeMyOpinion(opinion)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                   <OpinionText text={opinion.content} />
                 </article>
               );
 
               // 파트 컬럼 안에서 다시 Step별로 묶어 보여준다(뒤섞임 방지). Step 순서는 canSteps 기준.
+              // 참여 파트 + '실제로 의견이 들어온 파트'. session.parts 만 돌면 참여 파트 밖에서 들어온
+              // 의견이 총계에는 잡히는데 화면에는 안 나와, 카운트와 목록이 어긋나 혼란스러웠다.
+              const columnParts = [...new Set([...session.parts, ...sessionOpinions.map((o) => o.part)])];
               const partColumns = () => (
                 <div className="can-part-columns">
-                  {session.parts.map((part) => {
+                  {columnParts.map((part) => {
                     const partOpinions = sessionOpinions.filter((opinion) => opinion.part === part);
                     const known = new Set(canSteps.map((step) => step.id));
                     const groups = [
@@ -1066,7 +1135,9 @@ export function Meetings({
                     return (
                       <div className="can-part-column" key={part}>
                         <h3>
-                          {part} <span>{partOpinions.length}</span>
+                          {part}
+                          {!session.parts.includes(part) && <span className="can-badge subtle">참여 파트 아님</span>}{' '}
+                          <span>{partOpinions.length}</span>
                         </h3>
                         {partOpinions.length === 0 && <p className="can-empty">해당 의견 없음</p>}
                         {groups.map((group) => (
@@ -1398,10 +1469,16 @@ export function Meetings({
                           {resultTemplate()}
                           <div className="can-result-actions">
                             {confirmed && (
-                              <button className="secondary-button" onClick={exportPptx} disabled={pptxLoading}>
-                                <Download size={16} />
-                                {pptxLoading ? 'PPT 만드는 중…' : 'PPT로 내보내기'}
-                              </button>
+                              <>
+                                <button className="secondary-button" onClick={() => window.print()}>
+                                  <Printer size={16} />
+                                  인쇄 · PDF 저장
+                                </button>
+                                <button className="secondary-button" onClick={exportPptx} disabled={pptxLoading}>
+                                  <Download size={16} />
+                                  {pptxLoading ? 'PPT 만드는 중…' : 'PPT로 내보내기'}
+                                </button>
+                              </>
                             )}
                             {!confirmed && isLive && (
                               <>
@@ -1724,6 +1801,10 @@ export function Meetings({
                           </div>
                           {resultTemplate()}
                           <div className="can-result-actions">
+                            <button className="secondary-button" onClick={() => window.print()}>
+                              <Printer size={16} />
+                              인쇄 · PDF 저장
+                            </button>
                             <button className="secondary-button" onClick={exportPptx} disabled={pptxLoading}>
                               <Download size={16} />
                               {pptxLoading ? 'PPT 만드는 중…' : 'PPT로 내보내기'}
