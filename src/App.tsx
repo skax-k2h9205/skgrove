@@ -2052,7 +2052,7 @@ export function App() {
           focusId={focusFor('gatherings')}
           onFocusHandled={clearFeedFocus}
           onExitToHome={() => changeSection('dashboard')}
-          onOpenSeating={isConnectioner(currentUser) ? openSeatingFor : undefined}
+          onOpenSeating={openSeatingFor}
         />
       )}
       {active === 'market' && (

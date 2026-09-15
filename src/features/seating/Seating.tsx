@@ -142,7 +142,7 @@ export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
   */
   const [seededFrom, setSeededFrom] = useState<string | null>(null);
   useEffect(() => {
-    if (!source || source.key === seededFrom || !accounts.length) return;
+    if (!canEdit || !source || source.key === seededFrom || !accounts.length) return;
     const coming = new Set(source.names);
     const next: Overrides = { ...overrides };
     accounts

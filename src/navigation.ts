@@ -46,6 +46,9 @@ export const sections: AppSection[] = [
   { id: 'gatherings', label: '모임 · 번개', icon: Zap, owner: '공통' },
   { id: 'profiles', label: '동료 성향', icon: UserRound, owner: '김수정' },
   { id: 'connect', label: '조뽑기', icon: Shuffle, owner: '커넥셔너' },
+  /* 자리배치는 사이드바에 넣지 않는다 — 회식이 있을 때만 쓰는 화면이라 매일 오는
+     메뉴 사이에 상주할 이유가 없다. 입구는 모임 상세의 '자리배치' 버튼이다.
+     (마이페이지·사용 가이드와 같은 방식: sections 에만 두고 navGroups 에서 뺀다) */
   { id: 'seating', label: '자리배치', icon: Armchair, owner: '공통' },
   { id: 'memory', label: '팀 추억', icon: Sparkles, owner: '김수정' },
   { id: 'humor', label: '유~머게시판', icon: Laugh, owner: '공통' },
@@ -72,7 +75,7 @@ export const navGroups: NavGroup[] = [
   {
     // 매일 들르는 공간. 홈을 입구로 두고 함께 노는 메뉴를 모은다.
     title: '함께하기',
-    items: ['dashboard', 'gatherings', 'seating', 'memory', 'humor', 'market'].map((id) => bySection(id as Section)),
+    items: ['dashboard', 'gatherings', 'memory', 'humor', 'market'].map((id) => bySection(id as Section)),
   },
   {
     // 팀이 의견을 모으고 결정하는 흐름(말하기 → 정하기). 캔미팅/티미팅이 말하기의 출발점.
