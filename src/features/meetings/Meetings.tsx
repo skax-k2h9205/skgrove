@@ -72,7 +72,7 @@ const normalizeOpinion = (text: string) =>
 const OPINION_MAX = 1000;
 const IDENTITIES: readonly Identity[] = ['익명', '실명'];
 
-// 긴 의견은 6줄에서 접는다. 줄바꿈은 살린다(예전엔 공백으로 뭉개져 화면과 PPT 가 달랐다).
+// 긴 의견은 6줄에서 접는다. 줄바꿈은 살린다(예전엔 공백으로 뭉개졌다).
 function OpinionText({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   const long = text.length > 240 || text.split('\n').length > 6;
@@ -219,14 +219,6 @@ export function Meetings({
   const [aiGroups, setAiGroups] = useState<{ label: string; points: string[] }[] | null>(null); // Step별 AI 결론(선택)
   const [aiLoading, setAiLoading] = useState(false);
   const [resultMode, setResultMode] = useState<'original' | 'ai'>('original'); // 확정할 결과물 선택
-  const [pptxLoading, setPptxLoading] = useState(false); // PPT 생성 중(버튼 로딩 표시 + 중복 클릭 방지)
-
-  // PPT 내보내기 버튼 클릭 시점에 동적 import가 처음 걸리면(네트워크 지연) 브라우저가 사용자
-  // 제스처와의 연결을 끊어 다운로드를 조용히 막는 경우가 있다. 캔미팅 화면 진입 시 미리 받아둬
-  // 클릭 시점엔 이미 캐시돼 있게 한다.
-  useEffect(() => {
-    void import('pptxgenjs');
-  }, []);
   const [view, setView] = useState<{ id: string; stage: CanStage } | null>(null);
   const [followRouting, setFollowRouting] = useState<Record<string, FollowRoute>>({});
   const [followDrafts, setFollowDrafts] = useState<Record<string, { owner: string; due: string }>>({});
@@ -250,12 +242,11 @@ export function Meetings({
   const [teaCopyNotice, setTeaCopyNotice] = useState<string>('');
   const [teaAnnounceConfirm, setTeaAnnounceConfirm] = useState<boolean>(false);
 
-  // ── 캔미팅 팀 취합(완료 세션 결과 병합) — 휘발 상태. 저장하지 않고 화면·PPT로만. ──
+  // ── 캔미팅 팀 취합(완료 세션 결과 병합) — 휘발 상태. 저장하지 않고 화면·인쇄로만. ──
   const [mergeMode, setMergeMode] = useState(false); // 취합 만들기(세션 선택) 화면 여부
   const [mergeSel, setMergeSel] = useState<string[]>([]); // 선택한 완료 세션 id
   const [mergeTitle, setMergeTitle] = useState('');
   const [mergeResult, setMergeResult] = useState<MergeResult | null>(null);
-  const [mergePptxLoading, setMergePptxLoading] = useState(false);
 
   // 세션 목록에서 세션명(주제·팀명) 인라인 수정. null이면 편집 아님.
   const [editSession, setEditSession] = useState<{ id: string; topic: string; teamName: string } | null>(null);
@@ -291,7 +282,7 @@ export function Meetings({
   const selectedOf = (sessionId: string, stepId: string) =>
     opinions.filter((o) => o.sessionId === sessionId && o.selected && o.step === stepId);
 
-  // 취합 결과의 헤더(팀명·시행일시·방법·주제) — 화면 표와 PPT 가 같은 값을 쓴다.
+  // 취합 결과의 헤더(팀명·시행일시·방법·주제).
   // 팀명은 취합 제목이 아니라 실제 세션들의 팀명을 유지한다.
   const mergeHeaderOf = (m: MergeResult) => {
     // 팀명은 각 세션에 적힌 teamName 그대로(중복 제거). 파트명이 아니라 세션의 팀명을 쓴다.
@@ -373,57 +364,6 @@ export function Meetings({
       onNotifyStatus('취합 결과를 복사했어요.', 'ok');
     } catch {
       onNotifyStatus('복사에 실패했어요.', 'error');
-    }
-  };
-  const exportMergePptx = async () => {
-    if (!mergeResult || mergePptxLoading) return;
-    setMergePptxLoading(true);
-    try {
-      const pptxgen = (await import('pptxgenjs')).default;
-      const pptx = new pptxgen();
-      const slide = pptx.addSlide();
-      const head = (text: string) => ({
-        text,
-        options: { bold: true, fill: { color: 'EFF3EC' }, color: '17352F', valign: 'middle' as const },
-      });
-      const body = (text: string) => ({ text, options: { valign: 'top' as const } });
-      const border = { type: 'solid' as const, color: 'D5DED6', pt: 1 };
-      // 개별 세션 PPT와 동일 템플릿. 팀명은 실제 팀명 유지, 취합 제목은 슬라이드 제목에.
-      const { teams, heldRange, methods, topic } = mergeHeaderOf(mergeResult);
-
-      slide.addText(`Can Meeting 결과 정리 · ${mergeResult.title}`, { x: 0.4, y: 0.3, fontSize: 20, bold: true, color: '2F5597' });
-      slide.addTable(
-        [
-          [head('팀명'), body(teams || '-'), head('참석자'), body('각 파트 전원')],
-          [head('시행일시'), body(heldRange || '-'), head('방법'), body(methods || '-')],
-          [head('주제'), { text: topic || '-', options: { colspan: 3, valign: 'middle' as const } }],
-        ],
-        { x: 0.4, y: 0.9, w: 9.2, colW: [1.5, 3.1, 1.5, 3.1], border, fontSize: 11, rowH: 0.4 },
-      );
-      slide.addTable(
-        mergeResult.aiGroups.map((g) => [head(g.label), body(g.items.map((i) => `• ${i.content}`).join('\n'))]),
-        {
-          x: 0.4,
-          y: 2.4,
-          w: 9.2,
-          colW: [2.2, 7.0],
-          border,
-          fontSize: 11,
-          valign: 'top',
-          // 슬라이드를 넘치면 다음 장으로. autoPage 는 원래 켜져 있지만, 줄 수를 영문 기준으로
-          // 세기 때문에 폭이 두 배인 한글은 "다 들어간다"고 판단해 한 장에 욱여넣고 잘렸다.
-          // charWeight 를 음수로 줘야 실제 줄 수에 맞게 나뉜다(실측: 1,564자 기준 1장 → 2장).
-          autoPage: true,
-          autoPageCharWeight: -0.4,
-          autoPageSlideStartY: 0.5,
-        },
-      );
-      await pptx.writeFile({ fileName: `캔미팅_팀취합_${mergeResult.title}_${heldRange || ''}.pptx` });
-    } catch (error) {
-      console.error('merge PPT export failed', error);
-      onNotifyStatus('PPT 생성에 실패했어요. 잠시 후 다시 시도해주세요.', 'error');
-    } finally {
-      setMergePptxLoading(false);
     }
   };
 
@@ -575,10 +515,6 @@ export function Meetings({
                     <button className="secondary-button" onClick={() => window.print()}>
                       <Printer size={16} />
                       인쇄 · PDF 저장
-                    </button>
-                    <button className="secondary-button" onClick={exportMergePptx} disabled={mergePptxLoading}>
-                      <Download size={16} />
-                      {mergePptxLoading ? 'PPT 만드는 중…' : 'PPT로 내보내기'}
                     </button>
                   </div>
                 </>
@@ -881,7 +817,7 @@ export function Meetings({
                 followUp ? Object.values(followUp.routes).filter((r) => r === route).length : 0;
               const routeLabel: Record<FollowRoute, string> = { agenda: '안건', action: '액션', skip: '생략' };
 
-              // 선정 의견을 단계별로 묶은 구조 (템플릿·PPT 공통 소스)
+              // 선정 의견을 단계별로 묶은 구조 (결과 템플릿 소스)
               const stepGroups = canSteps
                 .map((step) => ({
                   step,
@@ -1009,69 +945,6 @@ export function Meetings({
                   </table>
                 </div>
               );
-
-              const exportPptx = async () => {
-                if (pptxLoading) return;
-                setPptxLoading(true);
-                try {
-                  await runExportPptx();
-                } catch (error) {
-                  console.error('PPT export failed', error);
-                  onNotifyStatus('PPT 생성에 실패했어요. 잠시 후 다시 시도해주세요.', 'error');
-                } finally {
-                  setPptxLoading(false);
-                }
-              };
-
-              const runExportPptx = async () => {
-                const pptxgen = (await import('pptxgenjs')).default;
-                const pptx = new pptxgen();
-                const slide = pptx.addSlide();
-                const head = (text: string) => ({
-                  text,
-                  options: { bold: true, fill: { color: 'EFF3EC' }, color: '17352F', valign: 'middle' as const },
-                });
-                const body = (text: string) => ({ text, options: { valign: 'top' as const } });
-                const border = { type: 'solid' as const, color: 'D5DED6', pt: 1 };
-
-                slide.addText('Can Meeting 결과 정리', {
-                  x: 0.4,
-                  y: 0.3,
-                  fontSize: 20,
-                  bold: true,
-                  color: '2F5597',
-                });
-                slide.addTable(
-                  [
-                    [head('팀명'), body(session.teamName || '-'), head('참석자'), body(participants)],
-                    [head('시행일시'), body(session.heldAt || '-'), head('방법'), body(session.method)],
-                    [head('주제'), { text: session.topic || '-', options: { colspan: 3, valign: 'middle' as const } }],
-                  ],
-                  { x: 0.4, y: 0.9, w: 9.2, colW: [1.5, 3.1, 1.5, 3.1], border, fontSize: 11, rowH: 0.4 },
-                );
-                slide.addTable(
-                  resultGroups.map((group) => [
-                    head(group.label),
-                    body(group.items.map((item) => `• ${item.content}`).join('\n')),
-                  ]),
-                  {
-                    x: 0.4,
-                    y: 2.4,
-                    w: 9.2,
-                    colW: [2.2, 7.0],
-                    border,
-                    fontSize: 11,
-                    valign: 'top',
-                    // 슬라이드를 넘치면 다음 장으로. autoPage 는 원래 켜져 있지만, 줄 수를 영문 기준으로
-                    // 세기 때문에 폭이 두 배인 한글은 "다 들어간다"고 판단해 한 장에 욱여넣고 잘렸다.
-                    // charWeight 를 음수로 줘야 실제 줄 수에 맞게 나뉜다(실측: 1,564자 기준 1장 → 2장).
-                    autoPage: true,
-                    autoPageCharWeight: -0.4,
-                    autoPageSlideStartY: 0.5,
-                  },
-                );
-                await pptx.writeFile({ fileName: `캔미팅_${session.teamName || 'result'}_${session.heldAt || ''}.pptx` });
-              };
 
               const waitingCard = (title: string, desc: string) => (
                 <div className="panel can-waiting">
@@ -1469,16 +1342,10 @@ export function Meetings({
                           {resultTemplate()}
                           <div className="can-result-actions">
                             {confirmed && (
-                              <>
-                                <button className="secondary-button" onClick={() => window.print()}>
-                                  <Printer size={16} />
-                                  인쇄 · PDF 저장
-                                </button>
-                                <button className="secondary-button" onClick={exportPptx} disabled={pptxLoading}>
-                                  <Download size={16} />
-                                  {pptxLoading ? 'PPT 만드는 중…' : 'PPT로 내보내기'}
-                                </button>
-                              </>
+                              <button className="secondary-button" onClick={() => window.print()}>
+                                <Printer size={16} />
+                                인쇄 · PDF 저장
+                              </button>
                             )}
                             {!confirmed && isLive && (
                               <>
@@ -1487,7 +1354,7 @@ export function Meetings({
                                   <ArrowRight size={18} />
                                 </button>
                                 <span className="can-ai-note">
-                                  * 확정하면 이 결과물이 고정되고, PPT 내보내기·후속조치가 확정본 기준으로 진행됩니다.
+                                  * 확정하면 이 결과물이 고정되고, 인쇄·후속조치가 확정본 기준으로 진행됩니다.
                                 </span>
                               </>
                             )}
@@ -1804,10 +1671,6 @@ export function Meetings({
                             <button className="secondary-button" onClick={() => window.print()}>
                               <Printer size={16} />
                               인쇄 · PDF 저장
-                            </button>
-                            <button className="secondary-button" onClick={exportPptx} disabled={pptxLoading}>
-                              <Download size={16} />
-                              {pptxLoading ? 'PPT 만드는 중…' : 'PPT로 내보내기'}
                             </button>
                           </div>
                           {followUp && (
