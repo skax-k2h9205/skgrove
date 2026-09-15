@@ -22,6 +22,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { isLeader } from '../../auth';
+import { canWriteCanSession } from '../../canRules';
 import { useTenantParts } from '../../tenantParts';
 import { readCalendarEvents } from '../../calendarStore';
 import { CalendarLink } from './CalendarLink';
@@ -265,6 +266,8 @@ export function Meetings({
   // 캔미팅 진행자 = 리더 그룹(팀리더·파트리더·커넥셔너). 이들은 세션을 생성·진행할 수 있다.
   // (진행자 화면이 열리면 본인 의견 제출 폼은 안 보이는 점은 감수 — 운영 편의를 위해 확장.)
   const isCanHost = isLeader(currentUser);
+  // 세션 참여 파트가 아닌 사람은 그 세션을 읽기만 한다(canRules). 의견 제출도, 진행·수정·삭제도 못 한다.
+  const isSessionParticipant = (s: CanSession) => canWriteCanSession(currentUser, s);
   const session = sessions.find((item) => item.id === selectedId) ?? null;
 
   const stepLabelOf = (id: string) => canSteps.find((step) => step.id === id)?.label ?? id;
@@ -703,8 +706,9 @@ export function Meetings({
                         </span>
                         <span className={done ? 'ig-live-badge done' : 'ig-live-badge'}>{stageLabelOf(item)}</span>
                       </button>
-                      {/* 수정·삭제는 리더 그룹(팀리더·파트리더·커넥셔너)만 — 세션 생성 권한과 동일 */}
-                      {isCanHost && (
+                      {/* 수정·삭제는 리더 그룹(팀리더·파트리더·커넥셔너)만 — 세션 생성 권한과 동일.
+                          단, 다른 파트의 세션은 손대지 못한다(준비 단계는 예외). */}
+                      {isCanHost && isSessionParticipant(item) && (
                         <div className="ig-live-actions">
                           <button
                             className="ig-live-act"
@@ -741,7 +745,8 @@ export function Meetings({
               // 조회 중 단계: 지나간 단계를 눌러 열람(읽기전용). 없으면 실제 진행 단계.
               const stage = view && view.id === session.id ? view.stage : liveStage;
               const stageIndex = stageFlow.findIndex((item) => item.id === stage);
-              const isLive = stage === liveStage;
+              const isParticipant = isSessionParticipant(session);
+              const isLive = stage === liveStage && isParticipant;
               const sessionOpinions = opinions.filter((opinion) => opinion.sessionId === session.id);
               const selectedOpinions = sessionOpinions.filter((opinion) => opinion.selected);
               const myOpinions = sessionOpinions.filter((opinion) => opinion.part === currentUser.part);
@@ -1114,7 +1119,12 @@ export function Meetings({
                       );
                     })}
                   </ol>
-                  {!isLive && (
+                  {!isParticipant && (
+                    <div className="can-readonly-bar">
+                      {session.parts.join(', ')} 파트의 세션이에요. 다른 파트는 읽기만 할 수 있어요.
+                    </div>
+                  )}
+                  {isParticipant && !isLive && (
                     <div className="can-readonly-bar">
                       지나간 단계를 조회 중입니다 (읽기 전용).
                       <button className="can-back" onClick={() => setView(null)}>
@@ -1517,7 +1527,14 @@ export function Meetings({
 
                   {/* 의견 제출 폼은 모두에게 — 진행자(리더)도 본인 의견을 낼 수 있게.
                       진행자는 위의 '수집 현황' 패널과 함께 이 제출 폼을 같이 본다. */}
-                  {stage === 'collect' && (
+                  {/* 참여 파트가 아니면 제출 폼 대신 수집 현황만 읽는다. */}
+                  {stage === 'collect' && !isParticipant && !isCanHost && (
+                    <div className="panel">
+                      <PanelHeader icon={UsersRound} title="② 의견 수집 중 (읽기 전용)" />
+                      {partColumns()}
+                    </div>
+                  )}
+                  {stage === 'collect' && isParticipant && (
                     <>
                     <div className="can-two">
                       <div className="panel form-panel">
