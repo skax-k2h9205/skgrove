@@ -44,16 +44,24 @@ export function DataCleanup({ onLogout }: { onLogout: () => void }) {
     setDone(null);
     setErrors([]);
     let ok = 0;
+    let rows = 0;
     const fails: string[] = [];
     for (const t of TARGETS) {
-      const { error } = await supabase.from(t.table).delete().not(t.idColumn, 'is', null);
+      // count 를 요청하지 않으면 RLS 가 막은 삭제가 에러 없이 0건으로 조용히 지나간다.
+      const { error, count } = await supabase
+        .from(t.table)
+        .delete({ count: 'exact' })
+        .not(t.idColumn, 'is', null);
       if (error) fails.push(`${t.label}: ${error.message}`);
-      else ok += 1;
+      else {
+        ok += 1;
+        rows += count ?? 0;
+      }
     }
     setWorking(false);
     setConfirming(false);
     setErrors(fails);
-    setDone(`정제 완료 — ${ok}개 항목 삭제${fails.length ? ` (${fails.length}개 실패)` : ''}`);
+    setDone(`정제 완료 — ${ok}개 테이블 / ${rows}행 삭제${fails.length ? ` (${fails.length}개 실패)` : ''}`);
   };
 
   return (
