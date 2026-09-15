@@ -7,6 +7,7 @@ import { hasVoted, loadBallots, makeVoterKey, saveBallots } from './ballotStore'
 import { hasLeaderRole, isAdmin, isConnectioner, isLeader, isPlatformOwner, isTeamLeader, teamParts } from './auth';
 import { loadCanSteps, saveCanSteps } from './canStepsStore';
 import {
+  deleteCanSessionRecord,
   loadCanOpinions,
   loadCanSessions,
   makeCanOpinionId,
@@ -809,6 +810,8 @@ export function App() {
   const deleteCanSession = (id: string) => {
     persistCanSessions(canSessions.filter((item) => item.id !== id));
     persistCanOpinions(canOpinions.filter((opinion) => opinion.sessionId !== id));
+    // save 는 빠진 행을 지우지 않는다(syncRows deletes 기본 끔) → DB 행은 여기서 직접 지운다.
+    void deleteCanSessionRecord(id);
     if (selectedCanId === id) setSelectedCanId(null);
     notifyStatus('캔미팅 세션을 삭제했습니다.');
   };
