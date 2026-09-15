@@ -108,7 +108,9 @@ function readLocal<T>(key: string, fallback: T[]): T[] {
     const saved = window.localStorage.getItem(key);
     if (!saved) return fallback;
     const parsed = JSON.parse(saved) as T[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : fallback;
+    // 저장된 빈 배열은 "다 지웠다"는 뜻이다. 시드로 되돌리면 지운 세션이 새로고침에 되살아난다.
+    // (DB 분기는 이미 그렇게 읽는다 — loadCanSessions 의 "비어 있으면 비어 있는 것이다")
+    return Array.isArray(parsed) ? parsed : fallback;
   } catch {
     return fallback;
   }
