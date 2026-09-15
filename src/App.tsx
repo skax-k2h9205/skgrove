@@ -7,6 +7,7 @@ import { hasVoted, loadBallots, makeVoterKey, saveBallots } from './ballotStore'
 import { hasLeaderRole, isConnectioner, isLeader, isTeamLeader, teamParts } from './auth';
 import { loadCanSteps, saveCanSteps } from './canStepsStore';
 import {
+  deleteCanSessionRecord,
   loadCanOpinions,
   loadCanSessions,
   makeCanOpinionId,
@@ -663,6 +664,16 @@ export function App() {
 
   const updateCanSession = (session: CanSession) => {
     persistCanSessions(canSessions.map((item) => (item.id === session.id ? session : item)));
+  };
+
+  // 세션 삭제. 저장은 upsert 라 목록에서 빼는 것만으로는 DB 행이 남아 새로고침하면 되살아난다.
+  const deleteCanSession = (sessionId: string) => {
+    if (!currentUser || !isTeamLeader(currentUser)) return; // 팀리더만
+    void deleteCanSessionRecord(sessionId);
+    // persist* 를 써야 로컬 미러(localStorage)까지 갱신된다 — DB 없는 환경에서도 삭제가 유지되도록.
+    persistCanSessions(canSessions.filter((item) => item.id !== sessionId));
+    persistCanOpinions(canOpinions.filter((opinion) => opinion.sessionId !== sessionId));
+    if (selectedCanId === sessionId) setSelectedCanId(null);
   };
 
   const addCanOpinion = (opinion: Omit<CanOpinion, 'id' | 'selected'>) => {
@@ -1551,6 +1562,7 @@ export function App() {
           onSelectSession={setSelectedCanId}
           onStartSession={startCanSession}
           onUpdateSession={updateCanSession}
+          onDeleteSession={deleteCanSession}
           onAddOpinion={addCanOpinion}
           onToggleOpinion={toggleCanOpinion}
           onConfirmResult={confirmCanResult}

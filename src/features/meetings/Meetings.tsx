@@ -14,6 +14,7 @@ import {
   Send,
   Share2,
   Sparkles,
+  Trash2,
   UsersRound,
 } from 'lucide-react';
 import { hasTeamLeaderRole, isLeader, teamParts } from '../../auth';
@@ -80,6 +81,7 @@ type MeetingsProps = {
   onSelectSession: (id: string | null) => void;
   onStartSession: () => void;
   onUpdateSession: (session: CanSession) => void;
+  onDeleteSession: (sessionId: string) => void;
   onAddOpinion: (opinion: Omit<CanOpinion, 'id' | 'selected'>) => void;
   onToggleOpinion: (id: string) => void;
   onConfirmResult: (sessionId: string, summary: string, groups: CanResultGroup[]) => void;
@@ -121,6 +123,7 @@ export function Meetings({
   onSelectSession,
   onStartSession,
   onUpdateSession,
+  onDeleteSession,
   onAddOpinion,
   onToggleOpinion,
   onConfirmResult,
@@ -661,6 +664,19 @@ export function Meetings({
                     </button>
                     <span className="can-badge">{session.teamName || '팀 미정'}</span>
                     <strong className="can-detail-topic">{session.topic || '새 캔미팅'}</strong>
+                    {isCanHost && (
+                      <button
+                        type="button"
+                        className="can-back can-delete"
+                        onClick={() => {
+                          if (!window.confirm('이 캔미팅과 등록된 의견을 모두 삭제합니다. 되돌릴 수 없습니다.')) return;
+                          onDeleteSession(session.id);
+                        }}
+                      >
+                        <Trash2 size={16} />
+                        세션 삭제
+                      </button>
+                    )}
                   </div>
 
                   <ol className="can-stepper">

@@ -6916,6 +6916,12 @@ textarea {
   padding: 0 var(--space-3);
 }
 
+/* 세션 삭제는 되돌릴 수 없어 '세션 목록'과 같은 톤으로 두지 않는다. */
+.can-back.can-delete {
+  color: var(--tint-danger-ink);
+  margin-left: auto;
+}
+
 .can-detail-topic {
   font-size: var(--text-body-lg);
 }

@@ -1,5 +1,5 @@
 // 캔미팅 영속화 — Supabase(can_sessions/can_opinions) 있으면 DB, 없으면 localStorage.
-// 세션·의견 모두 삭제 기능이 없으므로 upsert만 하고 prune은 두지 않는다(humorStore와 다른 점).
+// 저장은 upsert 라 배열에서 빠진 항목을 지우지 못한다 → 삭제는 deleteCanSessionRecord 로 따로 지운다.
 import { initialCanOpinions, initialCanSessions } from './data/mockData';
 import { supabase } from './supabaseClient';
 import type { CanFollowUp, CanMethod, CanOpinion, CanResultGroup, CanSession, CanStage, Identity, TeamPart } from './types';
@@ -39,7 +39,8 @@ export async function loadCanSessions(): Promise<CanSession[]> {
     if (!error && data) {
       const sessions = (data as CanSessionRow[]).map(sessionFromRow);
       writeLocal(SESSIONS_KEY, sessions);
-      return sessions.length > 0 ? sessions : initialCanSessions;
+      // DB 가 응답했으면 빈 목록도 정답이다. 여기서 mock 으로 되돌리면 지운 세션이 되살아난다.
+      return sessions;
     }
   }
   return readLocal(SESSIONS_KEY, initialCanSessions);
@@ -62,7 +63,7 @@ export async function loadCanOpinions(): Promise<CanOpinion[]> {
     if (!error && data) {
       const opinions = (data as CanOpinionRow[]).map(opinionFromRow);
       writeLocal(OPINIONS_KEY, opinions);
-      return opinions.length > 0 ? opinions : initialCanOpinions;
+      return opinions;
     }
   }
   return readLocal(OPINIONS_KEY, initialCanOpinions);
@@ -76,6 +77,24 @@ export async function saveCanOpinions(opinions: CanOpinion[]) {
   const { error } = await supabase.from(OPINIONS_TABLE).upsert(opinions.map(opinionToRow), { onConflict: 'id' });
   if (error) {
     console.warn('Supabase can opinion save failed. Local fallback is still updated.', error);
+  }
+}
+
+/*
+  세션 한 건 삭제. can_opinions.session_id 에 FK cascade 가 없어 의견을 먼저 직접 지운다.
+  (의견을 남기면 세션만 사라지고 고아 행이 계속 쌓인다)
+*/
+export async function deleteCanSessionRecord(sessionId: string) {
+  if (!supabase) return;
+
+  const { error: opinionError } = await supabase.from(OPINIONS_TABLE).delete().eq('session_id', sessionId);
+  if (opinionError) {
+    console.warn('Supabase can opinion delete failed.', opinionError);
+  }
+
+  const { error } = await supabase.from(SESSIONS_TABLE).delete().eq('id', sessionId);
+  if (error) {
+    console.warn('Supabase can session delete failed. Local fallback is still updated.', error);
   }
 }
 
@@ -98,7 +117,8 @@ function readLocal<T>(key: string, fallback: T[]): T[] {
     const saved = window.localStorage.getItem(key);
     if (!saved) return fallback;
     const parsed = JSON.parse(saved) as T[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : fallback;
+    // 저장된 빈 배열은 "다 지웠다"는 뜻이다. 여기서 mock 으로 되돌리면 삭제가 되살아난다.
+    return Array.isArray(parsed) ? parsed : fallback;
   } catch {
     return fallback;
   }
