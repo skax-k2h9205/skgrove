@@ -25,16 +25,27 @@ import type { ManagedAccount, Profile } from '../../types';
   이 기기에만 남긴다 — 다른 화면으로 새지 않는다.
 */
 
-// 성별·참석 입력은 이 기기에만 남긴다. 확정된 배치만 팀 공용(app_config)으로 나간다.
-const OVERRIDE_KEY = 'skgrove:seating:overrides';
+/*
+  저장은 세 층이다.
+  - 사람 속성(성별·연령대)은 회식이 바뀌어도 그대로다 → 전역, 이 기기.
+  - 참석·줄 구성·짜는 중인 배치는 회식마다 다르다 → 모임별 임시저장, 이 기기.
+  - 확정본만 팀이 함께 봐야 한다 → 모임별 공용(app_config).
+  모임 없이 들어온 경우(딥링크 등)는 'team' 한 칸을 쓴다.
+*/
+const PEOPLE_KEY = 'skgrove:seating:people';
+const draftKey = (room: string) => `skgrove:seating:draft:${room}`;
+const confirmedKey = (room: string) => `${SEATING_KEY}:${room}`;
 const WRAP = 8; // 도면에서 한 번에 보여줄 좌석 수(표시 전용 — 자리 관계는 안 바뀐다)
 const SEXES = ['남', '여'];
 const AGES = ['새싹', '브릿지', '든든한'];
 
-type Override = { sex?: string; age?: string; out?: boolean };
-type Overrides = Record<string, Override>;
+type Person = { sex?: string; age?: string };
+type People = Record<string, Person>;
 
-type Confirmed = { at: string; layout: LayoutKey; lines: { A: (string | null)[]; B: (string | null)[] }[] };
+// 짜는 중인 상태. 확정 전에도 잃지 않도록 바뀔 때마다 저장한다.
+type Draft = { layout: LayoutKey; out: string[]; lines: (string | null)[][][] | null; manual: boolean };
+
+type Confirmed = { at: string; layout: LayoutKey; absent: string[]; lines: { A: (string | null)[]; B: (string | null)[] }[] };
 
 type SeatRef = { li: number; row: 'A' | 'B'; col: number };
 
@@ -68,17 +79,20 @@ type SeatingProps = {
   canEdit: boolean;
   // 모임에서 넘어왔을 때의 출처. 신청자를 '참석'으로 맞춰줄 뿐,
   // 명단은 활성 계정 전체를 그대로 보여준다 — 신청 안 한 사람도 넣을 수 있어야 한다.
-  source?: { key: string; title: string; names: string[] } | null;
+  source?: { id: string; key: string; title: string; names: string[] } | null;
 };
 
 export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
-  const [overrides, setOverrides] = useState<Overrides>(() => readJson<Overrides>(OVERRIDE_KEY, {}));
+  const room = source?.id ?? 'team';
+  const [people, setPeople] = useState<People>(() => readJson<People>(PEOPLE_KEY, {}));
+  const [out, setOut] = useState<string[]>([]);
   const [layout, setLayout] = useState<LayoutKey>('2열');
   const [lines, setLines] = useState<Line[]>([]);
   const [locked, setLocked] = useState<string | null>(null);
   const [picked, setPicked] = useState<SeatRef | null>(null);
   const [manual, setManual] = useState(false);
   const [copied, setCopied] = useState('');
+  const [saved, setSaved] = useState('');
 
   // 활성 계정 + 프로필 생년 → 배치 대상. 성별·불참은 이 화면의 입력으로 덮어쓴다.
   const roster = useMemo<(Seatable & { out: boolean })[]>(() => {
@@ -86,16 +100,16 @@ export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
     return accounts
       .filter((account) => account.status === '활성')
       .map((account) => {
-        const edit = overrides[account.name] ?? {};
+        const edit = people[account.name] ?? {};
         return {
           name: account.name,
           part: account.part,
           sex: edit.sex ?? '',
           age: edit.age ?? generationLabelOf(birthByName.get(account.name) ?? ''),
-          out: edit.out ?? false,
+          out: out.includes(account.name),
         };
       });
-  }, [accounts, profiles, overrides]);
+  }, [accounts, profiles, people, out]);
 
   const attending = useMemo(() => roster.filter((p) => !p.out), [roster]);
   const absent = useMemo(() => roster.filter((p) => p.out), [roster]);
@@ -106,75 +120,111 @@ export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
     setPicked(null);
   };
 
-  // 첫 진입: 확정본(팀 공용)이 있으면 복원하고, 없으면 새로 섞는다.
-  // 팀원은 확정본이 없으면 보여줄 것이 없다 — 그때는 섞지 않는다.
+  // 모임이 바뀌면 그 모임의 확정본 → 임시저장 → 새로 섞기 순으로 불러온다.
   const [loading, setLoading] = useState(true);
+  const [seeded, setSeeded] = useState<string | null>(null);
+
+  const linesFromNames = (rows: (string | null)[][][], list: typeof roster) => {
+    const byName = new Map(list.map((p) => [p.name, p]));
+    return rows.map((line) => ({
+      cols: line[0].length,
+      A: line[0].map((name) => (name ? byName.get(name) ?? null : null)),
+      B: line[1].map((name) => (name ? byName.get(name) ?? null : null)),
+    }));
+  };
+
   useEffect(() => {
     let alive = true;
-    void loadConfig<Confirmed | null>(SEATING_KEY, null).then((saved) => {
+    setLoading(true);
+    void loadConfig<Confirmed | null>(confirmedKey(room), null).then((conf) => {
       if (!alive) return;
-      if (saved && LAYOUTS[saved.layout]) {
-        const byName = new Map(roster.map((p) => [p.name, p]));
-        setLayout(saved.layout);
-        setLines(
-          saved.lines.map((line) => ({
-            cols: line.A.length,
-            A: line.A.map((name) => (name ? byName.get(name) ?? null : null)),
-            B: line.B.map((name) => (name ? byName.get(name) ?? null : null)),
-          })),
-        );
-        setLocked(saved.at);
-      } else if (canEdit) {
-        setLines(arrange(attending, '2열'));
+
+      if (conf && LAYOUTS[conf.layout]) {
+        setLayout(conf.layout);
+        setLines(linesFromNames(conf.lines.map((l) => [l.A, l.B]), roster));
+        setLocked(conf.at);
+        setOut(conf.absent ?? []);
+        setLoading(false);
+        return;
       }
+      setLocked(null);
+
+      const draft = readJson<Draft | null>(draftKey(room), null);
+      if (draft && LAYOUTS[draft.layout]) {
+        setLayout(draft.layout);
+        setOut(draft.out);
+        setManual(draft.manual);
+        if (draft.lines) setLines(linesFromNames(draft.lines, roster));
+        setSeeded(room); // 이어서 하는 것이므로 모임 신청자로 덮지 않는다
+        setLoading(false);
+        return;
+      }
+
+      // 새 모임: 신청자만 참석으로 두고 섞는다. 팀원은 보여줄 것이 없다.
+      const coming = source ? new Set(source.names) : null;
+      const nextOut = coming
+        ? roster.filter((p) => !coming.has(p.name)).map((p) => p.name)
+        : [];
+      setOut(nextOut);
+      setManual(false);
+      if (canEdit) setLines(arrange(roster.filter((p) => !nextOut.includes(p.name)), '2열'));
+      else setLines([]);
+      setSeeded(room);
       setLoading(false);
     });
     return () => {
       alive = false;
     };
-    // 최초 1회만. 이후 재배치는 버튼·명단 변경이 일으킨다.
+    // 모임이 바뀔 때만. accounts 가 늦게 와도 roster 는 이름 조회용이라 재실행하지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [room, accounts.length]);
 
-  /*
-    모임에서 넘어오면 그 모임의 확정 신청자만 참석으로 맞춘다.
-    한 번만 맞추고 그 뒤로는 손대지 않는다 — 커넥셔너가 조정한 걸 되돌리면 안 되니까.
-  */
-  const [seededFrom, setSeededFrom] = useState<string | null>(null);
+  // 짜는 중인 상태를 계속 남긴다 — 나갔다 와도 이어서 한다. 확정 뒤에는 공용본이 기준이다.
   useEffect(() => {
-    if (!canEdit || !source || source.key === seededFrom || !accounts.length) return;
-    const coming = new Set(source.names);
-    const next: Overrides = { ...overrides };
-    accounts
-      .filter((account) => account.status === '활성')
-      .forEach((account) => {
-        next[account.name] = { ...next[account.name], out: !coming.has(account.name) };
-      });
-    setOverrides(next);
-    writeJson(OVERRIDE_KEY, next);
-    setSeededFrom(source.key);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, accounts, seededFrom]);
+    if (loading || !canEdit || locked || seeded !== room) return;
+    writeJson(draftKey(room), {
+      layout,
+      out,
+      manual,
+      lines: lines.length ? lines.map((l) => [l.A.map((p) => p?.name ?? null), l.B.map((p) => p?.name ?? null)]) : null,
+    } satisfies Draft);
+    setSaved(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
+  }, [lines, layout, out, manual, loading, canEdit, locked, room, seeded]);
 
-  const editPerson = (name: string, patch: Override) => {
-    const next = { ...overrides, [name]: { ...overrides[name], ...patch } };
-    setOverrides(next);
-    writeJson(OVERRIDE_KEY, next);
-    // 명단이 바뀌면 확정은 더 이상 유효하지 않다.
-    if (locked) {
-      void saveConfig(SEATING_KEY, null);
-      setLocked(null);
-    }
+  const editPerson = (name: string, patch: Person) => {
+    const next = { ...people, [name]: { ...people[name], ...patch } };
+    setPeople(next);
+    writeJson(PEOPLE_KEY, next);
+    dropConfirmed();
+    setShuffleTick((tick) => tick + 1);
   };
 
-  // 명단이 바뀌면 다시 섞는다(확정 중에는 건드리지 않는다).
+  const toggleAttend = (name: string, attending: boolean) => {
+    setOut((prev) => (attending ? prev.filter((n) => n !== name) : [...prev, name]));
+    dropConfirmed();
+    setShuffleTick((tick) => tick + 1);
+  };
+
+  // 명단이 바뀌면 확정은 더 이상 유효하지 않다.
+  function dropConfirmed() {
+    if (!locked) return;
+    void saveConfig(confirmedKey(room), null);
+    setLocked(null);
+  }
+
+  /*
+    재섞기는 '명단이 달라졌다'를 감지해서 돌리지 않는다. 방을 바꿀 때도 명단 길이가
+    달라져서, 불러온 배치(임시저장·확정본)를 곧바로 덮어써 버렸다.
+    명단을 손댔을 때만 여기서 올리는 신호로 돌린다.
+  */
+  const [shuffleTick, setShuffleTick] = useState(0);
   useEffect(() => {
-    if (locked || !canEdit || loading) return;
+    if (!shuffleTick || locked || !canEdit) return;
     setLines(arrange(attending, layout));
     setManual(false);
     setPicked(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attending.length, overrides, layout]);
+  }, [shuffleTick]);
 
   const seatAt = (ref: SeatRef) => lines[ref.li]?.[ref.row][ref.col] ?? null;
 
@@ -207,19 +257,20 @@ export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
     const payload: Confirmed = {
       at,
       layout,
+      absent: out,
       lines: lines.map((line) => ({
         A: line.A.map((p) => p?.name ?? null),
         B: line.B.map((p) => p?.name ?? null),
       })),
     };
-    void saveConfig(SEATING_KEY, payload);
+    void saveConfig(confirmedKey(room), payload);
     setLocked(at);
     setPicked(null);
   };
 
   const unlock = () => {
     // 팀원 화면에서도 사라지도록 공용 값을 비운다.
-    void saveConfig(SEATING_KEY, null);
+    void saveConfig(confirmedKey(room), null);
     setLocked(null);
   };
 
@@ -305,7 +356,7 @@ export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
                   id={`attend-${person.name}`}
                   type="checkbox"
                   checked={!person.out}
-                  onChange={(event) => editPerson(person.name, { out: !event.target.checked })}
+                  onChange={(event) => toggleAttend(person.name, event.target.checked)}
                 />
                 <span>{person.name}</span>
               </label>
@@ -347,7 +398,14 @@ export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
                 type="button"
                 className={key === layout ? 'selected' : ''}
                 disabled={!!locked}
-                onClick={() => setLayout(key)}
+                onClick={() => {
+                  if (key === layout) return;
+                  setLayout(key);
+                  setLines(arrange(attending, key)); // 좌석 수가 달라지니 그 자리에서 다시 짠다
+                  setManual(false);
+                  setPicked(null);
+                  dropConfirmed();
+                }}
               >
                 {key} · {LAYOUTS[key].hint}
               </button>
@@ -369,6 +427,7 @@ export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
             </button>
           )}
           {locked && <span className="seating-lock">확정됨 · {locked}</span>}
+          {!locked && saved && <span className="can-hint">{saved} 임시저장됨 — 나갔다 와도 이어서 합니다</span>}
         </div>
 
         <dl className="seating-scores">
