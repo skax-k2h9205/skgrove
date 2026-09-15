@@ -13954,6 +13954,88 @@ button.notif-row {
   }
 }
 
+/* ===== 회식 자리배치(커넥셔너) ===== */
+.seating-roster { display: flex; flex-direction: column; gap: 4px; max-height: 340px; overflow-y: auto; margin-top: 12px; }
+.seating-row {
+  align-items: center; border-bottom: 1px solid var(--color-sunken); display: grid; gap: 10px; padding: 5px 0;
+  grid-template-columns: minmax(130px, 1fr) minmax(90px, 0.8fr) minmax(110px, 1fr) minmax(120px, 1fr);
+}
+.seating-row.out { opacity: 0.55; }
+.seating-row.out .seating-attend span { text-decoration: line-through; }
+.seating-attend { align-items: center; cursor: pointer; display: flex; font-weight: 600; gap: 8px; min-width: 0; }
+/* 전역 input 규칙이 width:100% 라 체크박스가 칸을 다 먹는다. 여기서만 되돌린다. */
+.seating-attend input[type='checkbox'] { flex: 0 0 auto; height: 17px; min-height: 0; margin: 0; padding: 0; width: 17px; }
+.seating-attend span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seating-part { color: var(--color-muted); font-size: var(--text-meta); }
+
+.seating-source {
+  background: var(--color-primary-soft); border-radius: var(--radius); color: var(--color-primary-strong);
+  font-size: var(--text-meta); margin: 12px 0 0; padding: 10px 13px;
+}
+
+.seating-controls { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.seating-lock {
+  background: var(--color-sunken); border-radius: 999px; color: var(--color-primary-strong);
+  font-size: var(--text-meta); font-weight: 700; padding: 5px 12px;
+}
+
+.seating-scores { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 0; }
+.seating-score { background: var(--color-sunken); border-radius: var(--radius); flex: 1 1 170px; padding: 10px 12px; }
+.seating-score dt { color: var(--color-muted); font-size: var(--text-meta); margin: 0 0 3px; }
+.seating-score dd { font-size: var(--text-body-lg); font-weight: 700; margin: 0; }
+.seating-score dd small { color: var(--color-muted); display: block; font-size: var(--text-meta); font-weight: 500; }
+.seating-score.ok dd { color: var(--color-success); }
+.seating-score.mid dd { color: var(--tint-danger-ink); }
+.seating-score.bad dd { color: var(--tint-danger-ink); }
+
+.seating-lines { display: flex; flex-direction: column; gap: 22px; }
+.seating-line { display: flex; flex-direction: column; gap: 7px; }
+.seating-linelabel { color: var(--color-muted); font-size: var(--text-meta); font-weight: 700; letter-spacing: 0.08em; }
+.seating-room { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+.seating-rail { display: flex; flex: 0 0 auto; flex-direction: column; gap: 8px; justify-content: space-between; padding: 12px 0; }
+.seating-rail span { align-items: center; color: var(--color-muted); display: flex; font-size: var(--text-meta); font-weight: 700; min-height: 70px; }
+.seating-rail .mid { min-height: 32px; }
+.seating-table {
+  background: var(--color-surface); border: 1px solid var(--color-sunken); border-radius: var(--radius);
+  display: flex; flex: 0 0 auto; flex-direction: column; gap: 8px; padding: 12px;
+}
+.seating-side { display: flex; gap: 8px; }
+.seating-slab {
+  align-items: center; background: var(--color-ink); border-radius: 6px; color: var(--color-surface);
+  display: flex; font-size: var(--text-meta); font-weight: 700; justify-content: center; min-height: 32px;
+}
+.seating-seat {
+  background: var(--color-sunken); border: 1px solid transparent; border-radius: 8px; color: var(--color-ink);
+  cursor: pointer; display: flex; flex-direction: column; gap: 2px; justify-content: center;
+  min-height: 70px; padding: 8px 6px; text-align: center; width: 88px;
+}
+.seating-seat .no { color: var(--color-muted); font-size: 10px; font-weight: 700; }
+.seating-seat .nm { font-size: var(--text-body); font-weight: 700; }
+.seating-seat .pt { font-size: 10.5px; font-weight: 600; }
+.seating-seat .meta { color: var(--color-muted); font-size: 10px; }
+.seating-seat.vacant { background: transparent; border: 1px dashed var(--color-sunken); }
+.seating-seat.vacant .nm { color: var(--color-muted); font-size: var(--text-meta); font-weight: 500; }
+.seating-seat.picked { border-color: var(--color-primary-strong); box-shadow: 0 0 0 2px var(--color-primary-strong); }
+.seating-seat:disabled { cursor: default; }
+
+.seating-absent { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.seating-absent span {
+  background: var(--color-surface); border: 1px dashed var(--color-sunken); border-radius: 999px;
+  color: var(--color-muted); font-size: var(--text-meta); padding: 6px 13px;
+}
+.seating-absent b { color: var(--color-ink); text-decoration: line-through; }
+
+.seating-notice {
+  background: var(--color-sunken); border-radius: var(--radius); font-size: var(--text-meta);
+  line-height: 1.7; margin-top: 12px; overflow-x: auto; padding: 12px 14px; white-space: pre-wrap;
+}
+
+@media (max-width: 720px) {
+  .seating-row { grid-template-columns: 1fr 1fr; }
+  .seating-rail { display: none; }
+  .seating-seat { min-height: 62px; width: 76px; }
+}
+
 /*
   결과 표 인쇄 / PDF 저장.
 

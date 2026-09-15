@@ -72,6 +72,7 @@ import { Metrics } from './features/metrics/Metrics';
 import { GrowthCard } from './features/growth/GrowthCard';
 import { NotificationCenter } from './features/notifications/NotificationCenter';
 import { Profiles } from './features/profiles/Profiles';
+import { Seating } from './features/seating/Seating';
 import { ChangePassword } from './features/auth/ChangePassword';
 import { deleteIssue, loadIssues, makeIssueId, saveIssues } from './issueStore';
 import { deliverDm, deliverToSlack, sendAnnouncement } from './notificationDelivery';
@@ -217,6 +218,7 @@ const SECTION_BY_HASH: Record<string, Section> = {
   '#meetings-tea': 'meetings',
   '#profiles': 'profiles',
   '#connect': 'connect',
+  '#seating': 'seating',
   '#memory': 'memory',
   '#metrics': 'metrics',
   '#accounts': 'accounts',
@@ -254,6 +256,15 @@ export function App() {
   const [canSessions, setCanSessions] = useState<CanSession[]>(supabase ? [] : initialCanSessions);
   const [canOpinions, setCanOpinions] = useState<CanOpinion[]>(supabase ? [] : initialCanOpinions);
   const [selectedCanId, setSelectedCanId] = useState<string | null>(null);
+  // 자리배치를 어느 모임에서 열었는가. 새로고침해도 그 모임으로 돌아오도록 id 만 남긴다
+  // (제목·신청자는 gatherings 에서 다시 만든다 — 저장해 두면 금세 낡는다).
+  const [seatingGatheringId, setSeatingGatheringId] = useState<string | null>(() => {
+    try {
+      return window.localStorage.getItem('skgrove:seating:room');
+    } catch {
+      return null;
+    }
+  });
   const [actionItems, setActionItems] = useState<ActionItem[]>(supabase ? [] : initialActionItems);
   // DB(있으면)에서 비동기 로드하므로 초기값은 시드/기본값으로 두고 useEffect에서 덮어쓴다.
   const [canSteps, setCanSteps] = useState<CanStepConfig[]>(CAN_STEPS);
@@ -775,6 +786,30 @@ export function App() {
     );
     if (target && isOpen(target)) notifyStatus(`안건을 마감했습니다 · ${finalStatus(target)}`);
   };
+
+  const openSeatingFor = (gathering: Gathering) => {
+    setSeatingGatheringId(gathering.id);
+    try {
+      window.localStorage.setItem('skgrove:seating:room', gathering.id);
+    } catch {
+      /* 저장 실패해도 이번 세션에서는 동작한다 */
+    }
+    changeSection('seating');
+  };
+
+  // 명단 자체는 활성 계정 전체를 보여주고 이 이름들만 '참석'으로 맞춘다
+  // — 신청 안 한 사람도 커넥셔너가 넣을 수 있어야 한다.
+  const seatingSource = useMemo(() => {
+    const gathering = gatherings.find((item) => item.id === seatingGatheringId);
+    if (!gathering) return null;
+    const { confirmed } = splitRoster(gathering, gatheringSignups);
+    return {
+      id: gathering.id,
+      key: `${gathering.id}:${confirmed.length}`,
+      title: gathering.title,
+      names: confirmed.map((signup) => signup.name),
+    };
+  }, [seatingGatheringId, gatherings, gatheringSignups]);
 
   const persistCanSessions = (next: CanSession[]) => {
     setCanSessions(next);
@@ -2047,6 +2082,7 @@ export function App() {
           focusId={focusFor('gatherings')}
           onFocusHandled={clearFeedFocus}
           onExitToHome={() => changeSection('dashboard')}
+          onOpenSeating={openSeatingFor}
         />
       )}
       {active === 'market' && (
@@ -2115,6 +2151,14 @@ export function App() {
       )}
       {active === 'guide' && <GuidePage />}
       {active === 'connect' && <Connect members={connectMembers} />}
+      {active === 'seating' && (
+        <Seating
+          accounts={accounts}
+          profiles={profileDirectory}
+          canEdit={isConnectioner(currentUser)}
+          source={seatingSource}
+        />
+      )}
       {active === 'memory' && <Memory currentUser={currentUser} />}
       {active === 'metrics' && <Metrics currentUser={currentUser} />}
       {active === 'growth' && <GrowthCard currentUser={currentUser} accounts={accounts} />}

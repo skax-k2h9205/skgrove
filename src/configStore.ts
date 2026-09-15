@@ -16,6 +16,9 @@ const localKey = (key: string) => {
 export const CAN_STEPS_KEY = 'skgrove:cansteps';
 export const TEA_SESSION_TYPES_KEY = 'skgrove:teasessiontypes';
 export const NOTIFY_SETTINGS_KEY = 'skgrove:notifysettings';
+// 확정된 회식 자리배치. 팀원이 각자 기기에서 열어봐야 하므로 공용 설정에 둔다
+// (성별 입력은 여기 넣지 않는다 — 배치 결과만 공유한다).
+export const SEATING_KEY = 'skgrove:seating';
 
 // DB 없거나 값이 없으면 fallback. 로컬 캐시는 항상 갱신해 다음 오프라인 로드에 대비한다.
 export async function loadConfig<T>(key: string, fallback: T): Promise<T> {

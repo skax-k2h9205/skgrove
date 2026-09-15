@@ -13,6 +13,7 @@ import {
   Building2,
   Settings,
   Shuffle,
+  Armchair,
   Sparkles,
   Sprout,
   Store,
@@ -45,6 +46,10 @@ export const sections: AppSection[] = [
   { id: 'gatherings', label: '모임 · 번개', icon: Zap, owner: '공통' },
   { id: 'profiles', label: '동료 성향', icon: UserRound, owner: '김수정' },
   { id: 'connect', label: '조뽑기', icon: Shuffle, owner: '커넥셔너' },
+  /* 자리배치는 사이드바에 넣지 않는다 — 회식이 있을 때만 쓰는 화면이라 매일 오는
+     메뉴 사이에 상주할 이유가 없다. 입구는 모임 상세의 '자리배치' 버튼이다.
+     (마이페이지·사용 가이드와 같은 방식: sections 에만 두고 navGroups 에서 뺀다) */
+  { id: 'seating', label: '자리배치', icon: Armchair, owner: '공통' },
   { id: 'memory', label: '팀 추억', icon: Sparkles, owner: '김수정' },
   { id: 'humor', label: '유~머게시판', icon: Laugh, owner: '공통' },
   { id: 'market', label: '이음장터', icon: Store, owner: '공통' },
