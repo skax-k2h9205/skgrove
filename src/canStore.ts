@@ -1,5 +1,8 @@
 // 캔미팅 영속화 — Supabase(can_sessions/can_opinions) 있으면 DB, 없으면 localStorage.
-// 세션·의견 모두 삭제 기능이 없으므로 upsert만 하고 prune은 두지 않는다(humorStore와 다른 점).
+//
+// save 는 syncRows 로 "바뀐 행만 upsert" 한다. 목록에서 빠진 행은 지우지 않으므로(deletes 기본 끔)
+// 세션 삭제는 다른 스토어처럼 전용 함수(deleteCanSessionRecord)가 DB 행을 직접 지운다.
+// 예전에는 save 만 불러서 화면에서만 사라지고 새로고침하면 되살아났다.
 import { initialCanOpinions, initialCanSessions } from './data/mockData';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
@@ -73,6 +76,15 @@ export async function saveCanOpinions(opinions: CanOpinion[]) {
   writeLocal(OPINIONS_KEY, opinions);
 
   await syncRows(OPINIONS_TABLE, opinions.map(opinionToRow));
+}
+
+/** 세션 삭제. 그 세션에 제출된 의견(can_opinions)도 함께 지운다 — agendaStore.deleteAgenda 와 같은 순서. */
+export async function deleteCanSessionRecord(id: string) {
+  if (!supabase) return;
+  const { error: opinionError } = await supabase.from(OPINIONS_TABLE).delete().eq('session_id', id);
+  if (opinionError) console.warn('Supabase can opinion delete failed.', opinionError);
+  const { error } = await supabase.from(SESSIONS_TABLE).delete().eq('id', id);
+  if (error) console.warn('Supabase can session delete failed.', error);
 }
 
 // 공용 DB에서는 여러 사람이 동시에 만들 수 있어 목록 길이 기반 id(CAN-S-3)는 충돌한다.
