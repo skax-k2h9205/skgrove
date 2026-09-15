@@ -23,6 +23,7 @@ function canSee(
   // 조뽑기·시스템 관리 등 커넥셔너 도구는 커넥셔너로 지정된 사람에게만.
   if (id === 'connect') return canUseConnectionerMenu;
   if (id === 'system') return canUseConnectionerMenu;
+  if (id === 'seating') return canUseConnectionerMenu;
   // 플랫폼 관리는 플랫폼 오너(전 테넌트 관제)에게만.
   if (id === 'platform') return canUsePlatformMenu;
   return true;

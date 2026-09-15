@@ -13,6 +13,7 @@ import {
   Building2,
   Settings,
   Shuffle,
+  Armchair,
   Sparkles,
   Sprout,
   Store,
@@ -45,6 +46,7 @@ export const sections: AppSection[] = [
   { id: 'gatherings', label: '모임 · 번개', icon: Zap, owner: '공통' },
   { id: 'profiles', label: '동료 성향', icon: UserRound, owner: '김수정' },
   { id: 'connect', label: '조뽑기', icon: Shuffle, owner: '커넥셔너' },
+  { id: 'seating', label: '자리배치', icon: Armchair, owner: '커넥셔너' },
   { id: 'memory', label: '팀 추억', icon: Sparkles, owner: '김수정' },
   { id: 'humor', label: '유~머게시판', icon: Laugh, owner: '공통' },
   { id: 'market', label: '이음장터', icon: Store, owner: '공통' },
@@ -81,7 +83,7 @@ export const navGroups: NavGroup[] = [
   // 조뽑기를 시작으로, 앞으로 커넥셔너가 쓰는 도구를 여기에 모은다.
   {
     title: '커넥셔너',
-    items: ['connect'].map((id) => bySection(id as Section)),
+    items: ['connect', 'seating'].map((id) => bySection(id as Section)),
   },
   {
     title: '살펴보기 · 관리',
