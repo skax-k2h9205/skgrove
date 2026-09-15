@@ -15,6 +15,7 @@ import {
   Pencil,
   Plus,
   Printer,
+  RotateCcw,
   Radio,
   Send,
   Trash2,
@@ -135,6 +136,7 @@ type MeetingsProps = {
   onDeleteOpinion: (id: string) => void;
   onToggleOpinion: (id: string) => void;
   onConfirmResult: (sessionId: string, summary: string, groups: CanResultGroup[]) => void;
+  onReopenResult: (sessionId: string) => void;
   onApplyFollowUp: (
     sessionId: string,
     data: {
@@ -182,6 +184,7 @@ export function Meetings({
   onDeleteOpinion,
   onToggleOpinion,
   onConfirmResult,
+  onReopenResult,
   onApplyFollowUp,
   onCanStepsChange,
   teaSessions,
@@ -219,6 +222,9 @@ export function Meetings({
   const [aiGroups, setAiGroups] = useState<{ label: string; points: string[] }[] | null>(null); // Step별 AI 결론(선택)
   const [aiLoading, setAiLoading] = useState(false);
   const [resultMode, setResultMode] = useState<'original' | 'ai'>('original'); // 확정할 결과물 선택
+  // 요약을 무엇이 만들었나. 'ai' = LLM 이 돌았다, 'local' = 프록시 미설정·실패로 중복 제거만 했다.
+  // 둘은 결과 품질이 크게 다른데 예전에는 화면에 똑같이 'AI요약'으로 보여 구분할 수 없었다.
+  const [aiSource, setAiSource] = useState<'ai' | 'local' | null>(null);
   const [view, setView] = useState<{ id: string; stage: CanStage } | null>(null);
   const [followRouting, setFollowRouting] = useState<Record<string, FollowRoute>>({});
   const [followDrafts, setFollowDrafts] = useState<Record<string, { owner: string; due: string }>>({});
@@ -762,6 +768,18 @@ export function Meetings({
                 contentRef.current?.focus();
               };
 
+              const reopenResult = () => {
+                const warning = session.followUp
+                  ? '확정을 풀고 다시 정리할까요?\n이미 안건·액션아이템으로 내보낸 항목은 그대로 남고, 다시 확정해도 또 만들어지지 않아요.'
+                  : '확정을 풀고 다시 정리할까요? AI 요약을 다시 돌릴 수 있어요.';
+                if (!window.confirm(warning)) return;
+                onReopenResult(session.id);
+                setAiGroups(null);
+                setAiSource(null);
+                setResultMode('original');
+                onNotifyStatus('확정을 풀었어요. 다시 정리할 수 있어요.', 'ok');
+              };
+
               const confirmResult = () => {
                 onConfirmResult(session.id, buildResultText() || session.resultSummary, liveGroups);
               };
@@ -895,9 +913,12 @@ export function Meetings({
                 setAiLoading(true);
                 try {
                   const result = await summarizeCanMeeting(AI_AGGREGATE_PROMPT, rawGroups);
-                  // AI 연동이면 그 결과를, 아니면 로컬 중복 제거로 폴백. 어느 쪽이든
-                  // 'AI요약' 탭 아래에 결과가 담긴다(출처 표기는 화면에서 걷어냈다).
-                  setAiGroups(result.ok && result.groups?.length ? result.groups : localGroups);
+                  const usedAi = result.ok && !!result.groups?.length;
+                  setAiGroups(usedAi ? result.groups! : localGroups);
+                  setAiSource(usedAi ? 'ai' : 'local');
+                  if (!usedAi) {
+                    onNotifyStatus('AI 요약을 받지 못해 중복만 정리했어요. 원문을 확인해주세요.', 'error');
+                  }
                 } finally {
                   setAiLoading(false);
                   setResultMode('ai'); // 요약 실행 후 AI 결과를 확정 후보로 전환(토글로 원문 복귀 가능)
@@ -1337,15 +1358,29 @@ export function Meetings({
                                   AI요약
                                 </button>
                               </div>
+                              {/* 무엇이 만든 요약인지 밝힌다. 예전에는 둘 다 'AI요약' 으로 보였다. */}
+                              {aiSource && (
+                                <span className={aiSource === 'ai' ? 'can-ai-source' : 'can-ai-source local'}>
+                                  {aiSource === 'ai' ? 'AI가 요약했어요' : '중복만 정리했어요 (AI 연결 실패)'}
+                                </span>
+                              )}
                             </div>
                           )}
                           {resultTemplate()}
                           <div className="can-result-actions">
                             {confirmed && (
-                              <button className="secondary-button" onClick={() => window.print()}>
-                                <Printer size={16} />
-                                인쇄 · PDF 저장
-                              </button>
+                              <>
+                                <button className="secondary-button" onClick={() => window.print()}>
+                                  <Printer size={16} />
+                                  인쇄 · PDF 저장
+                                </button>
+                                {isLive && (
+                                  <button className="secondary-button" onClick={reopenResult}>
+                                    <RotateCcw size={16} />
+                                    결과 다시 정리
+                                  </button>
+                                )}
+                              </>
                             )}
                             {!confirmed && isLive && (
                               <>

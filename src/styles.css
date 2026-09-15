@@ -7315,6 +7315,23 @@ textarea {
   font-size: var(--text-meta);
 }
 
+/* 요약을 무엇이 만들었는지. AI 가 돈 것과 중복만 정리한 것은 결과가 크게 다른데
+   예전에는 화면에 똑같이 'AI요약' 으로만 보였다. */
+.can-ai-source {
+  background: var(--tint-primary);
+  border-radius: var(--radius-full);
+  color: var(--tint-primary-ink);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.can-ai-source.local {
+  background: var(--tint-neutral);
+  color: var(--color-danger);
+}
+
 .can-header-grid {
   display: grid;
   gap: var(--space-3);

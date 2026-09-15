@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  detailFromHistoryState,
   isSection,
   newLoginKey,
   sectionFromHistoryState,
@@ -71,5 +72,32 @@ describe('shouldPushSection — 같은 화면이면 쌓지 않는다', () => {
 
   it('같은 메뉴를 다시 누르면 쌓지 않는다 — 뒤로가기를 여러 번 눌러야 하는 걸 막는다', () => {
     expect(shouldPushSection('intake', 'intake')).toBe(false);
+  });
+});
+
+/*
+  상세(캔미팅 세션 하나)를 히스토리에 한 칸 더 쌓는 부분.
+  이게 없으면 상세에서 뒤로가기를 눌렀을 때 세션 목록이 아니라 직전 화면(대개 홈)으로 나갔다.
+*/
+describe('detailFromHistoryState', () => {
+  it('상세 id 를 그대로 꺼낸다', () => {
+    const state = sectionHistoryState('meetings', KEY, 'CAN-S-1');
+    expect(detailFromHistoryState(state, KEY)).toBe('CAN-S-1');
+    expect(sectionFromHistoryState(state, KEY)).toBe('meetings');
+  });
+
+  it('상세 없이 쌓은 칸은 null — 뒤로가기가 여기 닿으면 목록으로 돌아간다', () => {
+    expect(detailFromHistoryState(sectionHistoryState('meetings', KEY), KEY)).toBeNull();
+  });
+
+  it('다른 로그인이 남긴 칸은 무시한다', () => {
+    const state = sectionHistoryState('meetings', 'login-old', 'CAN-S-1');
+    expect(detailFromHistoryState(state, KEY)).toBeNull();
+  });
+
+  it('우리 것이 아닌 state 도 안전하게 null', () => {
+    expect(detailFromHistoryState(null, KEY)).toBeNull();
+    expect(detailFromHistoryState({ skgroveDetail: 'CAN-S-1' }, KEY)).toBeNull();
+    expect(detailFromHistoryState('문자열', KEY)).toBeNull();
   });
 });

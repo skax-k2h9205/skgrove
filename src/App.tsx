@@ -30,7 +30,13 @@ import { AppShell } from './components/AppShell';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastRegion, useToasts } from './components/Toast';
 import { sections } from './navigation';
-import { newLoginKey, sectionFromHistoryState, sectionHistoryState, shouldPushSection } from './sectionHistory';
+import {
+  detailFromHistoryState,
+  newLoginKey,
+  sectionFromHistoryState,
+  sectionHistoryState,
+  shouldPushSection,
+} from './sectionHistory';
 import {
   initialActionItems,
   initialAgendas,
@@ -843,7 +849,7 @@ export function App() {
       followUp: null,
     };
     persistCanSessions([draft, ...canSessions]);
-    setSelectedCanId(id);
+    selectCanSession(id);
   };
 
   const updateCanSession = (session: CanSession) => {
@@ -880,6 +886,22 @@ export function App() {
   const updateCanSteps = (steps: CanStepConfig[]) => {
     setCanSteps(steps);
     void saveCanSteps(steps);
+  };
+
+  /*
+    결과 확정을 되돌린다. 확정하면 AI 요약 버튼과 원문/AI 토글이 닫히는데, 되돌릴 길이 없어
+    한 번 확정한 세션은 영영 다시 정리할 수 없었다.
+
+    followUp(안건·액션아이템으로 내보낸 기록)은 지우지 않는다. 이미 만들어진 안건과 액션은
+    그대로 남아 있고, 이 기록이 applyCanFollowUp 의 중복 방지 장치라 지우면 같은 항목이
+    두 번 생긴다.
+  */
+  const reopenCanResult = (sessionId: string) => {
+    persistCanSessions(
+      canSessions.map((session) =>
+        session.id === sessionId ? { ...session, resultSummary: '', resultGroups: undefined } : session,
+      ),
+    );
   };
 
   const confirmCanResult = (sessionId: string, summary: string, groups: CanResultGroup[]) => {
@@ -1701,11 +1723,36 @@ export function App() {
     activeRef 를 쓰는 건 changeSection 이 오래된 렌더의 active 를 붙잡고 있을 수 있어서다
     — 그러면 같은 화면인데도 히스토리가 쌓인다.
   */
+  /*
+    캔미팅 세션 상세를 열고 닫는다. 여는 순간 히스토리에 한 칸 쌓아, 뒤로가기가 앱 밖이나
+    직전 화면이 아니라 '세션 목록'으로 돌아오게 한다.
+
+    화면 안의 '세션 목록' 버튼도 pushState 로 쌓은 칸을 history.back() 으로 되감는다.
+    그냥 상태만 지우면 쌓아둔 칸이 남아, 다음 뒤로가기가 상세를 다시 여는 것처럼 보인다.
+  */
+  const selectCanSession = (id: string | null) => {
+    if (id) {
+      window.history.pushState(sectionHistoryState('meetings', loginKeyRef.current, id), '');
+      setSelectedCanId(id);
+      return;
+    }
+    if (detailFromHistoryState(window.history.state, loginKeyRef.current)) {
+      window.history.back(); // popstate 가 selectedCanId 를 비운다
+      return;
+    }
+    setSelectedCanId(null);
+  };
+
   const changeSection = (section: Section) => {
     const target = resolveSection(section);
-    if (shouldPushSection(activeRef.current, target)) {
+    // 상세를 열어 둔 채 메뉴를 누르면 같은 섹션이라도 '상세 → 목록' 이동이라 한 칸 쌓아야 한다.
+    const leavingDetail = detailFromHistoryState(window.history.state, loginKeyRef.current) !== null;
+    if (shouldPushSection(activeRef.current, target) || leavingDetail) {
       window.history.pushState(sectionHistoryState(target, loginKeyRef.current), '');
     }
+    // 메뉴로 가는 곳은 언제나 그 화면의 첫 장면이다. 열어 둔 상세는 닫는다
+    // (뒤로가기로 돌아오면 히스토리에 담긴 상세가 다시 열린다).
+    setSelectedCanId(null);
     setActive(target);
   };
 
@@ -1766,6 +1813,8 @@ export function App() {
       if (!target) return;
       // 뒤로가기로 온 것이므로 히스토리를 새로 쌓지 않는다. 권한 판정은 그대로 거친다.
       setActive(resolveSection(target));
+      // 상세가 담긴 칸이면 그 상세를, 아니면 목록으로.
+      setSelectedCanId(detailFromHistoryState(event.state, loginKeyRef.current));
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -2091,7 +2140,7 @@ export function App() {
           currentUser={currentUser}
           canSteps={canSteps}
           members={teamMembers}
-          onSelectSession={setSelectedCanId}
+          onSelectSession={selectCanSession}
           onStartSession={startCanSession}
           onUpdateSession={updateCanSession}
           onDeleteSession={deleteCanSession}
@@ -2099,6 +2148,7 @@ export function App() {
           onDeleteOpinion={deleteCanOpinion}
           onToggleOpinion={toggleCanOpinion}
           onConfirmResult={confirmCanResult}
+          onReopenResult={reopenCanResult}
           onApplyFollowUp={applyCanFollowUp}
           onCanStepsChange={updateCanSteps}
           teaSessions={teaSessions}
