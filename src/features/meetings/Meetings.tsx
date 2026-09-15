@@ -14,6 +14,7 @@ import {
   ListChecks,
   Pencil,
   Plus,
+  Printer,
   Radio,
   Send,
   Trash2,
@@ -401,7 +402,21 @@ export function Meetings({
       );
       slide.addTable(
         mergeResult.aiGroups.map((g) => [head(g.label), body(g.items.map((i) => `• ${i.content}`).join('\n'))]),
-        { x: 0.4, y: 2.4, w: 9.2, colW: [2.2, 7.0], border, fontSize: 11, valign: 'top' },
+        {
+          x: 0.4,
+          y: 2.4,
+          w: 9.2,
+          colW: [2.2, 7.0],
+          border,
+          fontSize: 11,
+          valign: 'top',
+          // 슬라이드를 넘치면 다음 장으로. autoPage 는 원래 켜져 있지만, 줄 수를 영문 기준으로
+          // 세기 때문에 폭이 두 배인 한글은 "다 들어간다"고 판단해 한 장에 욱여넣고 잘렸다.
+          // charWeight 를 음수로 줘야 실제 줄 수에 맞게 나뉜다(실측: 1,564자 기준 1장 → 2장).
+          autoPage: true,
+          autoPageCharWeight: -0.4,
+          autoPageSlideStartY: 0.5,
+        },
       );
       await pptx.writeFile({ fileName: `캔미팅_팀취합_${mergeResult.title}_${heldRange || ''}.pptx` });
     } catch (error) {
@@ -556,6 +571,10 @@ export function Meetings({
                   <div className="can-result-actions">
                     <button className="secondary-button" onClick={copyMerge}>
                       복사
+                    </button>
+                    <button className="secondary-button" onClick={() => window.print()}>
+                      <Printer size={16} />
+                      인쇄 · PDF 저장
                     </button>
                     <button className="secondary-button" onClick={exportMergePptx} disabled={mergePptxLoading}>
                       <Download size={16} />
@@ -1035,7 +1054,21 @@ export function Meetings({
                     head(group.label),
                     body(group.items.map((item) => `• ${item.content}`).join('\n')),
                   ]),
-                  { x: 0.4, y: 2.4, w: 9.2, colW: [2.2, 7.0], border, fontSize: 11, valign: 'top' },
+                  {
+                    x: 0.4,
+                    y: 2.4,
+                    w: 9.2,
+                    colW: [2.2, 7.0],
+                    border,
+                    fontSize: 11,
+                    valign: 'top',
+                    // 슬라이드를 넘치면 다음 장으로. autoPage 는 원래 켜져 있지만, 줄 수를 영문 기준으로
+                    // 세기 때문에 폭이 두 배인 한글은 "다 들어간다"고 판단해 한 장에 욱여넣고 잘렸다.
+                    // charWeight 를 음수로 줘야 실제 줄 수에 맞게 나뉜다(실측: 1,564자 기준 1장 → 2장).
+                    autoPage: true,
+                    autoPageCharWeight: -0.4,
+                    autoPageSlideStartY: 0.5,
+                  },
                 );
                 await pptx.writeFile({ fileName: `캔미팅_${session.teamName || 'result'}_${session.heldAt || ''}.pptx` });
               };
@@ -1436,10 +1469,16 @@ export function Meetings({
                           {resultTemplate()}
                           <div className="can-result-actions">
                             {confirmed && (
-                              <button className="secondary-button" onClick={exportPptx} disabled={pptxLoading}>
-                                <Download size={16} />
-                                {pptxLoading ? 'PPT 만드는 중…' : 'PPT로 내보내기'}
-                              </button>
+                              <>
+                                <button className="secondary-button" onClick={() => window.print()}>
+                                  <Printer size={16} />
+                                  인쇄 · PDF 저장
+                                </button>
+                                <button className="secondary-button" onClick={exportPptx} disabled={pptxLoading}>
+                                  <Download size={16} />
+                                  {pptxLoading ? 'PPT 만드는 중…' : 'PPT로 내보내기'}
+                                </button>
+                              </>
                             )}
                             {!confirmed && isLive && (
                               <>
@@ -1762,6 +1801,10 @@ export function Meetings({
                           </div>
                           {resultTemplate()}
                           <div className="can-result-actions">
+                            <button className="secondary-button" onClick={() => window.print()}>
+                              <Printer size={16} />
+                              인쇄 · PDF 저장
+                            </button>
                             <button className="secondary-button" onClick={exportPptx} disabled={pptxLoading}>
                               <Download size={16} />
                               {pptxLoading ? 'PPT 만드는 중…' : 'PPT로 내보내기'}

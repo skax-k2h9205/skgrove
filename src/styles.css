@@ -13953,3 +13953,88 @@ button.notif-row {
     grid-template-columns: 1fr;
   }
 }
+
+/*
+  결과 표 인쇄 / PDF 저장.
+
+  PPT 는 슬라이드 크기가 정해져 있어(10 x 5.625인치) 의견이 늘면 표가 슬라이드 밖으로 넘친다.
+  인쇄는 흐르는 문서라 길어지면 다음 장으로 자연히 넘어간다. 화면에 이미 그린 결과 표를
+  그대로 쓰므로 보이는 것과 나오는 것이 같다.
+
+  한 화면에 .can-template 은 하나만 뜬다(세션 결과와 팀 취합은 동시에 나오지 않는다).
+*/
+@page {
+  margin: 14mm;
+  size: A4;
+}
+
+@media print {
+  /* 결과 표만 남긴다. display:none 으로 지우면 부모 레이아웃까지 무너져 자리가 틀어진다. */
+  body * {
+    visibility: hidden;
+  }
+
+  .can-template,
+  .can-template * {
+    visibility: visible;
+  }
+
+  .can-template {
+    border: 1px solid #333333;
+    border-radius: 0;
+    left: 0;
+    margin: 0;
+    overflow: visible; /* 화면용 hidden 을 두면 인쇄에서 잘린다 */
+    position: absolute;
+    top: 0;
+    width: 100%;
+  }
+
+  .can-template-title {
+    background: none;
+    border-bottom: 1px solid #333333;
+    color: #000000;
+    font-size: 15pt;
+    font-weight: 700;
+  }
+
+  .can-template-head th,
+  .can-template-head td,
+  .can-template-steps th,
+  .can-template-steps td {
+    background: none;
+    border: 1px solid #333333;
+    color: #000000;
+    font-size: 10pt;
+    padding: 6pt 8pt;
+  }
+
+  /* 화면에서는 Step 칸을 150px 로 고정하고 줄바꿈을 막아 뒀다. 단계 이름이 길면
+     그 폭이 본문을 밀어내므로 인쇄에서는 풀어 준다. */
+  .can-template-steps th {
+    white-space: normal;
+    width: 20%;
+  }
+
+  /* 머리표(팀명·시행일시·주제)는 쪼개지지 않게. Step 행은 길면 다음 장으로 이어지되
+     의견 한 줄이 페이지 경계에서 잘리지는 않게 한다. */
+  .can-template-head {
+    break-inside: avoid;
+  }
+
+  .can-template-steps tr {
+    break-inside: auto;
+  }
+
+  .can-template-steps li {
+    break-inside: avoid;
+    line-height: 1.5;
+  }
+
+  /* 화면에서 6줄로 접어 둔 긴 의견이 인쇄에서도 잘리면 안 된다. */
+  .can-opinion-text.clamped {
+    -webkit-line-clamp: none;
+    display: block;
+    overflow: visible;
+  }
+}
