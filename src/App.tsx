@@ -2121,7 +2121,14 @@ export function App() {
       )}
       {active === 'guide' && <GuidePage />}
       {active === 'connect' && <Connect members={connectMembers} />}
-      {active === 'seating' && isConnectioner(currentUser) && <Seating accounts={accounts} profiles={profileDirectory} source={seatingSource} />}
+      {active === 'seating' && (
+        <Seating
+          accounts={accounts}
+          profiles={profileDirectory}
+          canEdit={isConnectioner(currentUser)}
+          source={seatingSource}
+        />
+      )}
       {active === 'memory' && <Memory currentUser={currentUser} />}
       {active === 'metrics' && <Metrics currentUser={currentUser} />}
       {active === 'growth' && <GrowthCard currentUser={currentUser} accounts={accounts} />}

@@ -14,6 +14,7 @@ import {
   type Line,
   type Seatable,
 } from '../../seatingRules';
+import { SEATING_KEY, loadConfig, saveConfig } from '../../configStore';
 import type { ManagedAccount, Profile } from '../../types';
 
 /*
@@ -24,8 +25,8 @@ import type { ManagedAccount, Profile } from '../../types';
   이 기기에만 남긴다 — 다른 화면으로 새지 않는다.
 */
 
+// 성별·참석 입력은 이 기기에만 남긴다. 확정된 배치만 팀 공용(app_config)으로 나간다.
 const OVERRIDE_KEY = 'skgrove:seating:overrides';
-const LOCK_KEY = 'skgrove:seating:confirmed';
 const WRAP = 8; // 도면에서 한 번에 보여줄 좌석 수(표시 전용 — 자리 관계는 안 바뀐다)
 const SEXES = ['남', '여'];
 const AGES = ['새싹', '브릿지', '든든한'];
@@ -63,12 +64,14 @@ function stamp() {
 type SeatingProps = {
   accounts: ManagedAccount[];
   profiles: Profile[];
+  // 커넥셔너만 편집한다. 팀원은 확정된 배치를 읽기만 한다.
+  canEdit: boolean;
   // 모임에서 넘어왔을 때의 출처. 신청자를 '참석'으로 맞춰줄 뿐,
   // 명단은 활성 계정 전체를 그대로 보여준다 — 신청 안 한 사람도 넣을 수 있어야 한다.
   source?: { key: string; title: string; names: string[] } | null;
 };
 
-export function Seating({ accounts, profiles, source }: SeatingProps) {
+export function Seating({ accounts, profiles, canEdit, source }: SeatingProps) {
   const [overrides, setOverrides] = useState<Overrides>(() => readJson<Overrides>(OVERRIDE_KEY, {}));
   const [layout, setLayout] = useState<LayoutKey>('2열');
   const [lines, setLines] = useState<Line[]>([]);
@@ -103,22 +106,32 @@ export function Seating({ accounts, profiles, source }: SeatingProps) {
     setPicked(null);
   };
 
-  // 첫 진입: 확정본이 있으면 복원하고, 없으면 새로 섞는다.
+  // 첫 진입: 확정본(팀 공용)이 있으면 복원하고, 없으면 새로 섞는다.
+  // 팀원은 확정본이 없으면 보여줄 것이 없다 — 그때는 섞지 않는다.
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
-    const saved = readJson<Confirmed | null>(LOCK_KEY, null);
-    if (saved && LAYOUTS[saved.layout]) {
-      const byName = new Map(roster.map((p) => [p.name, p]));
-      const restored = saved.lines.map((line) => ({
-        cols: line.A.length,
-        A: line.A.map((name) => (name ? byName.get(name) ?? null : null)),
-        B: line.B.map((name) => (name ? byName.get(name) ?? null : null)),
-      }));
-      setLayout(saved.layout);
-      setLines(restored);
-      setLocked(saved.at);
-      return;
-    }
-    setLines(arrange(attending, '2열'));
+    let alive = true;
+    void loadConfig<Confirmed | null>(SEATING_KEY, null).then((saved) => {
+      if (!alive) return;
+      if (saved && LAYOUTS[saved.layout]) {
+        const byName = new Map(roster.map((p) => [p.name, p]));
+        setLayout(saved.layout);
+        setLines(
+          saved.lines.map((line) => ({
+            cols: line.A.length,
+            A: line.A.map((name) => (name ? byName.get(name) ?? null : null)),
+            B: line.B.map((name) => (name ? byName.get(name) ?? null : null)),
+          })),
+        );
+        setLocked(saved.at);
+      } else if (canEdit) {
+        setLines(arrange(attending, '2열'));
+      }
+      setLoading(false);
+    });
+    return () => {
+      alive = false;
+    };
     // 최초 1회만. 이후 재배치는 버튼·명단 변경이 일으킨다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -149,14 +162,14 @@ export function Seating({ accounts, profiles, source }: SeatingProps) {
     writeJson(OVERRIDE_KEY, next);
     // 명단이 바뀌면 확정은 더 이상 유효하지 않다.
     if (locked) {
-      window.localStorage.removeItem(LOCK_KEY);
+      void saveConfig(SEATING_KEY, null);
       setLocked(null);
     }
   };
 
   // 명단이 바뀌면 다시 섞는다(확정 중에는 건드리지 않는다).
   useEffect(() => {
-    if (locked) return;
+    if (locked || !canEdit || loading) return;
     setLines(arrange(attending, layout));
     setManual(false);
     setPicked(null);
@@ -199,13 +212,14 @@ export function Seating({ accounts, profiles, source }: SeatingProps) {
         B: line.B.map((p) => p?.name ?? null),
       })),
     };
-    writeJson(LOCK_KEY, payload);
+    void saveConfig(SEATING_KEY, payload);
     setLocked(at);
     setPicked(null);
   };
 
   const unlock = () => {
-    window.localStorage.removeItem(LOCK_KEY);
+    // 팀원 화면에서도 사라지도록 공용 값을 비운다.
+    void saveConfig(SEATING_KEY, null);
     setLocked(null);
   };
 
@@ -246,6 +260,19 @@ export function Seating({ accounts, profiles, source }: SeatingProps) {
   const scores = conflicts(lines);
   const spare = totalSeats(lines) - attending.length;
 
+  // 팀원은 확정된 배치만 본다. 없으면 보여줄 것이 없다.
+  if (!canEdit && !locked) {
+    return (
+      <section className="screen">
+        <EmptyState
+          icon={Users}
+          title={loading ? '불러오는 중…' : '아직 확정된 자리배치가 없어요'}
+          description={loading ? '' : '자리가 정해지면 여기에서 확인할 수 있습니다.'}
+        />
+      </section>
+    );
+  }
+
   if (!accounts.length) {
     return (
       <section className="screen">
@@ -256,6 +283,7 @@ export function Seating({ accounts, profiles, source }: SeatingProps) {
 
   return (
     <section className="screen">
+      {canEdit && (
       <div className="panel">
         <PanelHeader icon={Users} title="명단" />
         {source && (
@@ -306,7 +334,9 @@ export function Seating({ accounts, profiles, source }: SeatingProps) {
           ))}
         </div>
       </div>
+      )}
 
+      {canEdit && (
       <div className="panel">
         <PanelHeader icon={Shuffle} title="배치" />
         <div className="seating-controls">
@@ -366,7 +396,13 @@ export function Seating({ accounts, profiles, source }: SeatingProps) {
           </div>
         </dl>
       </div>
+      )}
 
+      {locked && !canEdit && (
+        <p className="seating-source">확정된 자리배치입니다 · {locked}</p>
+      )}
+
+      {canEdit && (
       <p className="can-hint">
         {locked
           ? '확정된 배치입니다. 자리를 옮기려면 먼저 확정을 해제하세요.'
@@ -376,6 +412,7 @@ export function Seating({ accounts, profiles, source }: SeatingProps) {
               ? '두 자리를 차례로 눌러 맞바꿀 수 있습니다. 손으로 옮긴 배치이며, 다시 섞기를 누르면 사라집니다.'
               : '두 자리를 차례로 눌러 맞바꿀 수 있습니다.'}
       </p>
+      )}
 
       <div className="seating-lines">
         {lines.map((line, li) => {
@@ -411,13 +448,13 @@ export function Seating({ accounts, profiles, source }: SeatingProps) {
                                 key={col}
                                 className={`seating-seat${person ? '' : ' vacant'}${isPicked ? ' picked' : ''}`}
                                 data-part={person?.part}
-                                disabled={!!locked}
+                                disabled={!!locked || !canEdit}
                                 onClick={() => tapSeat(ref)}
                               >
                                 <span className="no">{col + 1}</span>
                                 <span className="nm">{person?.name ?? '빈자리'}</span>
                                 {person && <span className="pt">{person.part}</span>}
-                                {person && (person.sex || person.age) && (
+                                {canEdit && person && (person.sex || person.age) && (
                                   <span className="meta">{[person.sex, person.age].filter(Boolean).join(' · ')}</span>
                                 )}
                               </button>
