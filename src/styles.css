@@ -6965,6 +6965,31 @@ textarea {
   margin-left: auto;
 }
 
+/* 본인이 낸 의견만 붙는 삭제 버튼. 평소엔 옅게, 카드에 올리면 또렷하게. */
+.can-opinion-del {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  opacity: 0.55;
+  padding: 4px;
+}
+
+.can-opinion:hover .can-opinion-del,
+.can-opinion-del:focus-visible {
+  opacity: 1;
+}
+
+.can-opinion-del:hover {
+  background: var(--color-btn-soft);
+  color: var(--color-danger);
+  opacity: 1;
+}
+
 .can-badge {
   background: var(--tint-primary);
   border-radius: 999px;

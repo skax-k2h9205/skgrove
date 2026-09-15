@@ -80,6 +80,13 @@ export async function saveCanOpinions(opinions: CanOpinion[]) {
   await syncRows(OPINIONS_TABLE, opinions.map(opinionToRow));
 }
 
+/** 의견 한 건 삭제(본인 삭제). save 는 목록에서 빠진 행을 지우지 않으므로 여기서 직접 지운다. */
+export async function deleteCanOpinionRecord(id: string) {
+  if (!supabase) return;
+  const { error } = await supabase.from(OPINIONS_TABLE).delete().eq('id', id);
+  if (error) console.warn('Supabase can opinion delete failed.', error);
+}
+
 /** 세션 삭제. 그 세션에 제출된 의견(can_opinions)도 함께 지운다 — agendaStore.deleteAgenda 와 같은 순서. */
 export async function deleteCanSessionRecord(id: string) {
   if (!supabase) return;

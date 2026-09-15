@@ -7,6 +7,7 @@ import { hasVoted, loadBallots, makeVoterKey, saveBallots } from './ballotStore'
 import { hasLeaderRole, isAdmin, isConnectioner, isLeader, isPlatformOwner, isTeamLeader, teamParts } from './auth';
 import { loadCanSteps, saveCanSteps } from './canStepsStore';
 import {
+  deleteCanOpinionRecord,
   deleteCanSessionRecord,
   loadCanOpinions,
   loadCanSessions,
@@ -816,8 +817,16 @@ export function App() {
     notifyStatus('캔미팅 세션을 삭제했습니다.');
   };
 
+  // 제출한 의견의 id 를 돌려준다 — 화면이 "내가 낸 것"으로 기억해 본인 삭제에 쓴다.
   const addCanOpinion = (opinion: Omit<CanOpinion, 'id' | 'selected'>) => {
-    persistCanOpinions([...canOpinions, { ...opinion, id: makeCanOpinionId(), selected: false }]);
+    const id = makeCanOpinionId();
+    persistCanOpinions([...canOpinions, { ...opinion, id, selected: false }]);
+    return id;
+  };
+
+  const deleteCanOpinion = (id: string) => {
+    persistCanOpinions(canOpinions.filter((opinion) => opinion.id !== id));
+    void deleteCanOpinionRecord(id);
   };
 
   const toggleCanOpinion = (id: string) => {
@@ -2001,6 +2010,7 @@ export function App() {
           onUpdateSession={updateCanSession}
           onDeleteSession={deleteCanSession}
           onAddOpinion={addCanOpinion}
+          onDeleteOpinion={deleteCanOpinion}
           onToggleOpinion={toggleCanOpinion}
           onConfirmResult={confirmCanResult}
           onApplyFollowUp={applyCanFollowUp}
