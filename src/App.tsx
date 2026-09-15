@@ -30,6 +30,7 @@ import { AppShell } from './components/AppShell';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastRegion, useToasts } from './components/Toast';
 import { sections } from './navigation';
+import { newLoginKey, sectionFromHistoryState, sectionHistoryState, shouldPushSection } from './sectionHistory';
 import {
   initialActionItems,
   initialAgendas,
@@ -247,6 +248,12 @@ export function App() {
   const [slackNewUser, setSlackNewUser] = useState<AuthIdentity | null>(null);
   const [slackError, setSlackError] = useState('');
   const [active, setActive] = useState<Section>('dashboard');
+  // 지금 보고 있는 화면을 이벤트 핸들러(popstate·changeSection)에서 읽으려면 ref 가 필요하다.
+  // 리스너는 등록 시점의 active 를 붙잡은 채 남아 있어서, state 만 보면 낡은 값을 본다.
+  const activeRef = useRef<Section>(active);
+  activeRef.current = active;
+  // 이번 로그인에서 쌓은 히스토리 항목만 우리 것으로 인정하기 위한 표식(sectionHistory.ts).
+  const loginKeyRef = useRef<string>(newLoginKey());
   // Supabase 연결 시(프로덕션)엔 목업 시드로 시작하지 않는다 — DB 로드 전까지 옛/가짜
   // 데이터가 잠깐(느린 모바일에선 오래) 보이던 문제. 시드는 백엔드 없는 로컬 개발 폴백 전용.
   const [issues, setIssues] = useState<Issue[]>(supabase ? [] : initialIssues);
@@ -1672,27 +1679,34 @@ export function App() {
     );
   };
 
-  const changeSection = (section: Section) => {
+  /*
+    권한으로 실제 열릴 화면을 정한다. 막힌 화면은 홈으로 돌린다.
+    화면을 '정하는' 일과 '가는' 일을 나눈 이유: 뒤로가기(popstate)로 돌아올 때도 같은
+    권한 판정을 거쳐야 하는데, 그때는 히스토리를 새로 쌓으면 안 되기 때문이다.
+  */
+  const resolveSection = (section: Section): Section => {
     // 리더 관리함은 실제 리더 역할만. 커넥셔너 전권으로는 딥링크(#leader)로도 못 들어온다.
-    if (section === 'leader' && currentUser && !hasLeaderRole(currentUser)) {
-      setActive('dashboard');
-      return;
-    }
-    if (section === 'accounts' && currentUser && !isTeamLeader(currentUser)) {
-      setActive('dashboard');
-      return;
-    }
+    if (section === 'leader' && currentUser && !hasLeaderRole(currentUser)) return 'dashboard';
+    if (section === 'accounts' && currentUser && !isTeamLeader(currentUser)) return 'dashboard';
     // 시스템 관리는 커넥셔너(슈퍼관리자)만. 딥링크(#system)로도 못 들어온다.
-    if (section === 'system' && currentUser && !isConnectioner(currentUser)) {
-      setActive('dashboard');
-      return;
-    }
+    if (section === 'system' && currentUser && !isConnectioner(currentUser)) return 'dashboard';
     // 플랫폼 관리는 플랫폼 오너만.
-    if (section === 'platform' && currentUser && !isPlatformOwner(currentUser)) {
-      setActive('dashboard');
-      return;
+    if (section === 'platform' && currentUser && !isPlatformOwner(currentUser)) return 'dashboard';
+    return section;
+  };
+
+  /*
+    사용자가 화면을 옮긴다 — 히스토리에 한 칸 쌓아 뒤로가기로 지금 화면에 돌아올 수 있게 한다.
+    주소는 그대로 두고 state 만 남긴다(이유는 sectionHistory.ts).
+    activeRef 를 쓰는 건 changeSection 이 오래된 렌더의 active 를 붙잡고 있을 수 있어서다
+    — 그러면 같은 화면인데도 히스토리가 쌓인다.
+  */
+  const changeSection = (section: Section) => {
+    const target = resolveSection(section);
+    if (shouldPushSection(activeRef.current, target)) {
+      window.history.pushState(sectionHistoryState(target, loginKeyRef.current), '');
     }
-    setActive(section);
+    setActive(target);
   };
 
   // 새 팀 개설(플랫폼 오너 콘솔). 성공하면 목록에 즉시 반영.
@@ -1734,6 +1748,30 @@ export function App() {
   const clearFeedFocus = () => setFeedFocus(null);
   const focusFor = (section: Section) => (feedFocus?.section === section ? feedFocus.id : null);
 
+  /*
+    뒤로가기로 이전 화면. 라우터가 없어 화면 전환이 히스토리에 남지 않던 걸,
+    changeSection 에서 한 칸씩 쌓고 여기서 되돌린다.
+
+    로그인할 때마다 표식을 새로 만들고 현재 항목을 그 표식으로 덮어써(replaceState) 바닥을 깐다.
+    브라우저 히스토리는 지울 수 없어 앞사람이 쌓은 항목이 뒤에 그대로 남는데, 표식이 다르면
+    무시하므로 새로 로그인한 사람이 뒤로가기로 앞사람 화면에 떨어지지 않는다.
+  */
+  useEffect(() => {
+    if (!currentUser) return;
+    loginKeyRef.current = newLoginKey();
+    window.history.replaceState(sectionHistoryState(activeRef.current, loginKeyRef.current), '');
+    const onPopState = (event: PopStateEvent) => {
+      const target = sectionFromHistoryState(event.state, loginKeyRef.current);
+      // 우리가 쌓은 항목이 아니면(앱에 들어오기 전 페이지) 그대로 둔다 — 앱 밖으로 나가는 게 맞다.
+      if (!target) return;
+      // 뒤로가기로 온 것이므로 히스토리를 새로 쌓지 않는다. 권한 판정은 그대로 거친다.
+      setActive(resolveSection(target));
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
+
   // 딥링크: 로그인 상태에서 #해시가 있으면 해당 화면으로 이동(슬랙 알림 링크 진입점).
   // 단, 해시는 '한 번만' 소비하고 주소창에서 지운다. 안 지우면 슬랙 링크로 한 번
   // 들어온 해시가 주소창에 계속 남아, 다음 로그인 때마다 그 페이지로 되돌아간다
@@ -1744,10 +1782,23 @@ export function App() {
     const applyHash = () => {
       const target = SECTION_BY_HASH[window.location.hash];
       if (!target) return;
-      changeSection(target);
+      /*
+        딥링크는 히스토리를 새로 '쌓지' 않고 지금 항목을 덮어쓴다(replace).
+        쌓으면 뒤로가기가 #해시가 남아 있는 이전 항목으로 돌아가고, 그 순간 hashchange 가
+        다시 발동해 같은 화면으로 끌고 온다 — 뒤로가기가 먹지 않는 것처럼 보인다.
+        덮어쓰면 해시가 남은 항목 자체가 사라져, 슬랙에서 들어온 사람은 뒤로가기로
+        슬랙으로 돌아간다(브라우저의 보통 동작).
+      */
+      const resolved = resolveSection(target);
+      setActive(resolved);
       // 해시를 읽는 하위 화면(예: 티미팅 tea 탭)이 먼저 읽도록 다음 틱에 지운다.
+      // state 는 null 로 비우지 않는다 — 비우면 화면 기록이 날아가 popstate 가 화면을 못 찾는다.
       window.setTimeout(() => {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        window.history.replaceState(
+          sectionHistoryState(resolved, loginKeyRef.current),
+          '',
+          window.location.pathname + window.location.search,
+        );
       }, 0);
     };
     applyHash();
