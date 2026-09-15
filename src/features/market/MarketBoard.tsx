@@ -1,3 +1,4 @@
+import type { DetailNav } from '../../detailNav';
 import { useEffect, useState } from 'react';
 import {
   AlertTriangle,
@@ -69,6 +70,12 @@ type MarketBoardProps = {
   onFocusHandled?: () => void;
   /** 홈 피드에서 진입한 상세에서 '뒤로'를 누르면 목록이 아니라 홈으로 돌아간다. */
   onExitToHome?: () => void;
+  /* 목록 → 상세를 브라우저 히스토리에 한 칸으로 남긴다(detailNav.ts).
+     쌓고 되감는 건 App 이, 실제로 열고 닫는 건 여기가 한다. */
+  detailNav: DetailNav;
+  onDetailOpen: (id: string) => void;
+  /** 쌓아둔 칸을 되감았으면 true — 그때는 popstate 가 닫아 주므로 여기서 닫지 않는다. */
+  onDetailExit: () => boolean;
 };
 
 type BoardView = 'feed' | 'create' | 'edit' | 'detail';
@@ -111,6 +118,9 @@ export function MarketBoard({
   focusId,
   onFocusHandled,
   onExitToHome,
+  detailNav,
+  onDetailOpen,
+  onDetailExit,
 }: MarketBoardProps) {
   const [view, setView] = useState<BoardView>('feed');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -137,7 +147,8 @@ export function MarketBoard({
   // 목록 필터에서 빠져도 열어둔 상세는 유지되어야 하므로 전체에서 찾는다.
   const selected = items.find((item) => item.id === selectedId) ?? null;
 
-  const openDetail = (id: string, fromFeed = false) => {
+  // 화면만 상세로 바꾼다. 히스토리는 건드리지 않는다 — 뒤로가기로 복원할 때 쓴다.
+  const showDetail = (id: string, fromFeed = false) => {
     setSelectedId(id);
     setAmountInput('');
     setBidError('');
@@ -146,11 +157,33 @@ export function MarketBoard({
     setOpenedFromFeed(fromFeed);
   };
 
+  const openDetail = (id: string, fromFeed = false) => {
+    showDetail(id, fromFeed);
+    /* 홈 피드에서 바로 연 상세는 쌓지 않는다. 그 경우 '뒤로'의 목적지가 홈인데,
+       홈은 이미 한 칸 아래에 있어서 더 쌓으면 뒤로가기를 두 번 눌러야 한다. */
+    if (!fromFeed) onDetailOpen(id);
+  };
+
   // 상세 '뒤로': 홈에서 들어왔으면 홈으로, 목록에서 들어왔으면 목록으로.
   const backFromDetail = () => {
-    if (openedFromFeed && onExitToHome) onExitToHome();
-    else setView('feed');
+    if (openedFromFeed && onExitToHome) {
+      onExitToHome();
+      return;
+    }
+    // 쌓아둔 칸을 되감으면 popstate 가 목록으로 돌려놓는다. 없을 때만 직접 닫는다.
+    if (!onDetailExit()) setView('feed');
   };
+
+  /*
+    뒤로가기가 이 화면에 닿았다. 돌아간 칸에 상세가 담겨 있으면 그 상세를, 없으면 목록을 연다.
+    tick 이 0 이면 아직 뒤로가기가 없었다는 뜻이라 첫 렌더에서는 아무것도 하지 않는다.
+  */
+  useEffect(() => {
+    if (!detailNav.tick) return;
+    if (detailNav.id) showDetail(detailNav.id); // 되돌아온 것이므로 다시 쌓지 않는다
+    else setView('feed');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailNav.tick]);
 
   // 홈 피드에서 이 물건을 눌러 들어오면 바로 그 상세를 연다(한 번만 소비).
   useEffect(() => {

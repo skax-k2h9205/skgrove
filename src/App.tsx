@@ -30,6 +30,7 @@ import { AppShell } from './components/AppShell';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastRegion, useToasts } from './components/Toast';
 import { sections } from './navigation';
+import { NO_DETAIL_NAV, type DetailNav } from './detailNav';
 import {
   detailFromHistoryState,
   newLoginKey,
@@ -269,6 +270,17 @@ export function App() {
   const [canSessions, setCanSessions] = useState<CanSession[]>(supabase ? [] : initialCanSessions);
   const [canOpinions, setCanOpinions] = useState<CanOpinion[]>(supabase ? [] : initialCanOpinions);
   const [selectedCanId, setSelectedCanId] = useState<string | null>(null);
+  /*
+    뒤로가기가 상세를 가진 화면에 닿았을 때 보드에 내려보내는 신호(detailNav.ts).
+    모임·장터는 상세 상태를 자기가 들고 있어 App 이 직접 바꿀 수 없다.
+  */
+  const [detailNav, setDetailNav] = useState<{ tick: number; section: Section | null; id: string | null }>({
+    tick: 0,
+    section: null,
+    id: null,
+  });
+  const detailNavFor = (section: Section): DetailNav =>
+    detailNav.section === section ? { tick: detailNav.tick, id: detailNav.id } : NO_DETAIL_NAV;
   // 자리배치를 어느 모임에서 열었는가. 새로고침해도 그 모임으로 돌아오도록 id 만 남긴다
   // (제목·신청자는 gatherings 에서 다시 만든다 — 저장해 두면 금세 낡는다).
   const [seatingGatheringId, setSeatingGatheringId] = useState<string | null>(() => {
@@ -1730,6 +1742,21 @@ export function App() {
     화면 안의 '세션 목록' 버튼도 pushState 로 쌓은 칸을 history.back() 으로 되감는다.
     그냥 상태만 지우면 쌓아둔 칸이 남아, 다음 뒤로가기가 상세를 다시 여는 것처럼 보인다.
   */
+  /** 목록 → 상세. 히스토리에 한 칸 쌓아 뒤로가기가 목록으로 돌아오게 한다. */
+  const openSectionDetail = (section: Section, id: string) => {
+    window.history.pushState(sectionHistoryState(section, loginKeyRef.current, id), '');
+  };
+
+  /*
+    상세 안의 '뒤로' 버튼. 쌓아둔 칸이 있으면 되감아 popstate 로 닫는다(true).
+    없으면 false 를 돌려줘 보드가 알아서 닫게 한다 — 홈 피드에서 바로 연 상세가 그렇다.
+  */
+  const exitSectionDetail = (): boolean => {
+    if (!detailFromHistoryState(window.history.state, loginKeyRef.current)) return false;
+    window.history.back();
+    return true;
+  };
+
   const selectCanSession = (id: string | null) => {
     if (id) {
       window.history.pushState(sectionHistoryState('meetings', loginKeyRef.current, id), '');
@@ -1753,6 +1780,11 @@ export function App() {
     // 메뉴로 가는 곳은 언제나 그 화면의 첫 장면이다. 열어 둔 상세는 닫는다
     // (뒤로가기로 돌아오면 히스토리에 담긴 상세가 다시 열린다).
     setSelectedCanId(null);
+    /*
+      지난 뒤로가기 신호를 지운다. 안 지우면 보드가 다시 붙을 때(섹션을 오가면 언마운트된다)
+      그 신호를 새 것으로 읽어, 메뉴를 눌렀을 뿐인데 예전에 보던 상세가 열린다.
+    */
+    setDetailNav({ tick: 0, section: null, id: null });
     setActive(target);
   };
 
@@ -1812,9 +1844,13 @@ export function App() {
       // 우리가 쌓은 항목이 아니면(앱에 들어오기 전 페이지) 그대로 둔다 — 앱 밖으로 나가는 게 맞다.
       if (!target) return;
       // 뒤로가기로 온 것이므로 히스토리를 새로 쌓지 않는다. 권한 판정은 그대로 거친다.
-      setActive(resolveSection(target));
-      // 상세가 담긴 칸이면 그 상세를, 아니면 목록으로.
-      setSelectedCanId(detailFromHistoryState(event.state, loginKeyRef.current));
+      const resolved = resolveSection(target);
+      const detail = detailFromHistoryState(event.state, loginKeyRef.current);
+      setActive(resolved);
+      // 상세가 담긴 칸이면 그 상세를, 아니면 목록으로. 캔미팅은 App 이 id 를 들고 있다.
+      setSelectedCanId(resolved === 'meetings' ? detail : null);
+      // 나머지 보드(모임·장터)는 상세를 자기가 들고 있어 신호로 알린다.
+      setDetailNav((prev) => ({ tick: prev.tick + 1, section: resolved, id: detail }));
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -2183,6 +2219,9 @@ export function App() {
           focusId={focusFor('gatherings')}
           onFocusHandled={clearFeedFocus}
           onExitToHome={() => changeSection('dashboard')}
+          detailNav={detailNavFor('gatherings')}
+          onDetailOpen={(id) => openSectionDetail('gatherings', id)}
+          onDetailExit={exitSectionDetail}
           onOpenSeating={openSeatingFor}
         />
       )}
@@ -2208,6 +2247,9 @@ export function App() {
           focusId={focusFor('market')}
           onFocusHandled={clearFeedFocus}
           onExitToHome={() => changeSection('dashboard')}
+          detailNav={detailNavFor('market')}
+          onDetailOpen={(id) => openSectionDetail('market', id)}
+          onDetailExit={exitSectionDetail}
         />
       )}
       {active === 'notifications' && (
