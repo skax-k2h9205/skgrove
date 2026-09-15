@@ -19,6 +19,12 @@ const SECTION_KEY = 'skgroveSection';
 // 어느 로그인에서 쌓은 항목인가. 로그아웃해도 브라우저 히스토리는 지울 수 없어서,
 // 앞사람이 쌓아둔 항목이 뒤에 그대로 남는다. 표식이 다르면 우리 것이 아니라고 보고 무시한다.
 const LOGIN_KEY = 'skgroveLogin';
+/*
+  화면 안에서 연 상세(예: 캔미팅 세션 하나). 섹션만 쌓으면 캔미팅 상세에서 뒤로가기를 눌렀을 때
+  세션 목록이 아니라 직전 화면(대개 홈)으로 나가버린다. 상세를 열 때 한 칸 더 쌓아 두면
+  첫 뒤로가기는 목록으로, 그다음이 이전 화면으로 간다.
+*/
+const DETAIL_KEY = 'skgroveDetail';
 
 /*
   Record<Section, true> 라서 Section 에 화면을 추가하면 여기도 채우지 않는 한 tsc 가 막는다.
@@ -57,9 +63,13 @@ export function newLoginKey(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** pushState/replaceState 에 넣을 상태 객체. */
-export function sectionHistoryState(section: Section, loginKey: string): Record<string, unknown> {
-  return { [SECTION_KEY]: section, [LOGIN_KEY]: loginKey };
+/** pushState/replaceState 에 넣을 상태 객체. detail 은 화면 안에서 연 상세의 id. */
+export function sectionHistoryState(
+  section: Section,
+  loginKey: string,
+  detail: string | null = null,
+): Record<string, unknown> {
+  return { [SECTION_KEY]: section, [LOGIN_KEY]: loginKey, [DETAIL_KEY]: detail };
 }
 
 /**
@@ -81,4 +91,15 @@ export function sectionFromHistoryState(state: unknown, loginKey: string): Secti
  */
 export function shouldPushSection(current: Section, next: Section): boolean {
   return current !== next;
+}
+
+/**
+ * 돌아온 항목이 열고 있던 상세의 id. 우리가 쌓은 항목이 아니거나 상세가 없으면 null.
+ */
+export function detailFromHistoryState(state: unknown, loginKey: string): string | null {
+  if (!state || typeof state !== 'object') return null;
+  const bag = state as Record<string, unknown>;
+  if (bag[LOGIN_KEY] !== loginKey) return null;
+  const value = bag[DETAIL_KEY];
+  return typeof value === 'string' && value ? value : null;
 }
