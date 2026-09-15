@@ -794,3 +794,25 @@ alter table public.profiles add column if not exists disc_type text;
 alter table public.profiles add column if not exists disc_secondary text;
 alter table public.profiles add column if not exists disc_scores jsonb;
 alter table public.profiles add column if not exists collab_guide text;
+
+/*
+  삭제 정책 보정 — 아래 다섯 테이블은 select/insert(/update) 정책만 있어 delete 가 막혀 있었다.
+  Supabase 는 RLS 가 막은 delete 에 에러를 주지 않아 "0건 삭제"가 성공으로 보였고,
+  데이터 정제(관리자)에서 이 테이블들만 조용히 남았다.
+  나머지 프로토타입 테이블과 같은 using (true) 범위다 — 실서비스 전에 전체 정책을
+  계정 기준으로 좁힐 때 이 다섯 개도 함께 좁힌다.
+*/
+drop policy if exists "Allow prototype issue deletes" on public.issues;
+create policy "Allow prototype issue deletes" on public.issues for delete using (true);
+
+drop policy if exists "Allow prototype agenda deletes" on public.agendas;
+create policy "Allow prototype agenda deletes" on public.agendas for delete using (true);
+
+drop policy if exists "Allow prototype ballot deletes" on public.agenda_ballots;
+create policy "Allow prototype ballot deletes" on public.agenda_ballots for delete using (true);
+
+drop policy if exists "Allow prototype action deletes" on public.action_items;
+create policy "Allow prototype action deletes" on public.action_items for delete using (true);
+
+drop policy if exists "Allow prototype counsel deletes" on public.counsel_messages;
+create policy "Allow prototype counsel deletes" on public.counsel_messages for delete using (true);
