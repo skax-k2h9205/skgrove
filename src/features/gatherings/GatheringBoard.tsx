@@ -1,6 +1,7 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Armchair,
   ArrowLeft,
   Ban,
   CalendarClock,
@@ -70,6 +71,8 @@ type GatheringBoardProps = {
   onCoffeeSkillResult: (gathering: Gathering, game: CoffeeGame, scores: CoffeeScore[]) => void;
   /** 팀리더 권한. 남의 모임도 삭제할 수 있다. */
   canModerate: boolean;
+  // 자리배치로 넘기기. 커넥셔너에게만 App 이 넘겨주며, 없으면 버튼도 안 그린다.
+  onOpenSeating?: (gathering: Gathering) => void;
   /** 완전 삭제(모임 + 신청 기록). 주최자 또는 팀리더만 호출한다. */
   onDelete: (gathering: Gathering) => void;
   /** 등록 직후 배경에서 그림을 그리는 중인 모임. 격자에 '그리는 중' 을 띄운다. */
@@ -174,6 +177,7 @@ export function GatheringBoard({
   onDrawCoffee,
   onCoffeeSkillResult,
   canModerate,
+  onOpenSeating,
   onDelete,
   imagePendingIds,
   focusId,
@@ -380,6 +384,13 @@ export function GatheringBoard({
                 <button className="btn-ghost danger" onClick={() => onCancelGathering(selected)} type="button">
                   <Ban size={16} />
                   모임 취소
+                </button>
+              )}
+
+              {onOpenSeating && (
+                <button className="btn-ghost" onClick={() => onOpenSeating(selected)} type="button">
+                  <Armchair size={16} />
+                  자리배치
                 </button>
               )}
 
