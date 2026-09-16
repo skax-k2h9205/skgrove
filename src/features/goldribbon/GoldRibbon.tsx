@@ -8,7 +8,9 @@ import { useEffect, useState } from 'react';
 import { ExternalLink, UtensilsCrossed } from 'lucide-react';
 
 const APP_URL = 'https://goldribbon.streamlit.app/';
-const EMBED_URL = `${APP_URL}?embed=true`;
+// embed=true 로 렌더(인증 루프 회피) + embed_options=show_padding 으로 하단 여백을 되살려
+// '목록 모드' 체크박스가 고정 입력창과 겹치는 것을 막는다(embed 는 기본적으로 padding 을 없앰).
+const EMBED_URL = `${APP_URL}?embed=true&embed_options=show_padding`;
 
 export function GoldRibbon() {
   const [loaded, setLoaded] = useState(false);
