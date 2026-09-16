@@ -13973,13 +13973,65 @@ button.notif-row {
   gap: 6px;
 }
 
-.goldribbon-frame {
+.goldribbon-frame-wrap {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
+  overflow-x: auto; /* 최소 폭을 넘으면 가로 스크롤 */
+  overflow-y: hidden;
+  position: relative; /* 로딩 오버레이 기준 */
+}
+
+.goldribbon-frame {
+  border: 0;
+  display: block;
   height: calc(100vh - 220px);
   min-height: 560px;
+  min-width: 900px; /* 좁은 창에서도 넓은 레이아웃 유지 → 하단 체크박스 겹침 방지 */
   width: 100%;
+}
+
+.goldribbon-loading {
+  align-items: center;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  inset: 0;
+  justify-content: center;
+  position: absolute;
+  text-align: center;
+  z-index: 1;
+}
+
+.goldribbon-loading p {
+  color: var(--color-ink);
+  font-weight: 600;
+  margin: 0;
+}
+
+.goldribbon-loading span {
+  font-size: var(--text-meta);
+}
+
+.goldribbon-spin {
+  animation: goldribbon-rotate 0.9s linear infinite;
+  color: var(--color-primary);
+}
+
+@keyframes goldribbon-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goldribbon-spin {
+    animation: none;
+  }
+}
+
 /* 캔미팅 — 모바일. 720px 블록에 .can-* 규칙이 하나도 없어 1100px 값으로 버티고 있었다. */
 @media (max-width: 720px) {
   .can-step-picker button,
