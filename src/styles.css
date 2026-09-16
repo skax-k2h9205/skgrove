@@ -13971,8 +13971,9 @@ button.notif-row {
 }
 
 .goldribbon-credit {
-  color: var(--color-muted);
+  color: var(--color-ink);
   font-size: var(--text-meta);
+  font-weight: 600;
   margin: 3px 0 0;
 }
 

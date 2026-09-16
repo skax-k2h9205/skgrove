@@ -27,7 +27,7 @@ export function GoldRibbon() {
         <div className="goldribbon-head-text">
           <p className="can-hint">근무지별 점심 맛집을 추천해주는 챗봇이에요. 메뉴·가격·도보시간으로 검색해 보세요.</p>
           {/* 담당자(문의·개선·버그) 표기. 추후 슬랙 DM 링크 연결 예정. */}
-          <p className="goldribbon-credit">담당자 · 김금 (PM혁신파트)</p>
+          <p className="goldribbon-credit">담당자: 김금 (PM혁신파트)</p>
         </div>
         <a className="secondary-button goldribbon-open" href={APP_URL} target="_blank" rel="noopener noreferrer">
           <ExternalLink size={15} />새 탭에서 열기
