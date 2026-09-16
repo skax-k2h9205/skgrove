@@ -3,13 +3,19 @@
 //   앱을 넓은 레이아웃으로 렌더하고 좁으면 가로 스크롤한다.
 // - 앱이 깨어나는 데 몇 초 걸리므로 로딩 스피너를 덮어둔다(iframe onLoad 시 제거).
 // - 임베드가 막히는 환경 대비 '새 탭에서 열기' 링크도 둔다.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ExternalLink, UtensilsCrossed } from 'lucide-react';
 
 const APP_URL = 'https://goldribbon.streamlit.app/';
 
 export function GoldRibbon() {
   const [loaded, setLoaded] = useState(false);
+
+  // 이 앱은 리다이렉트가 많아 iframe onLoad 가 안 불릴 수 있다 → 6초 후엔 무조건 오버레이 제거.
+  useEffect(() => {
+    const timer = setTimeout(() => setLoaded(true), 6000);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <section className="panel goldribbon-panel">
