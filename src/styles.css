@@ -13947,6 +13947,39 @@ button.notif-row {
 .guide-frame-wrap { border: 1px solid #d5dced; border-radius: 14px; overflow: hidden; background: #f5f7fb; height: calc(100vh - 190px); min-height: 520px; }
 .guide-frame { width: 100%; height: 100%; border: 0; display: block; }
 
+/* ===== 맛집추천(GoldRibbon) 임베드 ===== */
+.goldribbon-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.goldribbon-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.goldribbon-head .can-hint {
+  margin: 0;
+}
+
+.goldribbon-open {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+}
+
+.goldribbon-frame {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  height: calc(100vh - 220px);
+  min-height: 560px;
+  width: 100%;
 /* 캔미팅 — 모바일. 720px 블록에 .can-* 규칙이 하나도 없어 1100px 값으로 버티고 있었다. */
 @media (max-width: 720px) {
   .can-step-picker button,

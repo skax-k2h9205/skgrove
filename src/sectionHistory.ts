@@ -52,6 +52,7 @@ const KNOWN_SECTIONS: Record<Section, true> = {
   notifications: true,
   humor: true,
   market: true,
+  goldribbon: true,
 };
 
 export function isSection(value: unknown): value is Section {
