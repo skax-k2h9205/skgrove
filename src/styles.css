@@ -13985,9 +13985,10 @@ button.notif-row {
 .goldribbon-frame {
   border: 0;
   display: block;
-  height: calc(100vh - 220px);
-  min-height: 560px;
-  min-width: 900px; /* 좁은 창에서도 넓은 레이아웃 유지 → 하단 체크박스 겹침 방지 */
+  /* 단독 창 높이에 가깝게 키운다 — 낮으면 하단 입력창과 '목록 모드' 체크박스가 겹친다. */
+  height: calc(100vh - 150px);
+  min-height: 680px;
+  min-width: 900px; /* 좁은 창에서도 넓은 레이아웃 유지 → 겹침 완화 */
   width: 100%;
 }
 
