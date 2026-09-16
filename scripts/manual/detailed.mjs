@@ -231,9 +231,9 @@ const MEMBER = {
         ] },
     ] },
     { key: 'goldribbon', nav: '맛집추천(GoldRibbon)', sequence: [
-      { title: '맛집추천(GoldRibbon)', desc: '근무지별 점심 맛집을 추천해주는 챗봇이에요. 왼쪽에서 근무지를 고르고 "점심 뭐 먹을까요?"처럼 물어보면 메뉴·가격·도보시간으로 추천해줘요. 매장명을 누르면 네이버 상세로 이동합니다.',
+      { title: '맛집추천(GoldRibbon)', desc: '근무지별 점심 맛집을 추천해주는 챗봇이에요. 이 화면에서 바로 근무지를 고르고 "점심 뭐 먹을까요?"처럼 물어보면 메뉴·가격·도보시간으로 추천해줘요. 매장명을 누르면 네이버 상세로 이동합니다. (더 크게 보고 싶을 때만 "새 탭에서 열기"를 쓰면 돼요.)',
         actions: [{ wait: 6000 }], // 임베드 앱 로딩 대기 후 캡처
-        targets: [{ css: '.goldribbon-open', label: '앱을 새 탭에서 크게 열기' }] },
+        targets: [{ css: '.goldribbon-open', label: '(선택) 더 크게 보려면 새 탭에서 — 여기서 바로 써도 돼요' }] },
     ] },
     { key: 'metrics', title: '파트지수 / 리포트', nav: '파트지수 / 리포트', desc: '회의 건강도 등 파트 지표를 보는 리포트 화면입니다.', targets: [] },
     { key: 'notifications', title: '알림 / 메시지', nav: '알림 / 메시지', desc: '나에게 온 알림과 개인 메시지를 확인합니다.',
