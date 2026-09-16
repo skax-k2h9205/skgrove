@@ -1,9 +1,9 @@
 // 근무지별 점심 맛집 추천 챗봇(GoldRibbon, 공개 Streamlit 앱)을 iframe 으로 임베드.
-// ?embed=true 로 Streamlit 자체 메뉴·푸터를 숨긴다. 혹시 임베드가 막히는 환경 대비 '새 탭' 링크도 둔다.
+// ?embed=true 는 이 앱에서 하단 '목록 모드' 체크박스가 입력창과 겹치는 레이아웃 깨짐을 유발해
+// 일반 URL 을 그대로 쓴다(단독 접속과 동일한 깔끔한 화면). 임베드 막히는 환경 대비 '새 탭' 링크 병행.
 import { ExternalLink } from 'lucide-react';
 
 const APP_URL = 'https://goldribbon.streamlit.app/';
-const EMBED_URL = `${APP_URL}?embed=true`;
 
 export function GoldRibbon() {
   return (
@@ -16,7 +16,7 @@ export function GoldRibbon() {
       </div>
       <iframe
         className="goldribbon-frame"
-        src={EMBED_URL}
+        src={APP_URL}
         title="맛집추천 GoldRibbon"
         loading="lazy"
         allow="clipboard-write"

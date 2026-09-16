@@ -47,3 +47,4 @@ scripts/set-account-photos.mjs
 # public/ 은 배포되면 URL 만으로 열리므로 공개 저장소에 올리지 않는다.
 # 앱 안의 자리배치(커넥셔너 전용, features/seating)가 정식 경로다.
 public/seating.html
+pims_login_tmp.mjs
