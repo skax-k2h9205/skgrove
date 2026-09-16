@@ -6735,6 +6735,113 @@ textarea {
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
 }
 
+/* 왼쪽 제출 폼은 오른쪽 의견 목록 높이를 따라가지 않는다.
+   의견이 많아지면 폼 패널이 그 높이로 늘어나고, .form-panel 이 grid 라 남는 공간을
+   label 사이에 골고루 나눠 갖았다 — Step 버튼이 알약처럼 커지고 간격이 벌어지던 원인. */
+.can-two > .form-panel {
+  align-self: start;
+}
+
+/* 의견 목록은 자기 안에서 스크롤한다. 목록 길이가 곧 페이지 길이면 50건만 넘어도
+   폼이 화면 밖으로 밀려, 쓰려면 매번 맨 위로 올라와야 했다. */
+.can-two .can-list-scroll {
+  max-height: min(64vh, 640px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+/* 진행자 수집 현황: 의견 전량은 기본 접고, 펼치면 컬럼마다 스크롤한다. */
+.can-collapse > summary {
+  color: var(--color-primary-strong);
+  cursor: pointer;
+  font-size: var(--text-meta);
+  font-weight: 700;
+  padding: var(--space-2) 0;
+}
+
+.can-part-columns-capped .can-part-column {
+  max-height: min(52vh, 480px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* label 대신 쓰는 버튼 그룹 묶음 — 톤은 label(위) 과 같다. */
+.field-block {
+  display: grid;
+  gap: 7px;
+}
+
+.field-legend {
+  color: var(--color-ink);
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+
+.can-form-locked {
+  background: var(--tint-neutral);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-ink);
+  font-size: var(--text-meta);
+  margin: 0;
+  padding: 10px var(--space-3);
+}
+
+.can-char-count {
+  color: var(--color-muted);
+  font-size: var(--text-micro);
+  font-weight: 500;
+  justify-self: end;
+}
+
+.can-submit-status {
+  color: var(--color-primary-strong);
+  font-size: var(--text-meta);
+  margin: -6px 0 0;
+  min-height: 1.2em;
+}
+
+/* 긴 의견은 6줄에서 접는다. 줄바꿈은 살린다. */
+.can-opinion-text {
+  white-space: pre-wrap;
+}
+
+.can-opinion-text.clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+}
+
+.can-opinion-more {
+  background: none;
+  border: 0;
+  color: var(--color-primary-strong);
+  cursor: pointer;
+  font-size: var(--text-micro);
+  font-weight: 700;
+  justify-self: start;
+  padding: 0;
+}
+
+/* span/small 은 파일 상단의 전역 줄바꿈 규칙(p, li, button …)에서 빠져 있다.
+   공백 없는 긴 문자열(URL 등)이 카드와 선정 버튼을 뚫고 가로 스크롤을 만들었다. */
+.can-select-body,
+.can-opinion-top small,
+.can-meta,
+.can-badge,
+.can-part-column h3 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.can-select-body > span:last-child {
+  white-space: pre-wrap;
+}
+
 .ghost-button {
   align-items: center;
   background: var(--color-surface);
@@ -6776,8 +6883,9 @@ textarea {
 .can-part-columns {
   display: grid;
   gap: var(--space-3);
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  /* 파트 6개를 한 줄에 억지로 넣으면 열당 140px, 한글 7~8자/줄이 됐다.
+     220px 밑으로는 다음 줄로 접는다. 위 카운트 칩도 같은 트랙 정의를 써서 열이 맞는다. */
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   margin: 12px 0 16px;
 }
 
@@ -6803,7 +6911,7 @@ textarea {
   align-items: center;
   background: var(--color-primary-strong);
   border-radius: 999px;
-  color: var(--color-primary);
+  color: var(--color-surface); /* 남색 위 파란 글자는 2.2:1 이었다 */
   display: inline-flex;
   font-size: var(--text-meta);
   height: 22px;
@@ -6855,6 +6963,31 @@ textarea {
 .can-opinion-top small {
   color: var(--color-muted);
   margin-left: auto;
+}
+
+/* 본인이 낸 의견만 붙는 삭제 버튼. 평소엔 옅게, 카드에 올리면 또렷하게. */
+.can-opinion-del {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  opacity: 0.55;
+  padding: 4px;
+}
+
+.can-opinion:hover .can-opinion-del,
+.can-opinion-del:focus-visible {
+  opacity: 1;
+}
+
+.can-opinion-del:hover {
+  background: var(--color-btn-soft);
+  color: var(--color-danger);
+  opacity: 1;
 }
 
 .can-badge {
@@ -6993,8 +7126,7 @@ textarea {
 }
 
 .can-count-inline {
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
 }
 
 .can-part-column.bare {
@@ -7158,7 +7290,8 @@ textarea {
   }
 }
 
-.form-panel input:disabled {
+.form-panel input:disabled,
+.form-panel input:read-only {
   background: var(--tint-primary);
   color: var(--color-muted);
   cursor: not-allowed;
@@ -7182,6 +7315,23 @@ textarea {
   font-size: var(--text-meta);
 }
 
+/* 요약을 무엇이 만들었는지. AI 가 돈 것과 중복만 정리한 것은 결과가 크게 다른데
+   예전에는 화면에 똑같이 'AI요약' 으로만 보였다. */
+.can-ai-source {
+  background: var(--tint-primary);
+  border-radius: var(--radius-full);
+  color: var(--tint-primary-ink);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.can-ai-source.local {
+  background: var(--tint-neutral);
+  color: var(--color-danger);
+}
+
 .can-header-grid {
   display: grid;
   gap: var(--space-3);
@@ -7189,6 +7339,7 @@ textarea {
 }
 
 .can-step-picker {
+  align-items: flex-start; /* 한 버튼이 두 줄이 돼도 옆 버튼을 같이 늘리지 않는다 */
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
@@ -7196,18 +7347,39 @@ textarea {
 
 .can-step-picker button {
   background: var(--color-surface);
-  border: 1px solid var(--color-sunken);
-  border-radius: 999px;
+  border: 1px solid var(--color-border); /* sunken 은 흰 패널 위에서 1.02:1 — 안 보였다 */
+  border-radius: 18px; /* 한 줄이면 알약, 두 줄이면 둥근 사각형. 999px 은 두 줄에서 럭비공이 된다 */
   color: var(--color-ink);
   font-weight: 700;
+  line-height: 1.35;
+  max-width: 100%;
   min-height: 36px;
-  padding: 0 14px;
+  padding: 7px 14px;
+  text-align: left;
 }
 
 .can-step-picker .selected {
   background: var(--color-primary-strong);
   border-color: var(--color-primary-strong);
   color: var(--color-surface);
+}
+
+/* 선택 표식을 색 반전에만 맡기지 않는다 */
+.can-step-picker [aria-checked='true']::before,
+.segmented [aria-checked='true']::before {
+  content: '✓ ';
+}
+
+/* 목록 필터용 작은 칩 — 폼의 Step 선택과 헷갈리지 않게 확실히 작다 */
+.can-step-picker.compact {
+  margin-bottom: var(--space-3);
+}
+
+.can-step-picker.compact button {
+  font-size: var(--text-micro);
+  font-weight: 600;
+  min-height: 28px;
+  padding: 3px 10px;
 }
 
 .can-step-hint {
@@ -13808,4 +13980,193 @@ button.notif-row {
   height: calc(100vh - 220px);
   min-height: 560px;
   width: 100%;
+/* 캔미팅 — 모바일. 720px 블록에 .can-* 규칙이 하나도 없어 1100px 값으로 버티고 있었다. */
+@media (max-width: 720px) {
+  .can-step-picker button,
+  .segmented button {
+    min-height: 44px;
+  }
+
+  .can-step-picker.compact button {
+    min-height: 36px;
+  }
+
+  .can-two > .form-panel textarea {
+    min-height: 96px;
+  }
+
+  .can-two .can-list-scroll {
+    max-height: 56vh;
+  }
+
+  .can-stepper {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== 회식 자리배치(커넥셔너) ===== */
+.seating-roster { display: flex; flex-direction: column; gap: 4px; max-height: 340px; overflow-y: auto; margin-top: 12px; }
+.seating-row {
+  align-items: center; border-bottom: 1px solid var(--color-sunken); display: grid; gap: 10px; padding: 5px 0;
+  grid-template-columns: minmax(130px, 1fr) minmax(90px, 0.8fr) minmax(110px, 1fr) minmax(120px, 1fr);
+}
+.seating-row.out { opacity: 0.55; }
+.seating-row.out .seating-attend span { text-decoration: line-through; }
+.seating-attend { align-items: center; cursor: pointer; display: flex; font-weight: 600; gap: 8px; min-width: 0; }
+/* 전역 input 규칙이 width:100% 라 체크박스가 칸을 다 먹는다. 여기서만 되돌린다. */
+.seating-attend input[type='checkbox'] { flex: 0 0 auto; height: 17px; min-height: 0; margin: 0; padding: 0; width: 17px; }
+.seating-attend span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seating-part { color: var(--color-muted); font-size: var(--text-meta); }
+
+.seating-source {
+  background: var(--color-primary-soft); border-radius: var(--radius); color: var(--color-primary-strong);
+  font-size: var(--text-meta); margin: 12px 0 0; padding: 10px 13px;
+}
+
+.seating-controls { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.seating-lock {
+  background: var(--color-sunken); border-radius: 999px; color: var(--color-primary-strong);
+  font-size: var(--text-meta); font-weight: 700; padding: 5px 12px;
+}
+
+.seating-scores { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 0; }
+.seating-score { background: var(--color-sunken); border-radius: var(--radius); flex: 1 1 170px; padding: 10px 12px; }
+.seating-score dt { color: var(--color-muted); font-size: var(--text-meta); margin: 0 0 3px; }
+.seating-score dd { font-size: var(--text-body-lg); font-weight: 700; margin: 0; }
+.seating-score dd small { color: var(--color-muted); display: block; font-size: var(--text-meta); font-weight: 500; }
+.seating-score.ok dd { color: var(--color-success); }
+.seating-score.mid dd { color: var(--tint-danger-ink); }
+.seating-score.bad dd { color: var(--tint-danger-ink); }
+
+.seating-lines { display: flex; flex-direction: column; gap: 22px; }
+.seating-line { display: flex; flex-direction: column; gap: 7px; }
+.seating-linelabel { color: var(--color-muted); font-size: var(--text-meta); font-weight: 700; letter-spacing: 0.08em; }
+.seating-room { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+.seating-rail { display: flex; flex: 0 0 auto; flex-direction: column; gap: 8px; justify-content: space-between; padding: 12px 0; }
+.seating-rail span { align-items: center; color: var(--color-muted); display: flex; font-size: var(--text-meta); font-weight: 700; min-height: 70px; }
+.seating-rail .mid { min-height: 32px; }
+.seating-table {
+  background: var(--color-surface); border: 1px solid var(--color-sunken); border-radius: var(--radius);
+  display: flex; flex: 0 0 auto; flex-direction: column; gap: 8px; padding: 12px;
+}
+.seating-side { display: flex; gap: 8px; }
+.seating-slab {
+  align-items: center; background: var(--color-ink); border-radius: 6px; color: var(--color-surface);
+  display: flex; font-size: var(--text-meta); font-weight: 700; justify-content: center; min-height: 32px;
+}
+.seating-seat {
+  background: var(--color-sunken); border: 1px solid transparent; border-radius: 8px; color: var(--color-ink);
+  cursor: pointer; display: flex; flex-direction: column; gap: 2px; justify-content: center;
+  min-height: 70px; padding: 8px 6px; text-align: center; width: 88px;
+}
+.seating-seat .no { color: var(--color-muted); font-size: 10px; font-weight: 700; }
+.seating-seat .nm { font-size: var(--text-body); font-weight: 700; }
+.seating-seat .pt { font-size: 10.5px; font-weight: 600; }
+.seating-seat .meta { color: var(--color-muted); font-size: 10px; }
+.seating-seat.vacant { background: transparent; border: 1px dashed var(--color-sunken); }
+.seating-seat.vacant .nm { color: var(--color-muted); font-size: var(--text-meta); font-weight: 500; }
+.seating-seat.picked { border-color: var(--color-primary-strong); box-shadow: 0 0 0 2px var(--color-primary-strong); }
+.seating-seat:disabled { cursor: default; }
+
+.seating-absent { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.seating-absent span {
+  background: var(--color-surface); border: 1px dashed var(--color-sunken); border-radius: 999px;
+  color: var(--color-muted); font-size: var(--text-meta); padding: 6px 13px;
+}
+.seating-absent b { color: var(--color-ink); text-decoration: line-through; }
+
+.seating-notice {
+  background: var(--color-sunken); border-radius: var(--radius); font-size: var(--text-meta);
+  line-height: 1.7; margin-top: 12px; overflow-x: auto; padding: 12px 14px; white-space: pre-wrap;
+}
+
+@media (max-width: 720px) {
+  .seating-row { grid-template-columns: 1fr 1fr; }
+  .seating-rail { display: none; }
+  .seating-seat { min-height: 62px; width: 76px; }
+}
+
+/*
+  결과 표 인쇄 / PDF 저장.
+
+  PPT 는 슬라이드 크기가 정해져 있어(10 x 5.625인치) 의견이 늘면 표가 슬라이드 밖으로 넘친다.
+  인쇄는 흐르는 문서라 길어지면 다음 장으로 자연히 넘어간다. 화면에 이미 그린 결과 표를
+  그대로 쓰므로 보이는 것과 나오는 것이 같다.
+
+  한 화면에 .can-template 은 하나만 뜬다(세션 결과와 팀 취합은 동시에 나오지 않는다).
+*/
+@page {
+  margin: 14mm;
+  size: A4;
+}
+
+@media print {
+  /* 결과 표만 남긴다. display:none 으로 지우면 부모 레이아웃까지 무너져 자리가 틀어진다. */
+  body * {
+    visibility: hidden;
+  }
+
+  .can-template,
+  .can-template * {
+    visibility: visible;
+  }
+
+  .can-template {
+    border: 1px solid #333333;
+    border-radius: 0;
+    left: 0;
+    margin: 0;
+    overflow: visible; /* 화면용 hidden 을 두면 인쇄에서 잘린다 */
+    position: absolute;
+    top: 0;
+    width: 100%;
+  }
+
+  .can-template-title {
+    background: none;
+    border-bottom: 1px solid #333333;
+    color: #000000;
+    font-size: 15pt;
+    font-weight: 700;
+  }
+
+  .can-template-head th,
+  .can-template-head td,
+  .can-template-steps th,
+  .can-template-steps td {
+    background: none;
+    border: 1px solid #333333;
+    color: #000000;
+    font-size: 10pt;
+    padding: 6pt 8pt;
+  }
+
+  /* 화면에서는 Step 칸을 150px 로 고정하고 줄바꿈을 막아 뒀다. 단계 이름이 길면
+     그 폭이 본문을 밀어내므로 인쇄에서는 풀어 준다. */
+  .can-template-steps th {
+    white-space: normal;
+    width: 20%;
+  }
+
+  /* 머리표(팀명·시행일시·주제)는 쪼개지지 않게. Step 행은 길면 다음 장으로 이어지되
+     의견 한 줄이 페이지 경계에서 잘리지는 않게 한다. */
+  .can-template-head {
+    break-inside: avoid;
+  }
+
+  .can-template-steps tr {
+    break-inside: auto;
+  }
+
+  .can-template-steps li {
+    break-inside: avoid;
+    line-height: 1.5;
+  }
+
+  /* 화면에서 6줄로 접어 둔 긴 의견이 인쇄에서도 잘리면 안 된다. */
+  .can-opinion-text.clamped {
+    -webkit-line-clamp: none;
+    display: block;
+    overflow: visible;
+  }
 }

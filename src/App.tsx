@@ -7,6 +7,8 @@ import { hasVoted, loadBallots, makeVoterKey, saveBallots } from './ballotStore'
 import { hasLeaderRole, isAdmin, isConnectioner, isLeader, isPlatformOwner, isTeamLeader, teamParts } from './auth';
 import { loadCanSteps, saveCanSteps } from './canStepsStore';
 import {
+  deleteCanOpinionRecord,
+  deleteCanSessionRecord,
   loadCanOpinions,
   loadCanSessions,
   makeCanOpinionId,
@@ -28,6 +30,14 @@ import { AppShell } from './components/AppShell';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastRegion, useToasts } from './components/Toast';
 import { sections } from './navigation';
+import { NO_DETAIL_NAV, type DetailNav } from './detailNav';
+import {
+  detailFromHistoryState,
+  newLoginKey,
+  sectionFromHistoryState,
+  sectionHistoryState,
+  shouldPushSection,
+} from './sectionHistory';
 import {
   initialActionItems,
   initialAgendas,
@@ -71,6 +81,7 @@ import { Metrics } from './features/metrics/Metrics';
 import { GrowthCard } from './features/growth/GrowthCard';
 import { NotificationCenter } from './features/notifications/NotificationCenter';
 import { Profiles } from './features/profiles/Profiles';
+import { Seating } from './features/seating/Seating';
 import { ChangePassword } from './features/auth/ChangePassword';
 import { deleteIssue, loadIssues, makeIssueId, saveIssues } from './issueStore';
 import { deliverDm, deliverToSlack, sendAnnouncement } from './notificationDelivery';
@@ -216,6 +227,7 @@ const SECTION_BY_HASH: Record<string, Section> = {
   '#meetings-tea': 'meetings',
   '#profiles': 'profiles',
   '#connect': 'connect',
+  '#seating': 'seating',
   '#memory': 'memory',
   '#metrics': 'metrics',
   '#accounts': 'accounts',
@@ -244,6 +256,12 @@ export function App() {
   const [slackNewUser, setSlackNewUser] = useState<AuthIdentity | null>(null);
   const [slackError, setSlackError] = useState('');
   const [active, setActive] = useState<Section>('dashboard');
+  // 지금 보고 있는 화면을 이벤트 핸들러(popstate·changeSection)에서 읽으려면 ref 가 필요하다.
+  // 리스너는 등록 시점의 active 를 붙잡은 채 남아 있어서, state 만 보면 낡은 값을 본다.
+  const activeRef = useRef<Section>(active);
+  activeRef.current = active;
+  // 이번 로그인에서 쌓은 히스토리 항목만 우리 것으로 인정하기 위한 표식(sectionHistory.ts).
+  const loginKeyRef = useRef<string>(newLoginKey());
   // Supabase 연결 시(프로덕션)엔 목업 시드로 시작하지 않는다 — DB 로드 전까지 옛/가짜
   // 데이터가 잠깐(느린 모바일에선 오래) 보이던 문제. 시드는 백엔드 없는 로컬 개발 폴백 전용.
   const [issues, setIssues] = useState<Issue[]>(supabase ? [] : initialIssues);
@@ -253,6 +271,26 @@ export function App() {
   const [canSessions, setCanSessions] = useState<CanSession[]>(supabase ? [] : initialCanSessions);
   const [canOpinions, setCanOpinions] = useState<CanOpinion[]>(supabase ? [] : initialCanOpinions);
   const [selectedCanId, setSelectedCanId] = useState<string | null>(null);
+  /*
+    뒤로가기가 상세를 가진 화면에 닿았을 때 보드에 내려보내는 신호(detailNav.ts).
+    모임·장터는 상세 상태를 자기가 들고 있어 App 이 직접 바꿀 수 없다.
+  */
+  const [detailNav, setDetailNav] = useState<{ tick: number; section: Section | null; id: string | null }>({
+    tick: 0,
+    section: null,
+    id: null,
+  });
+  const detailNavFor = (section: Section): DetailNav =>
+    detailNav.section === section ? { tick: detailNav.tick, id: detailNav.id } : NO_DETAIL_NAV;
+  // 자리배치를 어느 모임에서 열었는가. 새로고침해도 그 모임으로 돌아오도록 id 만 남긴다
+  // (제목·신청자는 gatherings 에서 다시 만든다 — 저장해 두면 금세 낡는다).
+  const [seatingGatheringId, setSeatingGatheringId] = useState<string | null>(() => {
+    try {
+      return window.localStorage.getItem('skgrove:seating:room');
+    } catch {
+      return null;
+    }
+  });
   const [actionItems, setActionItems] = useState<ActionItem[]>(supabase ? [] : initialActionItems);
   // DB(있으면)에서 비동기 로드하므로 초기값은 시드/기본값으로 두고 useEffect에서 덮어쓴다.
   const [canSteps, setCanSteps] = useState<CanStepConfig[]>(CAN_STEPS);
@@ -775,6 +813,30 @@ export function App() {
     if (target && isOpen(target)) notifyStatus(`안건을 마감했습니다 · ${finalStatus(target)}`);
   };
 
+  const openSeatingFor = (gathering: Gathering) => {
+    setSeatingGatheringId(gathering.id);
+    try {
+      window.localStorage.setItem('skgrove:seating:room', gathering.id);
+    } catch {
+      /* 저장 실패해도 이번 세션에서는 동작한다 */
+    }
+    changeSection('seating');
+  };
+
+  // 명단 자체는 활성 계정 전체를 보여주고 이 이름들만 '참석'으로 맞춘다
+  // — 신청 안 한 사람도 커넥셔너가 넣을 수 있어야 한다.
+  const seatingSource = useMemo(() => {
+    const gathering = gatherings.find((item) => item.id === seatingGatheringId);
+    if (!gathering) return null;
+    const { confirmed } = splitRoster(gathering, gatheringSignups);
+    return {
+      id: gathering.id,
+      key: `${gathering.id}:${confirmed.length}`,
+      title: gathering.title,
+      names: confirmed.map((signup) => signup.name),
+    };
+  }, [seatingGatheringId, gatherings, gatheringSignups]);
+
   const persistCanSessions = (next: CanSession[]) => {
     setCanSessions(next);
     void saveCanSessions(next);
@@ -800,7 +862,7 @@ export function App() {
       followUp: null,
     };
     persistCanSessions([draft, ...canSessions]);
-    setSelectedCanId(id);
+    selectCanSession(id);
   };
 
   const updateCanSession = (session: CanSession) => {
@@ -810,12 +872,22 @@ export function App() {
   const deleteCanSession = (id: string) => {
     persistCanSessions(canSessions.filter((item) => item.id !== id));
     persistCanOpinions(canOpinions.filter((opinion) => opinion.sessionId !== id));
+    // save 는 빠진 행을 지우지 않는다(syncRows deletes 기본 끔) → DB 행은 여기서 직접 지운다.
+    void deleteCanSessionRecord(id);
     if (selectedCanId === id) setSelectedCanId(null);
     notifyStatus('캔미팅 세션을 삭제했습니다.');
   };
 
+  // 제출한 의견의 id 를 돌려준다 — 화면이 "내가 낸 것"으로 기억해 본인 삭제에 쓴다.
   const addCanOpinion = (opinion: Omit<CanOpinion, 'id' | 'selected'>) => {
-    persistCanOpinions([...canOpinions, { ...opinion, id: makeCanOpinionId(), selected: false }]);
+    const id = makeCanOpinionId();
+    persistCanOpinions([...canOpinions, { ...opinion, id, selected: false }]);
+    return id;
+  };
+
+  const deleteCanOpinion = (id: string) => {
+    persistCanOpinions(canOpinions.filter((opinion) => opinion.id !== id));
+    void deleteCanOpinionRecord(id);
   };
 
   const toggleCanOpinion = (id: string) => {
@@ -827,6 +899,22 @@ export function App() {
   const updateCanSteps = (steps: CanStepConfig[]) => {
     setCanSteps(steps);
     void saveCanSteps(steps);
+  };
+
+  /*
+    결과 확정을 되돌린다. 확정하면 AI 요약 버튼과 원문/AI 토글이 닫히는데, 되돌릴 길이 없어
+    한 번 확정한 세션은 영영 다시 정리할 수 없었다.
+
+    followUp(안건·액션아이템으로 내보낸 기록)은 지우지 않는다. 이미 만들어진 안건과 액션은
+    그대로 남아 있고, 이 기록이 applyCanFollowUp 의 중복 방지 장치라 지우면 같은 항목이
+    두 번 생긴다.
+  */
+  const reopenCanResult = (sessionId: string) => {
+    persistCanSessions(
+      canSessions.map((session) =>
+        session.id === sessionId ? { ...session, resultSummary: '', resultGroups: undefined } : session,
+      ),
+    );
   };
 
   const confirmCanResult = (sessionId: string, summary: string, groups: CanResultGroup[]) => {
@@ -1626,27 +1714,79 @@ export function App() {
     );
   };
 
-  const changeSection = (section: Section) => {
+  /*
+    권한으로 실제 열릴 화면을 정한다. 막힌 화면은 홈으로 돌린다.
+    화면을 '정하는' 일과 '가는' 일을 나눈 이유: 뒤로가기(popstate)로 돌아올 때도 같은
+    권한 판정을 거쳐야 하는데, 그때는 히스토리를 새로 쌓으면 안 되기 때문이다.
+  */
+  const resolveSection = (section: Section): Section => {
     // 리더 관리함은 실제 리더 역할만. 커넥셔너 전권으로는 딥링크(#leader)로도 못 들어온다.
-    if (section === 'leader' && currentUser && !hasLeaderRole(currentUser)) {
-      setActive('dashboard');
-      return;
-    }
-    if (section === 'accounts' && currentUser && !isTeamLeader(currentUser)) {
-      setActive('dashboard');
-      return;
-    }
+    if (section === 'leader' && currentUser && !hasLeaderRole(currentUser)) return 'dashboard';
+    if (section === 'accounts' && currentUser && !isTeamLeader(currentUser)) return 'dashboard';
     // 시스템 관리는 커넥셔너(슈퍼관리자)만. 딥링크(#system)로도 못 들어온다.
-    if (section === 'system' && currentUser && !isConnectioner(currentUser)) {
-      setActive('dashboard');
-      return;
-    }
+    if (section === 'system' && currentUser && !isConnectioner(currentUser)) return 'dashboard';
     // 플랫폼 관리는 플랫폼 오너만.
-    if (section === 'platform' && currentUser && !isPlatformOwner(currentUser)) {
-      setActive('dashboard');
+    if (section === 'platform' && currentUser && !isPlatformOwner(currentUser)) return 'dashboard';
+    return section;
+  };
+
+  /*
+    사용자가 화면을 옮긴다 — 히스토리에 한 칸 쌓아 뒤로가기로 지금 화면에 돌아올 수 있게 한다.
+    주소는 그대로 두고 state 만 남긴다(이유는 sectionHistory.ts).
+    activeRef 를 쓰는 건 changeSection 이 오래된 렌더의 active 를 붙잡고 있을 수 있어서다
+    — 그러면 같은 화면인데도 히스토리가 쌓인다.
+  */
+  /*
+    캔미팅 세션 상세를 열고 닫는다. 여는 순간 히스토리에 한 칸 쌓아, 뒤로가기가 앱 밖이나
+    직전 화면이 아니라 '세션 목록'으로 돌아오게 한다.
+
+    화면 안의 '세션 목록' 버튼도 pushState 로 쌓은 칸을 history.back() 으로 되감는다.
+    그냥 상태만 지우면 쌓아둔 칸이 남아, 다음 뒤로가기가 상세를 다시 여는 것처럼 보인다.
+  */
+  /** 목록 → 상세. 히스토리에 한 칸 쌓아 뒤로가기가 목록으로 돌아오게 한다. */
+  const openSectionDetail = (section: Section, id: string) => {
+    window.history.pushState(sectionHistoryState(section, loginKeyRef.current, id), '');
+  };
+
+  /*
+    상세 안의 '뒤로' 버튼. 쌓아둔 칸이 있으면 되감아 popstate 로 닫는다(true).
+    없으면 false 를 돌려줘 보드가 알아서 닫게 한다 — 홈 피드에서 바로 연 상세가 그렇다.
+  */
+  const exitSectionDetail = (): boolean => {
+    if (!detailFromHistoryState(window.history.state, loginKeyRef.current)) return false;
+    window.history.back();
+    return true;
+  };
+
+  const selectCanSession = (id: string | null) => {
+    if (id) {
+      window.history.pushState(sectionHistoryState('meetings', loginKeyRef.current, id), '');
+      setSelectedCanId(id);
       return;
     }
-    setActive(section);
+    if (detailFromHistoryState(window.history.state, loginKeyRef.current)) {
+      window.history.back(); // popstate 가 selectedCanId 를 비운다
+      return;
+    }
+    setSelectedCanId(null);
+  };
+
+  const changeSection = (section: Section) => {
+    const target = resolveSection(section);
+    // 상세를 열어 둔 채 메뉴를 누르면 같은 섹션이라도 '상세 → 목록' 이동이라 한 칸 쌓아야 한다.
+    const leavingDetail = detailFromHistoryState(window.history.state, loginKeyRef.current) !== null;
+    if (shouldPushSection(activeRef.current, target) || leavingDetail) {
+      window.history.pushState(sectionHistoryState(target, loginKeyRef.current), '');
+    }
+    // 메뉴로 가는 곳은 언제나 그 화면의 첫 장면이다. 열어 둔 상세는 닫는다
+    // (뒤로가기로 돌아오면 히스토리에 담긴 상세가 다시 열린다).
+    setSelectedCanId(null);
+    /*
+      지난 뒤로가기 신호를 지운다. 안 지우면 보드가 다시 붙을 때(섹션을 오가면 언마운트된다)
+      그 신호를 새 것으로 읽어, 메뉴를 눌렀을 뿐인데 예전에 보던 상세가 열린다.
+    */
+    setDetailNav({ tick: 0, section: null, id: null });
+    setActive(target);
   };
 
   // 새 팀 개설(플랫폼 오너 콘솔). 성공하면 목록에 즉시 반영.
@@ -1688,6 +1828,36 @@ export function App() {
   const clearFeedFocus = () => setFeedFocus(null);
   const focusFor = (section: Section) => (feedFocus?.section === section ? feedFocus.id : null);
 
+  /*
+    뒤로가기로 이전 화면. 라우터가 없어 화면 전환이 히스토리에 남지 않던 걸,
+    changeSection 에서 한 칸씩 쌓고 여기서 되돌린다.
+
+    로그인할 때마다 표식을 새로 만들고 현재 항목을 그 표식으로 덮어써(replaceState) 바닥을 깐다.
+    브라우저 히스토리는 지울 수 없어 앞사람이 쌓은 항목이 뒤에 그대로 남는데, 표식이 다르면
+    무시하므로 새로 로그인한 사람이 뒤로가기로 앞사람 화면에 떨어지지 않는다.
+  */
+  useEffect(() => {
+    if (!currentUser) return;
+    loginKeyRef.current = newLoginKey();
+    window.history.replaceState(sectionHistoryState(activeRef.current, loginKeyRef.current), '');
+    const onPopState = (event: PopStateEvent) => {
+      const target = sectionFromHistoryState(event.state, loginKeyRef.current);
+      // 우리가 쌓은 항목이 아니면(앱에 들어오기 전 페이지) 그대로 둔다 — 앱 밖으로 나가는 게 맞다.
+      if (!target) return;
+      // 뒤로가기로 온 것이므로 히스토리를 새로 쌓지 않는다. 권한 판정은 그대로 거친다.
+      const resolved = resolveSection(target);
+      const detail = detailFromHistoryState(event.state, loginKeyRef.current);
+      setActive(resolved);
+      // 상세가 담긴 칸이면 그 상세를, 아니면 목록으로. 캔미팅은 App 이 id 를 들고 있다.
+      setSelectedCanId(resolved === 'meetings' ? detail : null);
+      // 나머지 보드(모임·장터)는 상세를 자기가 들고 있어 신호로 알린다.
+      setDetailNav((prev) => ({ tick: prev.tick + 1, section: resolved, id: detail }));
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
+
   // 딥링크: 로그인 상태에서 #해시가 있으면 해당 화면으로 이동(슬랙 알림 링크 진입점).
   // 단, 해시는 '한 번만' 소비하고 주소창에서 지운다. 안 지우면 슬랙 링크로 한 번
   // 들어온 해시가 주소창에 계속 남아, 다음 로그인 때마다 그 페이지로 되돌아간다
@@ -1698,10 +1868,23 @@ export function App() {
     const applyHash = () => {
       const target = SECTION_BY_HASH[window.location.hash];
       if (!target) return;
-      changeSection(target);
+      /*
+        딥링크는 히스토리를 새로 '쌓지' 않고 지금 항목을 덮어쓴다(replace).
+        쌓으면 뒤로가기가 #해시가 남아 있는 이전 항목으로 돌아가고, 그 순간 hashchange 가
+        다시 발동해 같은 화면으로 끌고 온다 — 뒤로가기가 먹지 않는 것처럼 보인다.
+        덮어쓰면 해시가 남은 항목 자체가 사라져, 슬랙에서 들어온 사람은 뒤로가기로
+        슬랙으로 돌아간다(브라우저의 보통 동작).
+      */
+      const resolved = resolveSection(target);
+      setActive(resolved);
       // 해시를 읽는 하위 화면(예: 티미팅 tea 탭)이 먼저 읽도록 다음 틱에 지운다.
+      // state 는 null 로 비우지 않는다 — 비우면 화면 기록이 날아가 popstate 가 화면을 못 찾는다.
       window.setTimeout(() => {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        window.history.replaceState(
+          sectionHistoryState(resolved, loginKeyRef.current),
+          '',
+          window.location.pathname + window.location.search,
+        );
       }, 0);
     };
     applyHash();
@@ -1994,13 +2177,15 @@ export function App() {
           currentUser={currentUser}
           canSteps={canSteps}
           members={teamMembers}
-          onSelectSession={setSelectedCanId}
+          onSelectSession={selectCanSession}
           onStartSession={startCanSession}
           onUpdateSession={updateCanSession}
           onDeleteSession={deleteCanSession}
           onAddOpinion={addCanOpinion}
+          onDeleteOpinion={deleteCanOpinion}
           onToggleOpinion={toggleCanOpinion}
           onConfirmResult={confirmCanResult}
+          onReopenResult={reopenCanResult}
           onApplyFollowUp={applyCanFollowUp}
           onCanStepsChange={updateCanSteps}
           teaSessions={teaSessions}
@@ -2035,6 +2220,10 @@ export function App() {
           focusId={focusFor('gatherings')}
           onFocusHandled={clearFeedFocus}
           onExitToHome={() => changeSection('dashboard')}
+          detailNav={detailNavFor('gatherings')}
+          onDetailOpen={(id) => openSectionDetail('gatherings', id)}
+          onDetailExit={exitSectionDetail}
+          onOpenSeating={openSeatingFor}
         />
       )}
       {active === 'market' && (
@@ -2059,6 +2248,9 @@ export function App() {
           focusId={focusFor('market')}
           onFocusHandled={clearFeedFocus}
           onExitToHome={() => changeSection('dashboard')}
+          detailNav={detailNavFor('market')}
+          onDetailOpen={(id) => openSectionDetail('market', id)}
+          onDetailExit={exitSectionDetail}
         />
       )}
       {active === 'notifications' && (
@@ -2104,6 +2296,14 @@ export function App() {
       {active === 'guide' && <GuidePage />}
       {active === 'goldribbon' && <GoldRibbon />}
       {active === 'connect' && <Connect members={connectMembers} />}
+      {active === 'seating' && (
+        <Seating
+          accounts={accounts}
+          profiles={profileDirectory}
+          canEdit={isConnectioner(currentUser)}
+          source={seatingSource}
+        />
+      )}
       {active === 'memory' && <Memory currentUser={currentUser} />}
       {active === 'metrics' && <Metrics currentUser={currentUser} />}
       {active === 'growth' && <GrowthCard currentUser={currentUser} accounts={accounts} />}

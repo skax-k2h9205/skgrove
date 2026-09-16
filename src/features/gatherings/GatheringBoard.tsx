@@ -1,6 +1,8 @@
+import type { DetailNav } from '../../detailNav';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Armchair,
   ArrowLeft,
   Ban,
   CalendarClock,
@@ -70,6 +72,8 @@ type GatheringBoardProps = {
   onCoffeeSkillResult: (gathering: Gathering, game: CoffeeGame, scores: CoffeeScore[]) => void;
   /** 팀리더 권한. 남의 모임도 삭제할 수 있다. */
   canModerate: boolean;
+  // 자리배치로 넘기기. 커넥셔너에게만 App 이 넘겨주며, 없으면 버튼도 안 그린다.
+  onOpenSeating?: (gathering: Gathering) => void;
   /** 완전 삭제(모임 + 신청 기록). 주최자 또는 팀리더만 호출한다. */
   onDelete: (gathering: Gathering) => void;
   /** 등록 직후 배경에서 그림을 그리는 중인 모임. 격자에 '그리는 중' 을 띄운다. */
@@ -79,6 +83,12 @@ type GatheringBoardProps = {
   onFocusHandled?: () => void;
   /** 홈 피드에서 진입한 상세에서 '뒤로'를 누르면 목록이 아니라 홈으로 돌아간다. */
   onExitToHome?: () => void;
+  /* 목록 → 상세를 브라우저 히스토리에 한 칸으로 남긴다(detailNav.ts).
+     쌓고 되감는 건 App 이, 실제로 열고 닫는 건 여기가 한다. */
+  detailNav: DetailNav;
+  onDetailOpen: (id: string) => void;
+  /** 쌓아둔 칸을 되감았으면 true — 그때는 popstate 가 닫아 주므로 여기서 닫지 않는다. */
+  onDetailExit: () => boolean;
 };
 
 type BoardView = 'feed' | 'create' | 'detail';
@@ -174,11 +184,15 @@ export function GatheringBoard({
   onDrawCoffee,
   onCoffeeSkillResult,
   canModerate,
+  onOpenSeating,
   onDelete,
   imagePendingIds,
   focusId,
   onFocusHandled,
   onExitToHome,
+  detailNav,
+  onDetailOpen,
+  onDetailExit,
 }: GatheringBoardProps) {
   const [view, setView] = useState<BoardView>('feed');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -203,18 +217,41 @@ export function GatheringBoard({
   // 목록 필터에서 빠져도 열어둔 상세는 유지되어야 하므로 전체에서 찾는다.
   const selected = gatherings.find((item) => item.id === selectedId) ?? null;
 
-  const openDetail = (id: string, fromFeed = false) => {
+  // 화면만 상세로 바꾼다. 히스토리는 건드리지 않는다 — 뒤로가기로 복원할 때 쓴다.
+  const showDetail = (id: string, fromFeed = false) => {
     setSelectedId(id);
     setView('detail');
     setConfirmingDelete(false);
     setOpenedFromFeed(fromFeed);
   };
 
+  const openDetail = (id: string, fromFeed = false) => {
+    showDetail(id, fromFeed);
+    /* 홈 피드에서 바로 연 상세는 쌓지 않는다. 그 경우 '뒤로'의 목적지가 홈인데,
+       홈은 이미 한 칸 아래에 있어서 더 쌓으면 뒤로가기를 두 번 눌러야 한다. */
+    if (!fromFeed) onDetailOpen(id);
+  };
+
   // 상세 '뒤로': 홈에서 들어왔으면 홈으로, 목록에서 들어왔으면 목록으로.
   const backFromDetail = () => {
-    if (openedFromFeed && onExitToHome) onExitToHome();
-    else setView('feed');
+    if (openedFromFeed && onExitToHome) {
+      onExitToHome();
+      return;
+    }
+    // 쌓아둔 칸을 되감으면 popstate 가 목록으로 돌려놓는다. 없을 때만 직접 닫는다.
+    if (!onDetailExit()) setView('feed');
   };
+
+  /*
+    뒤로가기가 이 화면에 닿았다. 돌아간 칸에 상세가 담겨 있으면 그 상세를, 없으면 목록을 연다.
+    tick 이 0 이면 아직 뒤로가기가 없었다는 뜻이라 첫 렌더에서는 아무것도 하지 않는다.
+  */
+  useEffect(() => {
+    if (!detailNav.tick) return;
+    if (detailNav.id) showDetail(detailNav.id); // 되돌아온 것이므로 다시 쌓지 않는다
+    else setView('feed');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailNav.tick]);
 
   // 홈 피드에서 이 모임을 눌러 들어오면 바로 그 상세를 연다(한 번만 소비).
   useEffect(() => {
@@ -380,6 +417,13 @@ export function GatheringBoard({
                 <button className="btn-ghost danger" onClick={() => onCancelGathering(selected)} type="button">
                   <Ban size={16} />
                   모임 취소
+                </button>
+              )}
+
+              {onOpenSeating && (
+                <button className="btn-ghost" onClick={() => onOpenSeating(selected)} type="button">
+                  <Armchair size={16} />
+                  자리배치
                 </button>
               )}
 

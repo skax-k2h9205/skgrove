@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 import {
   ArrowRight,
   Check,
@@ -13,6 +14,8 @@ import {
   ListChecks,
   Pencil,
   Plus,
+  Printer,
+  RotateCcw,
   Radio,
   Send,
   Trash2,
@@ -21,6 +24,8 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { isLeader } from '../../auth';
+import { canDeleteOwnOpinion, canWriteCanSession } from '../../canRules';
+import { forgetMyOpinion, myOpinionIds, rememberMyOpinion } from '../../myOpinionStore';
 import { useTenantParts } from '../../tenantParts';
 import { readCalendarEvents } from '../../calendarStore';
 import { CalendarLink } from './CalendarLink';
@@ -64,6 +69,42 @@ type MergeResult = { title: string; loading: boolean; aiGroups: CanResultGroup[]
 const normalizeOpinion = (text: string) =>
   text.trim().replace(/\s+/g, ' ').replace(/[.。!?~\s]+$/u, '').toLowerCase();
 
+// 의견 한 건의 글자 수 상한. 3,000자 한 건이 목록 한 화면을 다 먹고 localStorage 쿼터까지 위협했다.
+const OPINION_MAX = 1000;
+const IDENTITIES: readonly Identity[] = ['익명', '실명'];
+
+// 긴 의견은 6줄에서 접는다. 줄바꿈은 살린다(예전엔 공백으로 뭉개졌다).
+function OpinionText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 240 || text.split('\n').length > 6;
+  return (
+    <>
+      <p className={long && !open ? 'can-opinion-text clamped' : 'can-opinion-text'}>{text}</p>
+      {long && (
+        <button type="button" className="can-opinion-more" onClick={() => setOpen((v) => !v)}>
+          {open ? '접기' : '더 보기'}
+        </button>
+      )}
+    </>
+  );
+}
+
+// WAI-ARIA radiogroup — 방향키로 옮기고, Tab 은 그룹을 한 칸으로 센다(roving tabindex).
+function moveRadio<T extends string>(
+  event: KeyboardEvent<HTMLButtonElement>,
+  ids: readonly T[],
+  current: T,
+  pick: (id: T) => void,
+) {
+  const dir =
+    event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
+  if (!dir || ids.length === 0) return;
+  event.preventDefault();
+  const next = (Math.max(0, ids.indexOf(current)) + dir + ids.length) % ids.length;
+  pick(ids[next]);
+  event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('button')[next]?.focus();
+}
+
 const canMethods: CanMethod[] = ['온라인', '오프라인'];
 
 const stageFlow: { id: CanStage; label: string }[] = [
@@ -91,9 +132,11 @@ type MeetingsProps = {
   onStartSession: () => void;
   onUpdateSession: (session: CanSession) => void;
   onDeleteSession: (id: string) => void;
-  onAddOpinion: (opinion: Omit<CanOpinion, 'id' | 'selected'>) => void;
+  onAddOpinion: (opinion: Omit<CanOpinion, 'id' | 'selected'>) => string;
+  onDeleteOpinion: (id: string) => void;
   onToggleOpinion: (id: string) => void;
   onConfirmResult: (sessionId: string, summary: string, groups: CanResultGroup[]) => void;
+  onReopenResult: (sessionId: string) => void;
   onApplyFollowUp: (
     sessionId: string,
     data: {
@@ -138,8 +181,10 @@ export function Meetings({
   onUpdateSession,
   onDeleteSession,
   onAddOpinion,
+  onDeleteOpinion,
   onToggleOpinion,
   onConfirmResult,
+  onReopenResult,
   onApplyFollowUp,
   onCanStepsChange,
   teaSessions,
@@ -160,22 +205,26 @@ export function Meetings({
   const [tab, setTab] = useState<'can' | 'tea'>(
     typeof window !== 'undefined' && window.location.hash.includes('tea') ? 'tea' : 'can',
   );
+  useEffect(() => {
+    setMyIds(selectedId ? myOpinionIds(currentUser.email, selectedId) : []);
+  }, [selectedId, currentUser.email]);
+
   const [draft, setDraft] = useState<Draft>({
     step: '',
     author: '익명',
     content: '',
   });
+  const [listFilter, setListFilter] = useState<string>('all'); // 내 파트 의견 목록의 Step 필터
+  const [submitNotice, setSubmitNotice] = useState(''); // 제출 직후 안내(스크린리더에도 읽힌다)
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  // 이 브라우저가 기억하는 "내가 낸 의견" id. 익명 보호 때문에 DB 에는 작성자를 남기지 않는다.
+  const [myIds, setMyIds] = useState<string[]>([]);
   const [aiGroups, setAiGroups] = useState<{ label: string; points: string[] }[] | null>(null); // Step별 AI 결론(선택)
   const [aiLoading, setAiLoading] = useState(false);
   const [resultMode, setResultMode] = useState<'original' | 'ai'>('original'); // 확정할 결과물 선택
-  const [pptxLoading, setPptxLoading] = useState(false); // PPT 생성 중(버튼 로딩 표시 + 중복 클릭 방지)
-
-  // PPT 내보내기 버튼 클릭 시점에 동적 import가 처음 걸리면(네트워크 지연) 브라우저가 사용자
-  // 제스처와의 연결을 끊어 다운로드를 조용히 막는 경우가 있다. 캔미팅 화면 진입 시 미리 받아둬
-  // 클릭 시점엔 이미 캐시돼 있게 한다.
-  useEffect(() => {
-    void import('pptxgenjs');
-  }, []);
+  // 요약을 무엇이 만들었나. 'ai' = LLM 이 돌았다, 'local' = 프록시 미설정·실패로 중복 제거만 했다.
+  // 둘은 결과 품질이 크게 다른데 예전에는 화면에 똑같이 'AI요약'으로 보여 구분할 수 없었다.
+  const [aiSource, setAiSource] = useState<'ai' | 'local' | null>(null);
   const [view, setView] = useState<{ id: string; stage: CanStage } | null>(null);
   const [followRouting, setFollowRouting] = useState<Record<string, FollowRoute>>({});
   const [followDrafts, setFollowDrafts] = useState<Record<string, { owner: string; due: string }>>({});
@@ -199,12 +248,11 @@ export function Meetings({
   const [teaCopyNotice, setTeaCopyNotice] = useState<string>('');
   const [teaAnnounceConfirm, setTeaAnnounceConfirm] = useState<boolean>(false);
 
-  // ── 캔미팅 팀 취합(완료 세션 결과 병합) — 휘발 상태. 저장하지 않고 화면·PPT로만. ──
+  // ── 캔미팅 팀 취합(완료 세션 결과 병합) — 휘발 상태. 저장하지 않고 화면·인쇄로만. ──
   const [mergeMode, setMergeMode] = useState(false); // 취합 만들기(세션 선택) 화면 여부
   const [mergeSel, setMergeSel] = useState<string[]>([]); // 선택한 완료 세션 id
   const [mergeTitle, setMergeTitle] = useState('');
   const [mergeResult, setMergeResult] = useState<MergeResult | null>(null);
-  const [mergePptxLoading, setMergePptxLoading] = useState(false);
 
   // 세션 목록에서 세션명(주제·팀명) 인라인 수정. null이면 편집 아님.
   const [editSession, setEditSession] = useState<{ id: string; topic: string; teamName: string } | null>(null);
@@ -225,6 +273,8 @@ export function Meetings({
   // 캔미팅 진행자 = 리더 그룹(팀리더·파트리더·커넥셔너). 이들은 세션을 생성·진행할 수 있다.
   // (진행자 화면이 열리면 본인 의견 제출 폼은 안 보이는 점은 감수 — 운영 편의를 위해 확장.)
   const isCanHost = isLeader(currentUser);
+  // 세션 참여 파트가 아닌 사람은 그 세션을 읽기만 한다(canRules). 의견 제출도, 진행·수정·삭제도 못 한다.
+  const isSessionParticipant = (s: CanSession) => canWriteCanSession(currentUser, s);
   const session = sessions.find((item) => item.id === selectedId) ?? null;
 
   const stepLabelOf = (id: string) => canSteps.find((step) => step.id === id)?.label ?? id;
@@ -238,7 +288,7 @@ export function Meetings({
   const selectedOf = (sessionId: string, stepId: string) =>
     opinions.filter((o) => o.sessionId === sessionId && o.selected && o.step === stepId);
 
-  // 취합 결과의 헤더(팀명·시행일시·방법·주제) — 화면 표와 PPT 가 같은 값을 쓴다.
+  // 취합 결과의 헤더(팀명·시행일시·방법·주제).
   // 팀명은 취합 제목이 아니라 실제 세션들의 팀명을 유지한다.
   const mergeHeaderOf = (m: MergeResult) => {
     // 팀명은 각 세션에 적힌 teamName 그대로(중복 제거). 파트명이 아니라 세션의 팀명을 쓴다.
@@ -320,43 +370,6 @@ export function Meetings({
       onNotifyStatus('취합 결과를 복사했어요.', 'ok');
     } catch {
       onNotifyStatus('복사에 실패했어요.', 'error');
-    }
-  };
-  const exportMergePptx = async () => {
-    if (!mergeResult || mergePptxLoading) return;
-    setMergePptxLoading(true);
-    try {
-      const pptxgen = (await import('pptxgenjs')).default;
-      const pptx = new pptxgen();
-      const slide = pptx.addSlide();
-      const head = (text: string) => ({
-        text,
-        options: { bold: true, fill: { color: 'EFF3EC' }, color: '17352F', valign: 'middle' as const },
-      });
-      const body = (text: string) => ({ text, options: { valign: 'top' as const } });
-      const border = { type: 'solid' as const, color: 'D5DED6', pt: 1 };
-      // 개별 세션 PPT와 동일 템플릿. 팀명은 실제 팀명 유지, 취합 제목은 슬라이드 제목에.
-      const { teams, heldRange, methods, topic } = mergeHeaderOf(mergeResult);
-
-      slide.addText(`Can Meeting 결과 정리 · ${mergeResult.title}`, { x: 0.4, y: 0.3, fontSize: 20, bold: true, color: '2F5597' });
-      slide.addTable(
-        [
-          [head('팀명'), body(teams || '-'), head('참석자'), body('각 파트 전원')],
-          [head('시행일시'), body(heldRange || '-'), head('방법'), body(methods || '-')],
-          [head('주제'), { text: topic || '-', options: { colspan: 3, valign: 'middle' as const } }],
-        ],
-        { x: 0.4, y: 0.9, w: 9.2, colW: [1.5, 3.1, 1.5, 3.1], border, fontSize: 11, rowH: 0.4 },
-      );
-      slide.addTable(
-        mergeResult.aiGroups.map((g) => [head(g.label), body(g.items.map((i) => `• ${i.content}`).join('\n'))]),
-        { x: 0.4, y: 2.4, w: 9.2, colW: [2.2, 7.0], border, fontSize: 11, valign: 'top' },
-      );
-      await pptx.writeFile({ fileName: `캔미팅_팀취합_${mergeResult.title}_${heldRange || ''}.pptx` });
-    } catch (error) {
-      console.error('merge PPT export failed', error);
-      onNotifyStatus('PPT 생성에 실패했어요. 잠시 후 다시 시도해주세요.', 'error');
-    } finally {
-      setMergePptxLoading(false);
     }
   };
 
@@ -505,9 +518,9 @@ export function Meetings({
                     <button className="secondary-button" onClick={copyMerge}>
                       복사
                     </button>
-                    <button className="secondary-button" onClick={exportMergePptx} disabled={mergePptxLoading}>
-                      <Download size={16} />
-                      {mergePptxLoading ? 'PPT 만드는 중…' : 'PPT로 내보내기'}
+                    <button className="secondary-button" onClick={() => window.print()}>
+                      <Printer size={16} />
+                      인쇄 · PDF 저장
                     </button>
                   </div>
                 </>
@@ -663,8 +676,9 @@ export function Meetings({
                         </span>
                         <span className={done ? 'ig-live-badge done' : 'ig-live-badge'}>{stageLabelOf(item)}</span>
                       </button>
-                      {/* 수정·삭제는 리더 그룹(팀리더·파트리더·커넥셔너)만 — 세션 생성 권한과 동일 */}
-                      {isCanHost && (
+                      {/* 수정·삭제는 리더 그룹(팀리더·파트리더·커넥셔너)만 — 세션 생성 권한과 동일.
+                          단, 다른 파트의 세션은 손대지 못한다(준비 단계는 예외). */}
+                      {isCanHost && isSessionParticipant(item) && (
                         <div className="ig-live-actions">
                           <button
                             className="ig-live-act"
@@ -701,10 +715,15 @@ export function Meetings({
               // 조회 중 단계: 지나간 단계를 눌러 열람(읽기전용). 없으면 실제 진행 단계.
               const stage = view && view.id === session.id ? view.stage : liveStage;
               const stageIndex = stageFlow.findIndex((item) => item.id === stage);
-              const isLive = stage === liveStage;
+              const isParticipant = isSessionParticipant(session);
+              const isLive = stage === liveStage && isParticipant;
               const sessionOpinions = opinions.filter((opinion) => opinion.sessionId === session.id);
               const selectedOpinions = sessionOpinions.filter((opinion) => opinion.selected);
               const myOpinions = sessionOpinions.filter((opinion) => opinion.part === currentUser.part);
+              // 최신이 위. 제출 직후 "어디 붙었지"를 없앤다(로드 순서는 canStore 가 id 로 고정).
+              const shownOpinions = (listFilter === 'all' ? myOpinions : myOpinions.filter((o) => o.step === listFilter))
+                .slice()
+                .reverse();
               const confirmed = session.resultSummary.trim().length > 0;
 
               const setStage = (next: CanStage) => {
@@ -722,16 +741,43 @@ export function Meetings({
               };
 
               const submitOpinion = () => {
-                if (!draft.content.trim()) return;
-                onAddOpinion({
+                const content = draft.content.trim();
+                if (!content) return;
+                // 같은 Step 에 같은 문장이 이미 있으면 막는다 — 익명 제출은 두 카드를 구분할 방법이 없다.
+                const key = normalizeOpinion(content);
+                if (myOpinions.some((o) => o.step === activeStep && normalizeOpinion(o.content) === key)) {
+                  onNotifyStatus('같은 내용이 이미 제출되어 있어요.', 'error');
+                  return;
+                }
+                const onAddOpinionResult = onAddOpinion({
                   sessionId: session.id,
                   part: currentUser.part,
                   step: activeStep,
-                  content: draft.content.trim(),
+                  content,
                   author: draft.author,
                   authorName: draft.author === '실명' ? currentUser.name : '',
                 });
+                const newId = onAddOpinionResult;
+                if (newId) {
+                  rememberMyOpinion(currentUser.email, session.id, newId);
+                  setMyIds((prev) => [...prev, newId]);
+                }
                 setDraft({ ...draft, content: '' });
+                setSubmitNotice(`${stepLabelOf(activeStep)}에 제출했어요. 목록 맨 위에 추가됐어요.`);
+                // 제출 버튼은 내용이 비면 disabled 가 되어 포커스가 body 로 떨어진다. 입력창으로 되돌린다.
+                contentRef.current?.focus();
+              };
+
+              const reopenResult = () => {
+                const warning = session.followUp
+                  ? '확정을 풀고 다시 정리할까요?\n이미 안건·액션아이템으로 내보낸 항목은 그대로 남고, 다시 확정해도 또 만들어지지 않아요.'
+                  : '확정을 풀고 다시 정리할까요? AI 요약을 다시 돌릴 수 있어요.';
+                if (!window.confirm(warning)) return;
+                onReopenResult(session.id);
+                setAiGroups(null);
+                setAiSource(null);
+                setResultMode('original');
+                onNotifyStatus('확정을 풀었어요. 다시 정리할 수 있어요.', 'ok');
               };
 
               const confirmResult = () => {
@@ -789,7 +835,7 @@ export function Meetings({
                 followUp ? Object.values(followUp.routes).filter((r) => r === route).length : 0;
               const routeLabel: Record<FollowRoute, string> = { agenda: '안건', action: '액션', skip: '생략' };
 
-              // 선정 의견을 단계별로 묶은 구조 (템플릿·PPT 공통 소스)
+              // 선정 의견을 단계별로 묶은 구조 (결과 템플릿 소스)
               const stepGroups = canSteps
                 .map((step) => ({
                   step,
@@ -867,9 +913,12 @@ export function Meetings({
                 setAiLoading(true);
                 try {
                   const result = await summarizeCanMeeting(AI_AGGREGATE_PROMPT, rawGroups);
-                  // AI 연동이면 그 결과를, 아니면 로컬 중복 제거로 폴백. 어느 쪽이든
-                  // 'AI요약' 탭 아래에 결과가 담긴다(출처 표기는 화면에서 걷어냈다).
-                  setAiGroups(result.ok && result.groups?.length ? result.groups : localGroups);
+                  const usedAi = result.ok && !!result.groups?.length;
+                  setAiGroups(usedAi ? result.groups! : localGroups);
+                  setAiSource(usedAi ? 'ai' : 'local');
+                  if (!usedAi) {
+                    onNotifyStatus('AI 요약을 받지 못해 중복만 정리했어요. 원문을 확인해주세요.', 'error');
+                  }
                 } finally {
                   setAiLoading(false);
                   setResultMode('ai'); // 요약 실행 후 AI 결과를 확정 후보로 전환(토글로 원문 복귀 가능)
@@ -918,55 +967,6 @@ export function Meetings({
                 </div>
               );
 
-              const exportPptx = async () => {
-                if (pptxLoading) return;
-                setPptxLoading(true);
-                try {
-                  await runExportPptx();
-                } catch (error) {
-                  console.error('PPT export failed', error);
-                  onNotifyStatus('PPT 생성에 실패했어요. 잠시 후 다시 시도해주세요.', 'error');
-                } finally {
-                  setPptxLoading(false);
-                }
-              };
-
-              const runExportPptx = async () => {
-                const pptxgen = (await import('pptxgenjs')).default;
-                const pptx = new pptxgen();
-                const slide = pptx.addSlide();
-                const head = (text: string) => ({
-                  text,
-                  options: { bold: true, fill: { color: 'EFF3EC' }, color: '17352F', valign: 'middle' as const },
-                });
-                const body = (text: string) => ({ text, options: { valign: 'top' as const } });
-                const border = { type: 'solid' as const, color: 'D5DED6', pt: 1 };
-
-                slide.addText('Can Meeting 결과 정리', {
-                  x: 0.4,
-                  y: 0.3,
-                  fontSize: 20,
-                  bold: true,
-                  color: '2F5597',
-                });
-                slide.addTable(
-                  [
-                    [head('팀명'), body(session.teamName || '-'), head('참석자'), body(participants)],
-                    [head('시행일시'), body(session.heldAt || '-'), head('방법'), body(session.method)],
-                    [head('주제'), { text: session.topic || '-', options: { colspan: 3, valign: 'middle' as const } }],
-                  ],
-                  { x: 0.4, y: 0.9, w: 9.2, colW: [1.5, 3.1, 1.5, 3.1], border, fontSize: 11, rowH: 0.4 },
-                );
-                slide.addTable(
-                  resultGroups.map((group) => [
-                    head(group.label),
-                    body(group.items.map((item) => `• ${item.content}`).join('\n')),
-                  ]),
-                  { x: 0.4, y: 2.4, w: 9.2, colW: [2.2, 7.0], border, fontSize: 11, valign: 'top' },
-                );
-                await pptx.writeFile({ fileName: `캔미팅_${session.teamName || 'result'}_${session.heldAt || ''}.pptx` });
-              };
-
               const waitingCard = (title: string, desc: string) => (
                 <div className="panel can-waiting">
                   <Clock size={26} />
@@ -979,39 +979,70 @@ export function Meetings({
                 </div>
               );
 
+              const removeMyOpinion = (opinion: CanOpinion) => {
+                if (!window.confirm('이 의견을 삭제할까요? 되돌릴 수 없어요.')) return;
+                onDeleteOpinion(opinion.id);
+                forgetMyOpinion(currentUser.email, session.id, opinion.id);
+                setMyIds((prev) => prev.filter((id) => id !== opinion.id));
+                onNotifyStatus('의견을 삭제했어요.', 'ok');
+              };
+
               const opinionCard = (opinion: CanOpinion) => (
                 <article className="can-opinion" key={opinion.id}>
                   <div className="can-opinion-top">
                     <span className="can-badge">{stepLabelOf(opinion.step)}</span>
                     <small>{authorLabel(opinion)}</small>
+                    {canDeleteOwnOpinion(currentUser, opinion, session, myIds) && (
+                      <button
+                        type="button"
+                        className="can-opinion-del"
+                        title="내 의견 삭제"
+                        aria-label="내 의견 삭제"
+                        onClick={() => removeMyOpinion(opinion)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
-                  <p>{opinion.content}</p>
+                  <OpinionText text={opinion.content} />
                 </article>
               );
 
               // 파트 컬럼 안에서 다시 Step별로 묶어 보여준다(뒤섞임 방지). Step 순서는 canSteps 기준.
+              // 참여 파트 + '실제로 의견이 들어온 파트'. session.parts 만 돌면 참여 파트 밖에서 들어온
+              // 의견이 총계에는 잡히는데 화면에는 안 나와, 카운트와 목록이 어긋나 혼란스러웠다.
+              const columnParts = [...new Set([...session.parts, ...sessionOpinions.map((o) => o.part)])];
               const partColumns = () => (
                 <div className="can-part-columns">
-                  {session.parts.map((part) => {
+                  {columnParts.map((part) => {
                     const partOpinions = sessionOpinions.filter((opinion) => opinion.part === part);
-                    const groups = canSteps
-                      .map((step) => ({ step, items: partOpinions.filter((opinion) => opinion.step === step.id) }))
-                      .filter((group) => group.items.length > 0);
+                    const known = new Set(canSteps.map((step) => step.id));
+                    const groups = [
+                      ...canSteps.map((step) => ({
+                        key: step.id,
+                        label: step.label,
+                        items: partOpinions.filter((opinion) => opinion.step === step.id),
+                      })),
+                      // 단계를 지우면 그 의견이 어느 그룹에도 못 들어가 통째로 사라졌다. 따로 모아 보여준다.
+                      { key: '__orphan', label: '기타 (삭제된 단계)', items: partOpinions.filter((o) => !known.has(o.step)) },
+                    ].filter((group) => group.items.length > 0);
                     return (
                       <div className="can-part-column" key={part}>
                         <h3>
-                          {part} <span>{partOpinions.length}</span>
+                          {part}
+                          {!session.parts.includes(part) && <span className="can-badge subtle">참여 파트 아님</span>}{' '}
+                          <span>{partOpinions.length}</span>
                         </h3>
                         {partOpinions.length === 0 && <p className="can-empty">해당 의견 없음</p>}
                         {groups.map((group) => (
-                          <div className="can-step-group" key={group.step.id}>
-                            <h4 className="can-step-group-title">{group.step.label}</h4>
+                          <div className="can-step-group" key={group.key}>
+                            <h4 className="can-step-group-title">{group.label}</h4>
                             {group.items.map((opinion) => (
                               <article className="can-opinion" key={opinion.id}>
                                 <div className="can-opinion-top">
                                   <small>{authorLabel(opinion)}</small>
                                 </div>
-                                <p>{opinion.content}</p>
+                                <OpinionText text={opinion.content} />
                               </article>
                             ))}
                           </div>
@@ -1053,7 +1084,12 @@ export function Meetings({
                       );
                     })}
                   </ol>
-                  {!isLive && (
+                  {!isParticipant && (
+                    <div className="can-readonly-bar">
+                      {session.parts.join(', ')} 파트의 세션이에요. 다른 파트는 읽기만 할 수 있어요.
+                    </div>
+                  )}
+                  {isParticipant && !isLive && (
                     <div className="can-readonly-bar">
                       지나간 단계를 조회 중입니다 (읽기 전용).
                       <button className="can-back" onClick={() => setView(null)}>
@@ -1208,7 +1244,12 @@ export function Meetings({
                           </div>
                         ))}
                       </div>
-                      {partColumns()}
+                      {/* 수집 중에 진행자가 볼 건 파트별 건수다. 의견 전량을 펼쳐 두면 그 아래 제출 폼까지
+                          수천 px 을 내려가야 했다. 기본은 접고, 펼치면 컬럼마다 스크롤한다. */}
+                      <details className="can-collapse">
+                        <summary>제출된 의견 전체 보기 · {sessionOpinions.length}건</summary>
+                        <div className="can-part-columns-capped">{partColumns()}</div>
+                      </details>
                       {isLive && (
                         <button className="primary-button wide" onClick={() => setStage('share')}>
                           수집 마감하고 공유
@@ -1317,15 +1358,29 @@ export function Meetings({
                                   AI요약
                                 </button>
                               </div>
+                              {/* 무엇이 만든 요약인지 밝힌다. 예전에는 둘 다 'AI요약' 으로 보였다. */}
+                              {aiSource && (
+                                <span className={aiSource === 'ai' ? 'can-ai-source' : 'can-ai-source local'}>
+                                  {aiSource === 'ai' ? 'AI가 요약했어요' : '중복만 정리했어요 (AI 연결 실패)'}
+                                </span>
+                              )}
                             </div>
                           )}
                           {resultTemplate()}
                           <div className="can-result-actions">
                             {confirmed && (
-                              <button className="secondary-button" onClick={exportPptx} disabled={pptxLoading}>
-                                <Download size={16} />
-                                {pptxLoading ? 'PPT 만드는 중…' : 'PPT로 내보내기'}
-                              </button>
+                              <>
+                                <button className="secondary-button" onClick={() => window.print()}>
+                                  <Printer size={16} />
+                                  인쇄 · PDF 저장
+                                </button>
+                                {isLive && (
+                                  <button className="secondary-button" onClick={reopenResult}>
+                                    <RotateCcw size={16} />
+                                    결과 다시 정리
+                                  </button>
+                                )}
+                              </>
                             )}
                             {!confirmed && isLive && (
                               <>
@@ -1334,7 +1389,7 @@ export function Meetings({
                                   <ArrowRight size={18} />
                                 </button>
                                 <span className="can-ai-note">
-                                  * 확정하면 이 결과물이 고정되고, PPT 내보내기·후속조치가 확정본 기준으로 진행됩니다.
+                                  * 확정하면 이 결과물이 고정되고, 인쇄·후속조치가 확정본 기준으로 진행됩니다.
                                 </span>
                               </>
                             )}
@@ -1451,77 +1506,174 @@ export function Meetings({
 
                   {/* 의견 제출 폼은 모두에게 — 진행자(리더)도 본인 의견을 낼 수 있게.
                       진행자는 위의 '수집 현황' 패널과 함께 이 제출 폼을 같이 본다. */}
-                  {stage === 'collect' && (
+                  {/* 참여 파트가 아니면 제출 폼 대신 수집 현황만 읽는다. */}
+                  {stage === 'collect' && !isParticipant && !isCanHost && (
+                    <div className="panel">
+                      <PanelHeader icon={UsersRound} title="② 의견 수집 중 (읽기 전용)" />
+                      {partColumns()}
+                    </div>
+                  )}
+                  {stage === 'collect' && isParticipant && (
                     <>
                     <div className="can-two">
                       <div className="panel form-panel">
                         <PanelHeader icon={Send} title="② 의견 제출" />
-                        <label>
-                          Step
+                        {!isLive && (
+                          <p className="can-form-locked" id="can-form-locked" role="status">
+                            지나간 단계를 조회 중이라 의견을 제출할 수 없어요.
+                          </p>
+                        )}
+                        {/* <label> 안에 버튼을 넣으면 첫 버튼이 라벨의 컨트롤로 잡힌다 — 'Step' 글자를 눌러도
+                            1번이 선택되고, 스크린리더는 첫 버튼 이름에 버튼 텍스트 전체를 붙여 읽었다. */}
+                        <div
+                          className="field-block"
+                          role="radiogroup"
+                          aria-labelledby="can-step-legend"
+                          aria-describedby="can-step-hint"
+                        >
+                          <span className="field-legend" id="can-step-legend">
+                            Step
+                          </span>
                           <div className="can-step-picker">
-                            {canSteps.map((item) => (
-                              <button
-                                key={item.id}
-                                className={activeStep === item.id ? 'selected' : ''}
-                                disabled={!isLive}
-                                onClick={() => setDraft({ ...draft, step: item.id })}
-                              >
-                                {item.label}
-                              </button>
-                            ))}
+                            {canSteps.map((item) => {
+                              const on = activeStep === item.id;
+                              return (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={on}
+                                  tabIndex={on ? 0 : -1}
+                                  className={on ? 'selected' : ''}
+                                  title={item.label}
+                                  disabled={!isLive}
+                                  onClick={() => setDraft({ ...draft, step: item.id })}
+                                  onKeyDown={(event) =>
+                                    moveRadio(event, canSteps.map((s) => s.id), activeStep, (id) =>
+                                      setDraft({ ...draft, step: id }),
+                                    )
+                                  }
+                                >
+                                  {item.label}
+                                </button>
+                              );
+                            })}
                           </div>
-                        </label>
-                        <p className="can-step-hint">{canSteps.find((s) => s.id === activeStep)?.hint}</p>
-                        <label>
-                          제출 방식
+                        </div>
+                        <p className="can-step-hint" id="can-step-hint">
+                          {canSteps.find((s) => s.id === activeStep)?.hint}
+                        </p>
+                        <div className="field-block" role="radiogroup" aria-labelledby="can-author-legend">
+                          <span className="field-legend" id="can-author-legend">
+                            제출 방식
+                          </span>
                           <div className="segmented">
-                            {(['익명', '실명'] as Identity[]).map((item) => (
-                              <button
-                                key={item}
-                                className={draft.author === item ? 'selected' : ''}
-                                disabled={!isLive}
-                                onClick={() => setDraft({ ...draft, author: item })}
-                              >
-                                {item}
-                              </button>
-                            ))}
+                            {IDENTITIES.map((item) => {
+                              const on = draft.author === item;
+                              return (
+                                <button
+                                  key={item}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={on}
+                                  tabIndex={on ? 0 : -1}
+                                  className={on ? 'selected' : ''}
+                                  disabled={!isLive}
+                                  onClick={() => setDraft({ ...draft, author: item })}
+                                  onKeyDown={(event) =>
+                                    moveRadio(event, IDENTITIES, draft.author, (author) => setDraft({ ...draft, author }))
+                                  }
+                                >
+                                  {item}
+                                </button>
+                              );
+                            })}
                           </div>
-                        </label>
+                        </div>
                         {draft.author === '실명' && (
                           <label>
                             이름
-                            <input value={currentUser.name} disabled />
+                            {/* disabled 는 탭 순서에서 빠져 어떤 이름으로 나가는지 확인할 수 없었다. */}
+                            <input value={currentUser.name} readOnly />
                           </label>
                         )}
                         <label>
                           내용
                           <textarea
+                            ref={contentRef}
                             value={draft.content}
+                            maxLength={OPINION_MAX}
                             placeholder="안건에 대한 의견을 자유롭게 남겨주세요"
                             disabled={!isLive}
-                            onChange={(event) => setDraft({ ...draft, content: event.target.value })}
+                            aria-describedby={isLive ? undefined : 'can-form-locked'}
+                            onChange={(event) => {
+                              setDraft({ ...draft, content: event.target.value });
+                              if (submitNotice) setSubmitNotice('');
+                            }}
                           />
+                          <span className="can-char-count">
+                            {draft.content.length} / {OPINION_MAX}
+                          </span>
                         </label>
                         <button
+                          type="button"
                           className="primary-button wide"
                           disabled={!draft.content.trim() || !isLive}
                           onClick={submitOpinion}
                         >
                           의견 제출
                         </button>
+                        {/* 항상 DOM 에 있어야 보조기술이 변경을 읽는다. 내용만 갈아끼운다. */}
+                        <p className="can-submit-status" role="status" aria-live="polite">
+                          {submitNotice}
+                        </p>
                       </div>
 
                       <div className="panel">
-                        <PanelHeader icon={UsersRound} title={`${currentUser.part} 의견`} />
-                        <div className="can-part-column bare">
+                        <PanelHeader icon={UsersRound} title={`${currentUser.part} 의견`} note={`${myOpinions.length}건`} />
+                        {myOpinions.length > 0 && canSteps.length > 1 && (
+                          <div className="can-step-picker compact" role="group" aria-label="Step 으로 거르기">
+                            <button
+                              type="button"
+                              className={listFilter === 'all' ? 'selected' : ''}
+                              aria-pressed={listFilter === 'all'}
+                              onClick={() => setListFilter('all')}
+                            >
+                              전체 {myOpinions.length}
+                            </button>
+                            {canSteps.map((step) => (
+                              <button
+                                key={step.id}
+                                type="button"
+                                className={listFilter === step.id ? 'selected' : ''}
+                                aria-pressed={listFilter === step.id}
+                                onClick={() => setListFilter(step.id)}
+                              >
+                                {step.label.replace(/^Step \d+ · /, '')} {myOpinions.filter((o) => o.step === step.id).length}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="can-part-column bare can-list-scroll">
                           {myOpinions.length === 0 && (
-                            <p className="can-empty">아직 제출된 의견이 없어요. 첫 의견을 남겨보세요.</p>
+                            <p className="can-empty">
+                              아직 {currentUser.part}에서 제출된 의견이 없어요. 첫 의견을 남겨보세요.
+                              <br />
+                              익명으로 내면 목록에 이름이 표시되지 않아요.
+                            </p>
                           )}
-                          {myOpinions.map(opinionCard)}
+                          {myOpinions.length > 0 && shownOpinions.length === 0 && (
+                            <p className="can-empty">이 Step에는 아직 의견이 없어요.</p>
+                          )}
+                          {shownOpinions.map(opinionCard)}
                         </div>
                       </div>
                     </div>
-                    <p className="can-flow-note">진행자가 수집을 마감하면 의견 공유로 넘어갑니다.</p>
+                    <p className="can-flow-note">
+                      {isLive
+                        ? '진행자가 수집을 마감하면 의견 공유로 넘어갑니다.'
+                        : '이 단계는 마감됐어요. 위 단계 표시에서 현재 단계로 돌아갈 수 있어요.'}
+                    </p>
                     </>
                   )}
 
@@ -1551,9 +1703,9 @@ export function Meetings({
                           </div>
                           {resultTemplate()}
                           <div className="can-result-actions">
-                            <button className="secondary-button" onClick={exportPptx} disabled={pptxLoading}>
-                              <Download size={16} />
-                              {pptxLoading ? 'PPT 만드는 중…' : 'PPT로 내보내기'}
+                            <button className="secondary-button" onClick={() => window.print()}>
+                              <Printer size={16} />
+                              인쇄 · PDF 저장
                             </button>
                           </div>
                           {followUp && (
