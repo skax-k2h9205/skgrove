@@ -13977,7 +13977,8 @@ button.notif-row {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  /* 보이는 높이. iframe 은 이보다 38px 크게 만들어 하단 'Built with Streamlit' 바를 잘라낸다. */
+  /* 보이는 높이. iframe 을 이보다 45px 크게 만들어 하단 'Built with Streamlit' 바를 잘라낸다.
+     show_padding 으로 입력창/체크박스가 위로 올라와 있어 이 crop 에 안 걸린다. */
   height: calc(100vh - 150px);
   min-height: 680px;
   overflow-x: auto; /* 최소 폭을 넘으면 가로 스크롤 */
@@ -13988,10 +13989,9 @@ button.notif-row {
 .goldribbon-frame {
   border: 0;
   display: block;
-  /* wrapper 보다 38px 크게 → 하단 Streamlit footer 바가 wrapper 밖으로 밀려 잘린다. */
-  height: calc(100vh - 112px);
-  min-height: 718px;
-  min-width: 900px; /* 좁은 창에서도 넓은 레이아웃 유지 → 겹침 완화 */
+  height: calc(100vh - 105px); /* wrapper 보다 45px 큼 → 하단 footer 잘림 */
+  min-height: 725px;
+  min-width: 900px; /* 좁은 창에서도 넓은 레이아웃 유지 */
   width: 100%;
 }
 
