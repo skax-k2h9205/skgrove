@@ -59,6 +59,7 @@ import { AccountManagement } from './features/auth/AccountManagement';
 import { LoginScreen } from './features/auth/LoginScreen';
 import { SlackPartPrompt } from './features/auth/SlackPartPrompt';
 import { Connect } from './features/connect/Connect';
+import { GoldRibbon } from './features/goldribbon/GoldRibbon';
 import { Dashboard } from './features/dashboard/Dashboard';
 import { GuidePage } from './features/guide/GuidePage';
 import { HumorBoard } from './features/humor/HumorBoard';
@@ -2101,6 +2102,7 @@ export function App() {
         </>
       )}
       {active === 'guide' && <GuidePage />}
+      {active === 'goldribbon' && <GoldRibbon />}
       {active === 'connect' && <Connect members={connectMembers} />}
       {active === 'memory' && <Memory currentUser={currentUser} />}
       {active === 'metrics' && <Metrics currentUser={currentUser} />}

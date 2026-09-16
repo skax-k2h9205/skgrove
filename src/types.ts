@@ -20,7 +20,8 @@ export type Section =
   | 'platform'
   | 'notifications'
   | 'humor'
-  | 'market';
+  | 'market'
+  | 'goldribbon';
 
 export type Identity = '익명' | '실명';
 export type Urgency = '낮음' | '보통' | '높음';
