@@ -230,6 +230,11 @@ const MEMBER = {
           { button: '경매 시작', label: '등록 — 누르면 저장' },
         ] },
     ] },
+    { key: 'goldribbon', nav: '맛집추천(GoldRibbon)', sequence: [
+      { title: '맛집추천(GoldRibbon)', desc: '근무지별 점심 맛집을 추천해주는 챗봇이에요. 왼쪽에서 근무지를 고르고 "점심 뭐 먹을까요?"처럼 물어보면 메뉴·가격·도보시간으로 추천해줘요. 매장명을 누르면 네이버 상세로 이동합니다.',
+        actions: [{ wait: 6000 }], // 임베드 앱 로딩 대기 후 캡처
+        targets: [{ css: '.goldribbon-open', label: '앱을 새 탭에서 크게 열기' }] },
+    ] },
     { key: 'metrics', title: '파트지수 / 리포트', nav: '파트지수 / 리포트', desc: '회의 건강도 등 파트 지표를 보는 리포트 화면입니다.', targets: [] },
     { key: 'notifications', title: '알림 / 메시지', nav: '알림 / 메시지', desc: '나에게 온 알림과 개인 메시지를 확인합니다.',
       targets: [{ css: '.segmented button', nth: 0, label: '읽음 / 안읽음 전환' }] },
@@ -443,7 +448,10 @@ async function main() {
   const context = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: 2 });
   const page = await context.newPage();
 
-  for (const manual of [MEMBER, OPERATOR]) {
+  // MANUAL_ONLY=member|operator 로 하나만 재생성(변경 없는 가이드는 그대로 두기). 기본은 둘 다.
+  const only = process.env.MANUAL_ONLY;
+  const manuals = only === 'member' ? [MEMBER] : only === 'operator' ? [OPERATOR] : [MEMBER, OPERATOR];
+  for (const manual of manuals) {
     manual._sections = [];
     let loggedIn = null;
     for (const step of manual.steps) {
