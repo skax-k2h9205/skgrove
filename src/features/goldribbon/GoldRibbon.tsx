@@ -5,9 +5,11 @@
 // - 앱이 깨어나는 데 몇 초 걸리므로 로딩 스피너를 덮어둔다(onLoad 또는 6초 후 제거).
 // - 임베드가 막히는 환경 대비 '새 탭에서 열기' 링크도 둔다.
 import { useEffect, useState } from 'react';
-import { ExternalLink, UtensilsCrossed } from 'lucide-react';
+import { ExternalLink, MessageSquare, UtensilsCrossed } from 'lucide-react';
 
 const APP_URL = 'https://goldribbon.streamlit.app/';
+// 담당자(문의·개선·버그) 슬랙 DM — app_redirect 는 브라우저·데스크톱 앱 모두에서 DM 창을 연다.
+const OWNER_DM = 'https://slack.com/app_redirect?channel=U0AC8QLMQJ2';
 // embed=true 로 렌더(인증 루프 회피) + embed_options=show_padding 으로 하단 여백을 되살려
 // '목록 모드' 체크박스가 고정 입력창과 겹치는 것을 막는다(embed 는 기본적으로 padding 을 없앰).
 const EMBED_URL = `${APP_URL}?embed=true&embed_options=show_padding`;
@@ -26,8 +28,11 @@ export function GoldRibbon() {
       <div className="goldribbon-head">
         <div className="goldribbon-head-text">
           <p className="can-hint">근무지별 점심 맛집을 추천해주는 챗봇이에요. 메뉴·가격·도보시간으로 검색해 보세요.</p>
-          {/* 담당자(문의·개선·버그) 표기. 추후 슬랙 DM 링크 연결 예정. */}
-          <p className="goldribbon-credit">담당자: 김금 (PM혁신파트)</p>
+          {/* 담당자(문의·개선·버그) — 클릭 시 슬랙 DM */}
+          <a className="goldribbon-credit" href={OWNER_DM} target="_blank" rel="noopener noreferrer" title="슬랙으로 문의하기">
+            담당자: 김금 (PM혁신파트)
+            <MessageSquare size={12} />
+          </a>
         </div>
         <a className="secondary-button goldribbon-open" href={APP_URL} target="_blank" rel="noopener noreferrer">
           <ExternalLink size={15} />새 탭에서 열기

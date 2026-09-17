@@ -13971,10 +13971,20 @@ button.notif-row {
 }
 
 .goldribbon-credit {
+  align-items: center;
   color: var(--color-ink);
+  display: inline-flex;
   font-size: var(--text-meta);
   font-weight: 600;
+  gap: 4px;
   margin: 3px 0 0;
+  text-decoration: none;
+  width: fit-content;
+}
+
+.goldribbon-credit:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
 }
 
 .goldribbon-open {
