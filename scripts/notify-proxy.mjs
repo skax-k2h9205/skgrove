@@ -122,22 +122,6 @@ const colorForKind = (kind) => KIND_COLOR[kind] || '#17352f';
 // blocks를 좌측 색 바 attachment로 감싼 카드. fallback은 푸시 알림용(채널엔 안 보임) → 카드 위 첫 줄 없음.
 const card = (color, msg) => ({ attachments: [{ color, fallback: msg.text, blocks: msg.blocks }] });
 
-// 공지문 → 헤더 + 세션정보 + 구분선 + 그룹 카드(다크그린 바).
-function announceCard(text) {
-  const [head, ...rest] = text.split('\n\n');
-  const headLines = head.split('\n');
-  const title = (headLines[0] || '이번 티미팅 안내').replace(/\*/g, '');
-  const sessionInfo = headLines.slice(1).join('\n');
-  const groups = rest.join('\n\n');
-  const blocks = [{ type: 'header', text: { type: 'plain_text', text: title, emoji: true } }];
-  if (sessionInfo) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: sessionInfo } });
-  if (groups) {
-    blocks.push({ type: 'divider' });
-    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: groups } });
-  }
-  return { attachments: [{ color: '#17352f', fallback: '이번 티미팅 안내', blocks }] };
-}
-
 export function handleNotify(req, res) {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, CORS);
@@ -164,16 +148,16 @@ export function handleNotify(req, res) {
     }
     const msg = buildMessage(p.kind, p.title || '', p.text || '', p.from || '시스템');
     try {
-      // 티미팅 공지문: 완성된 안내문을 채널에 그대로 게시.
-      if (p.announce) {
-        const channelId = p.channel === 'team' ? env.SLACK_CHANNEL_TEAM : env.SLACK_CHANNEL_CONNECTOR;
-        if (!channelId) {
-          send(res, 200, { ok: false, reason: `channel id 미설정 (${p.channel})` });
-          return;
+      // 티미팅 공지(보내기·찾기·고치기·지우기)는 배포 코드(api/notify.ts)를 그대로 불러 쓴다 — 로직을 두 벌 두지 않는다.
+      // 채널은 배포와 같이 앱 설정의 channelId 우선, 없으면 .env.notify.local 의 SLACK_CHANNEL_*.
+      if (p.announce || p.announceAction) {
+        for (const key of ['SLACK_BOT_TOKEN', 'SLACK_CHANNEL_TEAM', 'SLACK_CHANNEL_CONNECTOR']) {
+          if (env[key]) process.env[key] = env[key];
         }
-        const sent = await slackPost('chat.postMessage', { channel: channelId, ...announceCard(p.text || '') });
-        console.log(`[announce ${p.channel}] →`, sent.ok ? 'OK' : sent.error);
-        send(res, 200, { ok: sent.ok, reason: sent.error });
+        const { POST } = await import('../api/notify.ts');
+        const out = await (await POST(new Request('http://local/api/notify', { method: 'POST', body: raw }))).json();
+        console.log(`[announce ${p.announceAction || 'send'} ${p.channelId || p.channel}] →`, out.ok ? 'OK' : out.reason);
+        send(res, 200, out);
         return;
       }
       if (p.dm) {
