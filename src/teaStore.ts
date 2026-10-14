@@ -1,6 +1,7 @@
 // 티미팅 영속화 — Supabase 있으면 DB, 없으면 localStorage.
 // 세션은 tea_sessions 테이블, 세션 유형(공용 설정)은 app_config(configStore)에 둔다.
-import { TEA_SESSION_TYPES_KEY, loadConfig, saveConfig } from './configStore';
+import { TEA_LAST_ANNOUNCE_KEY, TEA_SESSION_TYPES_KEY, loadConfig, saveConfig } from './configStore';
+import type { AnnounceRef } from './notificationDelivery';
 import { initialTeaSessions } from './data/mockData';
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
@@ -75,6 +76,16 @@ export async function loadTeaSessionTypes(): Promise<string[]> {
 
 export async function saveTeaSessionTypes(types: string[]) {
   await saveConfig(SESSION_TYPES_KEY, types);
+}
+
+// 마지막으로 보낸 티미팅 공지. 지우면 null 로 덮는다.
+export async function loadTeaLastAnnounce(): Promise<AnnounceRef | null> {
+  const ref = await loadConfig<AnnounceRef | null>(TEA_LAST_ANNOUNCE_KEY, null);
+  return ref && ref.channel && ref.ts ? ref : null;
+}
+
+export async function saveTeaLastAnnounce(ref: AnnounceRef | null) {
+  await saveConfig(TEA_LAST_ANNOUNCE_KEY, ref);
 }
 
 // 같은 밀리초에 세션이 여럿 만들어져도 id가 겹치지 않도록 세션 카운터를 덧붙인다.

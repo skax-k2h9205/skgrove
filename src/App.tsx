@@ -18,9 +18,11 @@ import {
 } from './canStore';
 import {
   DEFAULT_TEA_SESSION_TYPES,
+  loadTeaLastAnnounce,
   loadTeaSessionTypes,
   loadTeaSessions,
   makeTeaSessionId,
+  saveTeaLastAnnounce,
   saveTeaSessionTypes,
   saveTeaSessions,
   deleteTeaSessionRemote,
@@ -84,7 +86,16 @@ import { Profiles } from './features/profiles/Profiles';
 import { Seating } from './features/seating/Seating';
 import { ChangePassword } from './features/auth/ChangePassword';
 import { deleteIssue, loadIssues, makeIssueId, saveIssues } from './issueStore';
-import { deliverDm, deliverToSlack, sendAnnouncement } from './notificationDelivery';
+import {
+  deleteAnnouncement,
+  deliverDm,
+  deliverToSlack,
+  findLatestAnnouncement,
+  sendAnnouncement,
+  updateAnnouncement,
+  type AnnounceRef,
+  type AnnounceResult,
+} from './notificationDelivery';
 import {
   actionDraft,
   agendaAudience,
@@ -296,6 +307,8 @@ export function App() {
   const [canSteps, setCanSteps] = useState<CanStepConfig[]>(CAN_STEPS);
   const [teaSessions, setTeaSessions] = useState<TeaSession[]>(supabase ? [] : initialTeaSessions);
   const [teaSessionTypes, setTeaSessionTypes] = useState<string[]>(DEFAULT_TEA_SESSION_TYPES);
+  // 마지막으로 슬랙에 보낸 티미팅 공지 위치 — 보낸 공지 고치기·지우기에 쓴다.
+  const [teaLastAnnounce, setTeaLastAnnounce] = useState<AnnounceRef | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>(supabase ? [] : initialNotifications);
   // 알림 발송 설정(팀 공용). 시스템 관리 화면에서 커넥셔너가 조정. DB에서 로드 전엔 기본값.
   const [notifySettings, setNotifySettings] = useState<NotifySettings>(DEFAULT_NOTIFY_SETTINGS);
@@ -422,6 +435,9 @@ export function App() {
     // 팀 공용 설정(app_config)도 테넌트 스코프라 로그인 후에 읽는다.
     loadTeaSessionTypes().then((loaded) => {
       if (isMounted) setTeaSessionTypes(loaded);
+    });
+    loadTeaLastAnnounce().then((loaded) => {
+      if (isMounted) setTeaLastAnnounce(loaded);
     });
     loadCanSteps().then((loaded) => {
       if (isMounted) setCanSteps(loaded);
@@ -1092,10 +1108,43 @@ export function App() {
   };
 
   // 이번 티미팅 공지문을 팀 전체 채널로 전송.
-  const announceTeaToSlack = (text: string) =>
-    notifySettings.slackEnabled
-      ? sendAnnouncement('team', channelIdFor(notifySettings, 'team'), text)
-      : Promise.resolve('disabled' as const);
+  const rememberTeaAnnounce = (ref: AnnounceRef | null) => {
+    setTeaLastAnnounce(ref);
+    void saveTeaLastAnnounce(ref);
+  };
+
+  const announceTeaToSlack = async (text: string): Promise<AnnounceResult> => {
+    if (!notifySettings.slackEnabled) return 'disabled';
+    const { result, ref } = await sendAnnouncement('team', channelIdFor(notifySettings, 'team'), text);
+    if (ref) rememberTeaAnnounce(ref);
+    return result;
+  };
+
+  // 고칠·지울 공지 위치. 이 기능 전에 보낸 공지처럼 기억이 없으면 채널 기록에서 찾아온다.
+  const resolveTeaAnnounce = () =>
+    teaLastAnnounce
+      ? Promise.resolve({ result: 'sent' as AnnounceResult, ref: teaLastAnnounce })
+      : findLatestAnnouncement('team', channelIdFor(notifySettings, 'team'));
+
+  const updateTeaAnnounce = async (text: string): Promise<AnnounceResult> => {
+    if (!notifySettings.slackEnabled) return 'disabled';
+    const found = await resolveTeaAnnounce();
+    if (!found.ref) return found.result;
+    const result = await updateAnnouncement('team', found.ref, text);
+    if (result === 'sent') rememberTeaAnnounce({ ...found.ref, text });
+    // 슬랙에서 이미 지워진 공지면 기억도 지운다.
+    if (result === 'notfound' && teaLastAnnounce) rememberTeaAnnounce(null);
+    return result;
+  };
+
+  const deleteTeaAnnounce = async (): Promise<AnnounceResult> => {
+    if (!notifySettings.slackEnabled) return 'disabled';
+    const found = await resolveTeaAnnounce();
+    if (!found.ref) return found.result;
+    const result = await deleteAnnouncement('team', found.ref);
+    if ((result === 'sent' || result === 'notfound') && teaLastAnnounce) rememberTeaAnnounce(null);
+    return result;
+  };
 
   // ===== 유머게시판 =====
   const persistHumorPosts = (next: HumorPost[]) => {
@@ -2199,6 +2248,9 @@ export function App() {
           onSetTeaHeldAt={setTeaSessionHeldAt}
           onTeaTypesChange={updateTeaSessionTypes}
           onAnnounceToSlack={announceTeaToSlack}
+          onUpdateTeaAnnounce={updateTeaAnnounce}
+          onDeleteTeaAnnounce={deleteTeaAnnounce}
+          teaLastAnnounce={teaLastAnnounce}
           teaAnnounceTarget={{ enabled: notifySettings.slackEnabled, channelId: channelIdFor(notifySettings, 'team') }}
           onNotifyStatus={notifyStatus}
         />

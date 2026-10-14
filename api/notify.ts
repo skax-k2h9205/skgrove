@@ -3,6 +3,11 @@
 // 프론트(notificationDelivery.ts)는 VITE_NOTIFY_ENDPOINT로 아래 규격을 POST한다:
 //   채널: { channel: 'team'|'connector', title, text, from }
 //   DM  : { dm: true, recipientEmail, title, text, from }
+//   공지: { announce: true, channel, channelId, text }            → { ok, channel, ts }
+//   공지 관리: { announceAction: 'find'|'update'|'delete', channel, channelId, ts?, text? }
+//     find   : 채널 최근 기록에서 이 봇이 보낸 마지막 티미팅 공지를 찾는다(channels:history 권한 필요).
+//     update : chat.update 로 공지 내용을 바꾼다. delete : chat.delete 로 지운다.
+//     ts 가 없거나 티미팅 공지가 아니면 거절한다 — 봇이 보낸 다른 알림은 건드리지 않는다.
 //
 // 서버 환경변수(비밀은 서버에만):
 //   SLACK_BOT_TOKEN        : 봇 토큰(xoxb-...). 없으면 전부 휴면(no-op).
@@ -19,6 +24,8 @@ type NotifyPayload = {
   channelId?: string;
   dm?: boolean;
   announce?: boolean;
+  announceAction?: 'find' | 'update' | 'delete';
+  ts?: string;
   recipientEmail?: string;
   kind?: string;
   title?: string;
@@ -126,7 +133,30 @@ function announceCard(text: string) {
     blocks.push({ type: 'divider' });
     blocks.push({ type: 'section', text: { type: 'mrkdwn', text: groups } });
   }
-  return { attachments: [{ color: '#17352f', fallback: '이번 티미팅 안내', blocks }] };
+  return { attachments: [{ color: '#17352f', fallback: ANNOUNCE_FALLBACK, blocks }] };
+}
+
+// 티미팅 공지 카드의 표식. 공지 찾기·수정·삭제 때 '봇이 보낸 티미팅 공지'인지 이걸로 가린다.
+const ANNOUNCE_FALLBACK = '이번 티미팅 안내';
+
+type SlackHistoryMessage = { ts: string; bot_id?: string; attachments?: Array<{ fallback?: string }> };
+
+// 채널 최근 기록에서 이 봇이 보낸 티미팅 공지들(최신순). ts 를 주면 그 메시지 하나만 본다.
+async function findAnnouncements(token: string, channelId: string, ts?: string) {
+  const me = await slackPost('auth.test', token, {});
+  const params: Record<string, string> = ts
+    ? { channel: channelId, latest: ts, inclusive: 'true', limit: '1' }
+    : { channel: channelId, limit: '100' };
+  const history = (await slackGet('conversations.history', token, params)) as {
+    ok: boolean;
+    error?: string;
+    messages?: SlackHistoryMessage[];
+  };
+  if (!history.ok) return { ok: false as const, error: history.error ?? 'history failed' };
+  const mine = (history.messages ?? []).filter(
+    (m) => m.bot_id && m.bot_id === me.bot_id && m.attachments?.[0]?.fallback === ANNOUNCE_FALLBACK,
+  );
+  return { ok: true as const, messages: ts ? mine.filter((m) => m.ts === ts) : mine };
 }
 
 function env(name: string): string | undefined {
@@ -139,7 +169,14 @@ async function slackPost(method: string, token: string, body: Record<string, unk
     headers: { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   });
-  return (await res.json()) as { ok: boolean; channel?: { id: string }; user?: { id: string }; error?: string };
+  return (await res.json()) as {
+    ok: boolean;
+    channel?: { id: string } | string;
+    ts?: string;
+    bot_id?: string;
+    user?: { id: string };
+    error?: string;
+  };
 }
 
 async function slackGet(method: string, token: string, params: Record<string, string>) {
@@ -170,6 +207,7 @@ export async function POST(request: Request): Promise<Response> {
   // 보낼 내용이 하나도 없으면 게시 없이 막는다.
   const hasContent =
     payload.announce === true ||
+    Boolean(payload.announceAction) ||
     payload.dm === true ||
     Boolean((payload.title ?? '').trim()) ||
     Boolean((payload.text ?? '').trim());
@@ -179,14 +217,45 @@ export async function POST(request: Request): Promise<Response> {
 
   const msg = buildMessage(payload.kind ?? '', payload.title ?? '', payload.text ?? '', payload.from ?? '시스템');
 
-  // 티미팅 공지문: 완성된 안내문을 채널에 그대로 게시.
+  // 티미팅 공지문: 완성된 안내문을 채널에 그대로 게시. 나중에 고치거나 지울 수 있게 channel·ts 를 돌려준다.
   if (payload.announce) {
     const channelId = resolveChannelId(payload);
     if (!channelId) {
       return Response.json({ ok: false, reason: `channel id not configured for ${payload.channel}` });
     }
     const sent = await slackPost('chat.postMessage', token, { channel: channelId, ...announceCard(payload.text ?? '') });
-    return Response.json({ ok: sent.ok, reason: sent.error });
+    return Response.json({ ok: sent.ok, reason: sent.error, channel: sent.channel, ts: sent.ts });
+  }
+
+  // 이미 보낸 티미팅 공지 찾기·고치기·지우기.
+  if (payload.announceAction) {
+    const channelId = resolveChannelId(payload);
+    if (!channelId) {
+      return Response.json({ ok: false, reason: `channel id not configured for ${payload.channel}` });
+    }
+    if (payload.announceAction === 'find') {
+      const found = await findAnnouncements(token, channelId);
+      if (!found.ok) return Response.json({ ok: false, reason: found.error });
+      const latest = found.messages[0];
+      return latest
+        ? Response.json({ ok: true, channel: channelId, ts: latest.ts })
+        : Response.json({ ok: false, reason: 'not_found' });
+    }
+    if (!payload.ts) return Response.json({ ok: false, reason: 'no ts' });
+    // 기록을 볼 수 있으면 대상이 정말 티미팅 공지인지 확인한다. 권한이 없으면(missing_scope)
+    // 확인은 건너뛴다 — 슬랙도 봇은 자기가 보낸 메시지만 고치고 지울 수 있게 막는다.
+    const target = await findAnnouncements(token, channelId, payload.ts);
+    if (target.ok && target.messages.length === 0) return Response.json({ ok: false, reason: 'not_found' });
+    if (payload.announceAction === 'update') {
+      const updated = await slackPost('chat.update', token, {
+        channel: channelId,
+        ts: payload.ts,
+        ...announceCard(payload.text ?? ''),
+      });
+      return Response.json({ ok: updated.ok, reason: updated.error, channel: channelId, ts: payload.ts });
+    }
+    const deleted = await slackPost('chat.delete', token, { channel: channelId, ts: payload.ts });
+    return Response.json({ ok: deleted.ok, reason: deleted.error });
   }
 
   // 개인 DM: DM 허용 여부는 시스템 관리 화면(dmEnabled)에서 프론트가 결정한다.
@@ -200,7 +269,7 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ ok: false, reason: `user lookup failed: ${lookup.error ?? 'unknown'}` });
     }
     const opened = await slackPost('conversations.open', token, { users: lookup.user.id });
-    if (!opened.ok || !opened.channel) {
+    if (!opened.ok || typeof opened.channel !== 'object') {
       return Response.json({ ok: false, reason: `open dm failed: ${opened.error ?? 'unknown'}` });
     }
     const sent = await slackPost('chat.postMessage', token, {

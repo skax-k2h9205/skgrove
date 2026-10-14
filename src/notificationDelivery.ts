@@ -44,22 +44,65 @@ export function deliverDm(
   post({ dm: true, recipientEmail, kind, title, text, from });
 }
 
-// 이번 티미팅 공지문을 채널로 전송(버튼). 결과를 반환해 UI 피드백에 쓴다.
-export async function sendAnnouncement(
-  channel: SlackChannel,
-  channelId: string,
-  text: string,
-): Promise<'sent' | 'failed' | 'disabled'> {
-  if (!ENDPOINT) return 'disabled';
+// 슬랙에 올라간 티미팅 공지 한 건 — 나중에 고치거나 지울 때 이걸로 메시지를 가리킨다.
+export type AnnounceRef = { channel: string; ts: string; text: string; sentAt: string };
+
+// 공지 관리 결과. noscope: 봇에 채널 기록 조회 권한이 없어 지난 공지를 못 찾음. notfound: 지울/고칠 공지가 없음.
+export type AnnounceResult = 'sent' | 'failed' | 'disabled' | 'noscope' | 'notfound';
+
+type AnnounceResponse = { ok?: boolean; reason?: string; channel?: string; ts?: string };
+
+async function postAnnounce(body: Record<string, unknown>): Promise<AnnounceResponse | null> {
+  if (!ENDPOINT) return null;
   try {
     const res = await fetch(ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channel, channelId, announce: true, text }),
+      body: JSON.stringify(body),
     });
-    const data = (await res.json().catch(() => ({ ok: false }))) as { ok?: boolean };
-    return data.ok ? 'sent' : 'failed';
+    return (await res.json().catch(() => ({ ok: false }))) as AnnounceResponse;
   } catch {
-    return 'failed';
+    return { ok: false };
   }
+}
+
+const failureOf = (data: AnnounceResponse): AnnounceResult =>
+  data.reason === 'missing_scope' ? 'noscope' : data.reason === 'not_found' || data.reason === 'message_not_found' ? 'notfound' : 'failed';
+
+// 이번 티미팅 공지문을 채널로 전송(버튼). 성공하면 나중에 고칠 수 있게 메시지 위치(ref)도 돌려준다.
+export async function sendAnnouncement(
+  channel: SlackChannel,
+  channelId: string,
+  text: string,
+): Promise<{ result: AnnounceResult; ref?: AnnounceRef }> {
+  const data = await postAnnounce({ channel, channelId, announce: true, text });
+  if (!data) return { result: 'disabled' };
+  if (!data.ok) return { result: 'failed' };
+  const ref = data.channel && data.ts ? { channel: data.channel, ts: data.ts, text, sentAt: new Date().toISOString() } : undefined;
+  return { result: 'sent', ref };
+}
+
+// 위치를 모르는(이 기능 전에 보낸) 공지 — 채널 최근 기록에서 봇이 보낸 마지막 티미팅 공지를 찾는다.
+export async function findLatestAnnouncement(
+  channel: SlackChannel,
+  channelId: string,
+): Promise<{ result: AnnounceResult; ref?: AnnounceRef }> {
+  const data = await postAnnounce({ channel, channelId, announceAction: 'find' });
+  if (!data) return { result: 'disabled' };
+  if (!data.ok || !data.channel || !data.ts) return { result: failureOf(data) };
+  return { result: 'sent', ref: { channel: data.channel, ts: data.ts, text: '', sentAt: '' } };
+}
+
+// 이미 보낸 공지의 내용을 바꾼다.
+export async function updateAnnouncement(channel: SlackChannel, ref: AnnounceRef, text: string): Promise<AnnounceResult> {
+  const data = await postAnnounce({ channel, channelId: ref.channel, announceAction: 'update', ts: ref.ts, text });
+  if (!data) return 'disabled';
+  return data.ok ? 'sent' : failureOf(data);
+}
+
+// 이미 보낸 공지를 채널에서 지운다.
+export async function deleteAnnouncement(channel: SlackChannel, ref: AnnounceRef): Promise<AnnounceResult> {
+  const data = await postAnnounce({ channel, channelId: ref.channel, announceAction: 'delete', ts: ref.ts });
+  if (!data) return 'disabled';
+  return data.ok ? 'sent' : failureOf(data);
 }
