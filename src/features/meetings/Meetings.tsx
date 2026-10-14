@@ -115,6 +115,30 @@ const stageFlow: { id: CanStage; label: string }[] = [
   { id: 'summary', label: '결과' },
 ];
 
+// 티미팅 공지의 일정 줄 — '2026-10-16(목) 16:00~17:00'. 비어 있는 부분은 '미정'으로 채운다.
+export const formatTeaSchedule = (date: string, start: string, end: string) => {
+  const weekday = date ? '일월화수목금토'[new Date(`${date}T00:00:00`).getDay()] : '';
+  const day = date ? `${date}(${weekday})` : '날짜 미정';
+  const time = start ? (end ? `${start}~${end}` : `${start}~`) : '시간 미정';
+  return `${day} ${time}`;
+};
+
+// 티미팅 시작·종료 시간 기억 — 브라우저 저장소가 막혀 있으면 빈 값으로 시작한다.
+const readTeaTime = (which: 'start' | 'end') => {
+  try {
+    return localStorage.getItem(`skgrove:teaTime.${which}`) ?? '';
+  } catch {
+    return '';
+  }
+};
+const writeTeaTime = (which: 'start' | 'end', value: string) => {
+  try {
+    localStorage.setItem(`skgrove:teaTime.${which}`, value);
+  } catch {
+    // 저장 실패는 무시 — 다음에 다시 입력하면 된다.
+  }
+};
+
 const stageLabelOf = (session: CanSession) => {
   if (session.stage === 'summary' && session.resultSummary.trim().length > 0) return '완료';
   return stageFlow.find((item) => item.id === session.stage)?.label ?? '진행 중';
@@ -245,6 +269,9 @@ export function Meetings({
   const [teaRoundDate, setTeaRoundDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [teaRoundSessionId, setTeaRoundSessionId] = useState<string>('');
   const [teaGroupCount, setTeaGroupCount] = useState<number>(5);
+  // 회차 시작·종료 시간 'HH:MM'. 매번 같은 시간대인 경우가 많아 마지막 입력값을 이 브라우저에 기억한다.
+  const [teaStartTime, setTeaStartTime] = useState<string>(() => readTeaTime('start'));
+  const [teaEndTime, setTeaEndTime] = useState<string>(() => readTeaTime('end'));
   const [teaCopyNotice, setTeaCopyNotice] = useState<string>('');
   const [teaAnnounceConfirm, setTeaAnnounceConfirm] = useState<boolean>(false);
   // 슬랙 공지문을 손으로 고친 초안. null이면 날짜·세션·그룹으로 자동 생성한 문구를 쓴다.
@@ -253,7 +280,7 @@ export function Meetings({
   // 회차 구성(날짜·세션·그룹)이 바뀌면 손으로 고친 공지문은 내용이 어긋나므로 자동 생성으로 되돌린다.
   useEffect(() => {
     setTeaAnnounceEdit(null);
-  }, [teaRoundDate, teaRoundSessionId, teaGroups]);
+  }, [teaRoundDate, teaStartTime, teaEndTime, teaRoundSessionId, teaGroups]);
 
   // ── 캔미팅 팀 취합(완료 세션 결과 병합) — 휘발 상태. 저장하지 않고 화면·인쇄로만. ──
   const [mergeMode, setMergeMode] = useState(false); // 취합 만들기(세션 선택) 화면 여부
@@ -1779,7 +1806,8 @@ export function Meetings({
           // 이번 회차(날짜+세션+그룹)로 슬랙 공지문 생성
           const announceText = () => {
             const lines: string[] = [];
-            lines.push(`📢 *이번 티미팅 안내* (${teaRoundDate || '날짜 미정'})`);
+            lines.push('📢 *이번 티미팅 안내*');
+            lines.push(`📅 *일정:* ${formatTeaSchedule(teaRoundDate, teaStartTime, teaEndTime)}`);
             if (roundSession) {
               lines.push(`☕ *세션:* [${roundSession.type}] ${roundSession.title}`);
               lines.push(`🙋 *발표자:* ${roundSession.presenter} (${roundSession.part})`);
@@ -2098,6 +2126,32 @@ export function Meetings({
                           </option>
                         ))}
                       </select>
+                    </label>
+                  </div>
+                  <div className="tea-form-row">
+                    <label>
+                      시작 시간
+                      <input
+                        type="time"
+                        value={teaStartTime}
+                        onChange={(event) => {
+                          setTeaStartTime(event.target.value);
+                          writeTeaTime('start', event.target.value);
+                          setTeaCopyNotice('');
+                        }}
+                      />
+                    </label>
+                    <label>
+                      종료 시간
+                      <input
+                        type="time"
+                        value={teaEndTime}
+                        onChange={(event) => {
+                          setTeaEndTime(event.target.value);
+                          writeTeaTime('end', event.target.value);
+                          setTeaCopyNotice('');
+                        }}
+                      />
                     </label>
                   </div>
                   <div className="tea-group-controls">
