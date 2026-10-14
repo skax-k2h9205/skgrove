@@ -2199,6 +2199,7 @@ export function App() {
           onSetTeaHeldAt={setTeaSessionHeldAt}
           onTeaTypesChange={updateTeaSessionTypes}
           onAnnounceToSlack={announceTeaToSlack}
+          teaAnnounceTarget={{ enabled: notifySettings.slackEnabled, channelId: channelIdFor(notifySettings, 'team') }}
           onNotifyStatus={notifyStatus}
         />
       )}
