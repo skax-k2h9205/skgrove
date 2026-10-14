@@ -247,6 +247,13 @@ export function Meetings({
   const [teaGroupCount, setTeaGroupCount] = useState<number>(5);
   const [teaCopyNotice, setTeaCopyNotice] = useState<string>('');
   const [teaAnnounceConfirm, setTeaAnnounceConfirm] = useState<boolean>(false);
+  // 슬랙 공지문을 손으로 고친 초안. null이면 날짜·세션·그룹으로 자동 생성한 문구를 쓴다.
+  const [teaAnnounceEdit, setTeaAnnounceEdit] = useState<string | null>(null);
+
+  // 회차 구성(날짜·세션·그룹)이 바뀌면 손으로 고친 공지문은 내용이 어긋나므로 자동 생성으로 되돌린다.
+  useEffect(() => {
+    setTeaAnnounceEdit(null);
+  }, [teaRoundDate, teaRoundSessionId, teaGroups]);
 
   // ── 캔미팅 팀 취합(완료 세션 결과 병합) — 휘발 상태. 저장하지 않고 화면·인쇄로만. ──
   const [mergeMode, setMergeMode] = useState(false); // 취합 만들기(세션 선택) 화면 여부
@@ -1794,9 +1801,12 @@ export function Meetings({
             return lines.join('\n');
           };
 
+          // 실제로 복사·전송할 문구 — 손으로 고친 게 있으면 그것을 쓴다.
+          const announceBody = () => teaAnnounceEdit ?? announceText();
+
           const copyAnnounce = async () => {
             try {
-              await navigator.clipboard.writeText(announceText());
+              await navigator.clipboard.writeText(announceBody());
               setTeaCopyNotice('공지문을 복사했어요. 슬랙 채널에 붙여넣으세요.');
             } catch {
               setTeaCopyNotice('복사에 실패했어요. 아래 내용을 직접 선택해 복사해주세요.');
@@ -1805,7 +1815,7 @@ export function Meetings({
 
           const sendAnnounce = async () => {
             setTeaCopyNotice('#팀전체 채널로 공지를 보내는 중…');
-            const result = await onAnnounceToSlack(announceText());
+            const result = await onAnnounceToSlack(announceBody());
             setTeaCopyNotice(
               result === 'sent'
                 ? '#팀전체 채널로 공지를 보냈어요.'
@@ -2164,7 +2174,24 @@ export function Meetings({
                       )}
                     </div>
                   </div>
-                  <pre className="tea-announce">{announceText().replace(/\*/g, '')}</pre>
+                  <textarea
+                    className="tea-announce"
+                    aria-label="슬랙 공지문"
+                    rows={announceBody().split('\n').length + 1}
+                    value={announceBody()}
+                    onChange={(event) => {
+                      setTeaAnnounceEdit(event.target.value);
+                      setTeaCopyNotice('');
+                    }}
+                  />
+                  <p className="tea-announce-hint">
+                    전송 전에 자유롭게 고칠 수 있어요. *별표*로 감싼 글자는 슬랙에서 굵게 보여요.
+                    {teaAnnounceEdit !== null && (
+                      <button className="link-button" onClick={() => setTeaAnnounceEdit(null)}>
+                        자동 생성 문구로 되돌리기
+                      </button>
+                    )}
+                  </p>
                   {teaCopyNotice && <p className="tea-copy-notice">{teaCopyNotice}</p>}
                 </section>
               )}

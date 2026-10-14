@@ -7953,6 +7953,29 @@ textarea {
   word-break: break-word;
 }
 
+textarea.tea-announce {
+  border: 1px solid transparent;
+  box-sizing: border-box;
+  display: block;
+  resize: vertical;
+  width: 100%;
+}
+
+textarea.tea-announce:focus {
+  border-color: var(--tint-primary);
+  outline: none;
+}
+
+.tea-announce-hint {
+  align-items: center;
+  color: var(--color-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-meta);
+  gap: var(--space-2);
+  margin: 0;
+}
+
 .tea-copy-notice {
   color: var(--color-primary);
   font-size: var(--text-meta);
