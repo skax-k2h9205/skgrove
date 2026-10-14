@@ -115,25 +115,30 @@ const stageFlow: { id: CanStage; label: string }[] = [
   { id: 'summary', label: '결과' },
 ];
 
-// 티미팅 공지의 일정 줄 — '2026-10-16(목) 16:00~17:00'. 비어 있는 부분은 '미정'으로 채운다.
-export const formatTeaSchedule = (date: string, start: string, end: string) => {
+// 티미팅 공지의 일정 줄 — '2026-10-16(금) 16:00'. 비어 있는 부분은 '미정'으로 채운다.
+export const formatTeaSchedule = (date: string, start: string) => {
   const weekday = date ? '일월화수목금토'[new Date(`${date}T00:00:00`).getDay()] : '';
   const day = date ? `${date}(${weekday})` : '날짜 미정';
-  const time = start ? (end ? `${start}~${end}` : `${start}~`) : '시간 미정';
-  return `${day} ${time}`;
+  return `${day} ${start || '시간 미정'}`;
 };
 
-// 티미팅 시작·종료 시간 기억 — 브라우저 저장소가 막혀 있으면 빈 값으로 시작한다.
-const readTeaTime = (which: 'start' | 'end') => {
+// 시작 시간 선택지 — 09:00~18:00, 30분 단위. type="time" 은 빈 값일 때 비활성처럼 보여 select 로 고르게 한다.
+const TEA_START_TIMES = Array.from({ length: 19 }, (_, i) => {
+  const minutes = 9 * 60 + i * 30;
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${minutes % 60 ? '30' : '00'}`;
+});
+
+// 티미팅 시작 시간 기억 — 브라우저 저장소가 막혀 있으면 빈 값으로 시작한다.
+const readTeaTime = () => {
   try {
-    return localStorage.getItem(`skgrove:teaTime.${which}`) ?? '';
+    return localStorage.getItem('skgrove:teaTime.start') ?? '';
   } catch {
     return '';
   }
 };
-const writeTeaTime = (which: 'start' | 'end', value: string) => {
+const writeTeaTime = (value: string) => {
   try {
-    localStorage.setItem(`skgrove:teaTime.${which}`, value);
+    localStorage.setItem('skgrove:teaTime.start', value);
   } catch {
     // 저장 실패는 무시 — 다음에 다시 입력하면 된다.
   }
@@ -269,9 +274,8 @@ export function Meetings({
   const [teaRoundDate, setTeaRoundDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [teaRoundSessionId, setTeaRoundSessionId] = useState<string>('');
   const [teaGroupCount, setTeaGroupCount] = useState<number>(5);
-  // 회차 시작·종료 시간 'HH:MM'. 매번 같은 시간대인 경우가 많아 마지막 입력값을 이 브라우저에 기억한다.
-  const [teaStartTime, setTeaStartTime] = useState<string>(() => readTeaTime('start'));
-  const [teaEndTime, setTeaEndTime] = useState<string>(() => readTeaTime('end'));
+  // 회차 시작 시간 'HH:MM'. 매번 같은 시간대인 경우가 많아 마지막 선택값을 이 브라우저에 기억한다.
+  const [teaStartTime, setTeaStartTime] = useState<string>(() => readTeaTime());
   const [teaCopyNotice, setTeaCopyNotice] = useState<string>('');
   const [teaAnnounceConfirm, setTeaAnnounceConfirm] = useState<boolean>(false);
   // 슬랙 공지문을 손으로 고친 초안. null이면 날짜·세션·그룹으로 자동 생성한 문구를 쓴다.
@@ -280,7 +284,7 @@ export function Meetings({
   // 회차 구성(날짜·세션·그룹)이 바뀌면 손으로 고친 공지문은 내용이 어긋나므로 자동 생성으로 되돌린다.
   useEffect(() => {
     setTeaAnnounceEdit(null);
-  }, [teaRoundDate, teaStartTime, teaEndTime, teaRoundSessionId, teaGroups]);
+  }, [teaRoundDate, teaStartTime, teaRoundSessionId, teaGroups]);
 
   // ── 캔미팅 팀 취합(완료 세션 결과 병합) — 휘발 상태. 저장하지 않고 화면·인쇄로만. ──
   const [mergeMode, setMergeMode] = useState(false); // 취합 만들기(세션 선택) 화면 여부
@@ -1807,7 +1811,7 @@ export function Meetings({
           const announceText = () => {
             const lines: string[] = [];
             lines.push('📢 *이번 티미팅 안내*');
-            lines.push(`📅 *일정:* ${formatTeaSchedule(teaRoundDate, teaStartTime, teaEndTime)}`);
+            lines.push(`📅 *일정:* ${formatTeaSchedule(teaRoundDate, teaStartTime)}`);
             if (roundSession) {
               lines.push(`☕ *세션:* [${roundSession.type}] ${roundSession.title}`);
               lines.push(`🙋 *발표자:* ${roundSession.presenter} (${roundSession.part})`);
@@ -2131,27 +2135,21 @@ export function Meetings({
                   <div className="tea-form-row">
                     <label>
                       시작 시간
-                      <input
-                        type="time"
+                      <select
                         value={teaStartTime}
                         onChange={(event) => {
                           setTeaStartTime(event.target.value);
-                          writeTeaTime('start', event.target.value);
+                          writeTeaTime(event.target.value);
                           setTeaCopyNotice('');
                         }}
-                      />
-                    </label>
-                    <label>
-                      종료 시간
-                      <input
-                        type="time"
-                        value={teaEndTime}
-                        onChange={(event) => {
-                          setTeaEndTime(event.target.value);
-                          writeTeaTime('end', event.target.value);
-                          setTeaCopyNotice('');
-                        }}
-                      />
+                      >
+                        <option value="">시간 선택</option>
+                        {TEA_START_TIMES.map((time) => (
+                          <option key={time} value={time}>
+                            {time}
+                          </option>
+                        ))}
+                      </select>
                     </label>
                   </div>
                   <div className="tea-group-controls">
