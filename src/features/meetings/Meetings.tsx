@@ -122,6 +122,23 @@ export const formatTeaSchedule = (date: string, start: string) => {
   return `${day} ${start || '시간 미정'}`;
 };
 
+// 슬랙 mrkdwn 의 *굵게* 만 화면에 굵게 그린다 — 전송 확인창에서 슬랙에 보일 모습을 미리 보여주기 위함.
+function SlackPreviewText({ text }: { text: string }) {
+  return (
+    <>
+      {text.split('\n').map((line, lineIndex) => (
+        <div key={lineIndex}>
+          {line
+            ? line.split(/(\*[^*\n]+\*)/g).map((part, partIndex) =>
+                /^\*[^*]+\*$/.test(part) ? <strong key={partIndex}>{part.slice(1, -1)}</strong> : part,
+              )
+            : '\u00a0'}
+        </div>
+      ))}
+    </>
+  );
+}
+
 // 시작 시간 선택지 — 09:00~18:00, 30분 단위. type="time" 은 빈 값일 때 비활성처럼 보여 select 로 고르게 한다.
 const TEA_START_TIMES = Array.from({ length: 19 }, (_, i) => {
   const minutes = 9 * 60 + i * 30;
@@ -189,6 +206,8 @@ type MeetingsProps = {
   onSetTeaHeldAt: (id: string, heldAt: string) => void;
   onTeaTypesChange: (types: string[]) => void;
   onAnnounceToSlack: (text: string) => Promise<'sent' | 'failed' | 'disabled'>;
+  // 공지가 실제로 나갈 곳 — 전송 확인창에 보여준다. channelId 가 비면 서버 기본 채널로 간다.
+  teaAnnounceTarget: { enabled: boolean; channelId: string };
   onNotifyStatus: (text: string, tone?: ToastTone) => void;
 };
 
@@ -227,6 +246,7 @@ export function Meetings({
   onSetTeaHeldAt,
   onTeaTypesChange,
   onAnnounceToSlack,
+  teaAnnounceTarget,
   onNotifyStatus,
 }: MeetingsProps) {
   const teamParts = useTenantParts();
@@ -2202,28 +2222,10 @@ export function Meetings({
                         <Download size={16} />
                         공지문 복사
                       </button>
-                      {teaAnnounceConfirm ? (
-                        <span className="tea-announce-confirm">
-                          <span>#팀전체 채널에 공지할까요?</span>
-                          <button
-                            className="primary-button"
-                            onClick={() => {
-                              setTeaAnnounceConfirm(false);
-                              void sendAnnounce();
-                            }}
-                          >
-                            전송
-                          </button>
-                          <button className="secondary-button" onClick={() => setTeaAnnounceConfirm(false)}>
-                            취소
-                          </button>
-                        </span>
-                      ) : (
-                        <button className="primary-button" onClick={() => setTeaAnnounceConfirm(true)}>
-                          <Send size={16} />
-                          슬랙으로 공지 (#팀전체)
-                        </button>
-                      )}
+                      <button className="primary-button" onClick={() => setTeaAnnounceConfirm(true)}>
+                        <Send size={16} />
+                        슬랙으로 공지 (#팀전체)
+                      </button>
                     </div>
                   </div>
                   <textarea
@@ -2245,6 +2247,62 @@ export function Meetings({
                     )}
                   </p>
                   {teaCopyNotice && <p className="tea-copy-notice">{teaCopyNotice}</p>}
+                  {teaAnnounceConfirm && (
+                    <div
+                      className="modal-backdrop"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="tea-announce-confirm-title"
+                      onClick={(event) => {
+                        if (event.target === event.currentTarget) setTeaAnnounceConfirm(false);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') setTeaAnnounceConfirm(false);
+                      }}
+                    >
+                      <div className="modal-card tea-confirm-card">
+                        <h3 id="tea-announce-confirm-title">슬랙으로 공지할까요?</h3>
+                        <dl className="tea-confirm-meta">
+                          <dt>채널</dt>
+                          <dd>
+                            #팀전체{' '}
+                            <span className="tea-confirm-sub">
+                              {teaAnnounceTarget.channelId
+                                ? `(채널 ID ${teaAnnounceTarget.channelId})`
+                                : '(시스템 설정에 채널 ID가 없어 서버 기본 채널로 보내요)'}
+                            </span>
+                          </dd>
+                          <dt>보내는 방식</dt>
+                          <dd>슬랙 봇이 채널에 새 메시지로 올려요. 보낸 뒤에는 여기서 고치거나 지울 수 없어요.</dd>
+                        </dl>
+                        <p className="tea-confirm-label">슬랙에 이렇게 보여요</p>
+                        <div className="tea-confirm-preview">
+                          <SlackPreviewText text={announceBody()} />
+                        </div>
+                        {!teaAnnounceTarget.enabled && (
+                          <p className="tea-confirm-warn">
+                            지금은 슬랙 전송이 꺼져 있어요. 시스템 관리에서 켜거나, '공지문 복사'로 직접 붙여넣어 주세요.
+                          </p>
+                        )}
+                        <div className="tea-confirm-actions">
+                          <button className="secondary-button" autoFocus onClick={() => setTeaAnnounceConfirm(false)}>
+                            취소
+                          </button>
+                          <button
+                            className="primary-button"
+                            disabled={!teaAnnounceTarget.enabled}
+                            onClick={() => {
+                              setTeaAnnounceConfirm(false);
+                              void sendAnnounce();
+                            }}
+                          >
+                            <Send size={16} />
+                            보내기
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </section>
               )}
             </div>
