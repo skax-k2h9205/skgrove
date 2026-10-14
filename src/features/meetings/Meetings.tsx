@@ -33,6 +33,7 @@ import type { CanStepConfig } from '../../canConfig';
 import { makeStepId } from '../../canStepsStore';
 import { PanelHeader } from '../../components/PanelHeader';
 import type { ToastTone } from '../../components/Toast';
+import type { AnnounceRef, AnnounceResult } from '../../notificationDelivery';
 import { makeActionItemId } from '../../actionItemStore';
 import { summarizeCanMeeting } from '../../aiSummarize';
 import type {
@@ -122,8 +123,8 @@ export const formatTeaSchedule = (date: string, start: string) => {
   return `${day} ${start || '시간 미정'}`;
 };
 
-// 슬랙 mrkdwn 의 *굵게* 만 화면에 굵게 그린다 — 전송 확인창에서 슬랙에 보일 모습을 미리 보여주기 위함.
-function SlackPreviewText({ text }: { text: string }) {
+// 슬랙 mrkdwn 의 *굵게* 를 굵게 그린 줄들.
+function SlackLines({ text }: { text: string }) {
   return (
     <>
       {text.split('\n').map((line, lineIndex) => (
@@ -138,6 +139,34 @@ function SlackPreviewText({ text }: { text: string }) {
     </>
   );
 }
+
+// 슬랙에 올라갈 공지 카드 미리보기 — api/notify.ts 의 announceCard 와 같은 규칙으로 나눈다:
+// 첫 줄은 큰 제목, 첫 빈 줄까지는 세션 정보, 그 뒤는 구분선 아래 그룹 목록.
+function SlackAnnouncePreview({ text }: { text: string }) {
+  const [head, ...rest] = text.split('\n\n');
+  const headLines = head.split('\n');
+  const title = (headLines[0] || '이번 티미팅 안내').replace(/\*/g, '');
+  const sessionInfo = headLines.slice(1).join('\n');
+  const groups = rest.join('\n\n');
+  return (
+    <div className="tea-confirm-preview">
+      <div className="tea-confirm-preview-title">{title}</div>
+      {sessionInfo && <SlackLines text={sessionInfo} />}
+      {groups && (
+        <>
+          <hr />
+          <SlackLines text={groups} />
+        </>
+      )}
+    </div>
+  );
+}
+
+const formatSentAt = (iso: string) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
 
 // 시작 시간 선택지 — 09:00~18:00, 30분 단위. type="time" 은 빈 값일 때 비활성처럼 보여 select 로 고르게 한다.
 const TEA_START_TIMES = Array.from({ length: 19 }, (_, i) => {
@@ -205,7 +234,11 @@ type MeetingsProps = {
   onSetTeaMemo: (id: string, memo: string) => void;
   onSetTeaHeldAt: (id: string, heldAt: string) => void;
   onTeaTypesChange: (types: string[]) => void;
-  onAnnounceToSlack: (text: string) => Promise<'sent' | 'failed' | 'disabled'>;
+  onAnnounceToSlack: (text: string) => Promise<AnnounceResult>;
+  // 이미 보낸 티미팅 공지 고치기·지우기. 위치를 모르면(이 기능 전 공지) 채널 기록에서 찾는다.
+  onUpdateTeaAnnounce: (text: string) => Promise<AnnounceResult>;
+  onDeleteTeaAnnounce: () => Promise<AnnounceResult>;
+  teaLastAnnounce: AnnounceRef | null;
   // 공지가 실제로 나갈 곳 — 전송 확인창에 보여준다. channelId 가 비면 서버 기본 채널로 간다.
   teaAnnounceTarget: { enabled: boolean; channelId: string };
   onNotifyStatus: (text: string, tone?: ToastTone) => void;
@@ -246,6 +279,9 @@ export function Meetings({
   onSetTeaHeldAt,
   onTeaTypesChange,
   onAnnounceToSlack,
+  onUpdateTeaAnnounce,
+  onDeleteTeaAnnounce,
+  teaLastAnnounce,
   teaAnnounceTarget,
   onNotifyStatus,
 }: MeetingsProps) {
@@ -297,7 +333,8 @@ export function Meetings({
   // 회차 시작 시간 'HH:MM'. 매번 같은 시간대인 경우가 많아 마지막 선택값을 이 브라우저에 기억한다.
   const [teaStartTime, setTeaStartTime] = useState<string>(() => readTeaTime());
   const [teaCopyNotice, setTeaCopyNotice] = useState<string>('');
-  const [teaAnnounceConfirm, setTeaAnnounceConfirm] = useState<boolean>(false);
+  // 슬랙 공지 확인창 — 새로 보내기 / 보낸 공지 고치기 / 보낸 공지 지우기. null 이면 닫힘.
+  const [teaAnnounceMode, setTeaAnnounceMode] = useState<'send' | 'update' | 'delete' | null>(null);
   // 슬랙 공지문을 손으로 고친 초안. null이면 날짜·세션·그룹으로 자동 생성한 문구를 쓴다.
   const [teaAnnounceEdit, setTeaAnnounceEdit] = useState<string | null>(null);
 
@@ -1865,15 +1902,26 @@ export function Meetings({
             }
           };
 
-          const sendAnnounce = async () => {
-            setTeaCopyNotice('#팀전체 채널로 공지를 보내는 중…');
-            const result = await onAnnounceToSlack(announceBody());
+          const runAnnounce = async (mode: 'send' | 'update' | 'delete') => {
+            const doing = { send: '보내는', update: '고치는', delete: '지우는' }[mode];
+            setTeaCopyNotice(`#팀전체 채널 공지를 ${doing} 중…`);
+            const result =
+              mode === 'send'
+                ? await onAnnounceToSlack(announceBody())
+                : mode === 'update'
+                  ? await onUpdateTeaAnnounce(announceBody())
+                  : await onDeleteTeaAnnounce();
+            const done = { send: '#팀전체 채널로 공지를 보냈어요.', update: '보낸 공지를 고쳤어요.', delete: '보낸 공지를 지웠어요.' }[mode];
             setTeaCopyNotice(
               result === 'sent'
-                ? '#팀전체 채널로 공지를 보냈어요.'
+                ? done
                 : result === 'disabled'
                   ? '슬랙 전송이 설정되어 있지 않아요 (지금은 복사만 가능).'
-                  : '슬랙 전송에 실패했어요. 잠시 후 다시 시도해 주세요.',
+                  : result === 'noscope'
+                    ? '지난 공지를 찾으려면 슬랙 봇에 채널 기록 조회 권한(channels:history)이 필요해요.'
+                    : result === 'notfound'
+                      ? '채널에서 고치거나 지울 티미팅 공지를 찾지 못했어요.'
+                      : '슬랙 요청에 실패했어요. 잠시 후 다시 시도해 주세요.',
             );
           };
 
@@ -2222,7 +2270,7 @@ export function Meetings({
                         <Download size={16} />
                         공지문 복사
                       </button>
-                      <button className="primary-button" onClick={() => setTeaAnnounceConfirm(true)}>
+                      <button className="primary-button" onClick={() => setTeaAnnounceMode('send')}>
                         <Send size={16} />
                         슬랙으로 공지 (#팀전체)
                       </button>
@@ -2246,22 +2294,45 @@ export function Meetings({
                       </button>
                     )}
                   </p>
+                  <div className="tea-sent-manage">
+                    <span>
+                      {teaLastAnnounce?.sentAt
+                        ? `마지막 공지: ${formatSentAt(teaLastAnnounce.sentAt)} 보냄`
+                        : '이미 보낸 공지도 고치거나 지울 수 있어요.'}
+                    </span>
+                    <button className="secondary-button" onClick={() => setTeaAnnounceMode('update')}>
+                      <Pencil size={14} />
+                      보낸 공지를 이 내용으로 수정
+                    </button>
+                    <button className="secondary-button" onClick={() => setTeaAnnounceMode('delete')}>
+                      <Trash2 size={14} />
+                      보낸 공지 삭제
+                    </button>
+                  </div>
                   {teaCopyNotice && <p className="tea-copy-notice">{teaCopyNotice}</p>}
-                  {teaAnnounceConfirm && (
+                  {teaAnnounceMode && (
                     <div
                       className="modal-backdrop"
                       role="dialog"
                       aria-modal="true"
                       aria-labelledby="tea-announce-confirm-title"
                       onClick={(event) => {
-                        if (event.target === event.currentTarget) setTeaAnnounceConfirm(false);
+                        if (event.target === event.currentTarget) setTeaAnnounceMode(null);
                       }}
                       onKeyDown={(event) => {
-                        if (event.key === 'Escape') setTeaAnnounceConfirm(false);
+                        if (event.key === 'Escape') setTeaAnnounceMode(null);
                       }}
                     >
                       <div className="modal-card tea-confirm-card">
-                        <h3 id="tea-announce-confirm-title">슬랙으로 공지할까요?</h3>
+                        <h3 id="tea-announce-confirm-title">
+                          {
+                            {
+                              send: '슬랙으로 공지할까요?',
+                              update: '보낸 공지를 이 내용으로 고칠까요?',
+                              delete: '보낸 공지를 지울까요?',
+                            }[teaAnnounceMode]
+                          }
+                        </h3>
                         <dl className="tea-confirm-meta">
                           <dt>채널</dt>
                           <dd>
@@ -2272,32 +2343,50 @@ export function Meetings({
                                 : '(시스템 설정에 채널 ID가 없어 서버 기본 채널로 보내요)'}
                             </span>
                           </dd>
-                          <dt>보내는 방식</dt>
-                          <dd>슬랙 봇이 채널에 새 메시지로 올려요. 보낸 뒤에는 여기서 고치거나 지울 수 없어요.</dd>
+                          <dt>{teaAnnounceMode === 'send' ? '보내는 방식' : '대상'}</dt>
+                          <dd>
+                            {teaAnnounceMode === 'send'
+                              ? '슬랙 봇이 채널에 새 메시지로 올려요. 보낸 뒤에도 여기서 고치거나 지울 수 있어요.'
+                              : teaLastAnnounce?.sentAt
+                                ? `${formatSentAt(teaLastAnnounce.sentAt)}에 보낸 티미팅 공지`
+                                : '채널에서 봇이 마지막으로 보낸 티미팅 공지를 찾아서 바꿔요.'}
+                            {teaAnnounceMode === 'update' && ' 메시지에 "(편집됨)" 표시가 붙어요.'}
+                            {teaAnnounceMode === 'delete' && ' 지우면 되돌릴 수 없어요.'}
+                          </dd>
                         </dl>
-                        <p className="tea-confirm-label">슬랙에 이렇게 보여요</p>
-                        <div className="tea-confirm-preview">
-                          <SlackPreviewText text={announceBody()} />
-                        </div>
+                        {teaAnnounceMode !== 'delete' ? (
+                          <>
+                            <p className="tea-confirm-label">슬랙에 이렇게 보여요</p>
+                            <SlackAnnouncePreview text={announceBody()} />
+                          </>
+                        ) : (
+                          teaLastAnnounce?.text && (
+                            <>
+                              <p className="tea-confirm-label">지울 공지</p>
+                              <SlackAnnouncePreview text={teaLastAnnounce.text} />
+                            </>
+                          )
+                        )}
                         {!teaAnnounceTarget.enabled && (
                           <p className="tea-confirm-warn">
                             지금은 슬랙 전송이 꺼져 있어요. 시스템 관리에서 켜거나, '공지문 복사'로 직접 붙여넣어 주세요.
                           </p>
                         )}
                         <div className="tea-confirm-actions">
-                          <button className="secondary-button" autoFocus onClick={() => setTeaAnnounceConfirm(false)}>
+                          <button className="secondary-button" autoFocus onClick={() => setTeaAnnounceMode(null)}>
                             취소
                           </button>
                           <button
-                            className="primary-button"
+                            className={teaAnnounceMode === 'delete' ? 'primary-button tea-danger' : 'primary-button'}
                             disabled={!teaAnnounceTarget.enabled}
                             onClick={() => {
-                              setTeaAnnounceConfirm(false);
-                              void sendAnnounce();
+                              const mode = teaAnnounceMode;
+                              setTeaAnnounceMode(null);
+                              void runAnnounce(mode);
                             }}
                           >
-                            <Send size={16} />
-                            보내기
+                            {teaAnnounceMode === 'delete' ? <Trash2 size={16} /> : <Send size={16} />}
+                            {{ send: '보내기', update: '수정하기', delete: '삭제하기' }[teaAnnounceMode]}
                           </button>
                         </div>
                       </div>

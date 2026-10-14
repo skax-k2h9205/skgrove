@@ -7973,6 +7973,41 @@ textarea {
   word-break: break-word;
 }
 
+.tea-confirm-preview {
+  border-left-color: var(--color-primary-strong);
+}
+
+.tea-confirm-preview-title {
+  font-size: 1.05em;
+  font-weight: 800;
+  margin-bottom: var(--space-2);
+}
+
+.tea-confirm-preview hr {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin: var(--space-2) 0;
+}
+
+.tea-confirm-actions .tea-danger,
+.tea-confirm-actions .tea-danger:hover:not(:disabled) {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.tea-sent-manage {
+  align-items: center;
+  color: var(--color-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-meta);
+  gap: var(--space-2);
+}
+
+.tea-sent-manage > span {
+  margin-right: auto;
+}
+
 .tea-confirm-warn {
   background: var(--tint-danger);
   border-radius: var(--radius);
