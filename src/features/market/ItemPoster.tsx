@@ -1,4 +1,4 @@
-import type { ElementType } from 'react';
+import { useState, type ElementType } from 'react';
 import {
   Armchair,
   BookOpen,
@@ -91,17 +91,45 @@ type ItemPosterProps = {
   /** 우측 상단 배지(경매·나눔·거래완료). 호출부가 상태를 보고 정한다. */
   badge?: string;
   badgeTone?: 'moss' | 'clay' | 'muted';
+  /*
+    사진을 눌렀을 때 할 일. 상세에서만 넘긴다 —
+    목록의 칸은 이미 '상세 열기' 단추라, 여기에 또 누를 것을 겹치면 서로 싸운다.
+  */
+  onPhotoClick?: () => void;
 };
 
-export function ItemPoster({ item, badge, badgeTone = 'moss' }: ItemPosterProps) {
+export function ItemPoster({ item, badge, badgeTone = 'moss', onPhotoClick }: ItemPosterProps) {
+  /*
+    사진 주소가 죽었을 때 빈 칸을 남기지 않는다(PosterFrame 과 같은 처리).
+    버킷이 없어 blob: 로 떨어진 주소가 새로고침에서 죽는 일이 실제로 있었고,
+    파일이 지워지거나 주소가 바뀌어도 같은 일이 난다.
+  */
+  const [photoBroken, setPhotoBroken] = useState(false);
+
   const poster = item.poster ?? localItemPoster(item);
   const Motif = MOTIF_ICON[poster.motif] ?? Package;
-  const hasPhoto = Boolean(item.imageUrl);
+  const hasPhoto = Boolean(item.imageUrl) && !photoBroken;
+
+  const photo = (
+    <img
+      alt=""
+      className="poster-photo"
+      loading="lazy"
+      onError={() => setPhotoBroken(true)}
+      src={item.imageUrl}
+    />
+  );
 
   return (
     <div className={hasPhoto ? 'poster photo' : `poster ${poster.tone}`}>
       {hasPhoto ? (
-        <img alt="" className="poster-photo" loading="lazy" src={item.imageUrl} />
+        onPhotoClick ? (
+          <button aria-label="사진 크게 보기" className="poster-photo-zoom" onClick={onPhotoClick} type="button">
+            {photo}
+          </button>
+        ) : (
+          photo
+        )
       ) : (
         <Motif aria-hidden className="poster-motif" size={64} strokeWidth={1.25} />
       )}

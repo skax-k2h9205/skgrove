@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { CommentThread } from '../../components/CommentThread';
 import { EmptyState } from '../../components/EmptyState';
+import { PhotoViewer } from '../../components/PhotoViewer';
 import {
   bidBlockedReason,
   bidCount,
@@ -131,6 +132,8 @@ export function MarketBoard({
   const [bidError, setBidError] = useState('');
   // 삭제는 되돌릴 수 없어 상세 안에서 펼치는 확인 UI로 받는다(유머와 같은 방식).
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // 상세에서 사진을 눌러 크게 보는 중인가.
+  const [zoomed, setZoomed] = useState(false);
 
   const visible = sortItems(
     items.filter((item) => {
@@ -158,6 +161,7 @@ export function MarketBoard({
   };
 
   const openDetail = (id: string, fromFeed = false) => {
+    setZoomed(false); // 앞 물건의 확대가 남아 있으면 안 된다
     showDetail(id, fromFeed);
     /* 홈 피드에서 바로 연 상세는 쌓지 않는다. 그 경우 '뒤로'의 목적지가 홈인데,
        홈은 이미 한 칸 아래에 있어서 더 쌓으면 뒤로가기를 두 번 눌러야 한다. */
@@ -166,6 +170,7 @@ export function MarketBoard({
 
   // 상세 '뒤로': 홈에서 들어왔으면 홈으로, 목록에서 들어왔으면 목록으로.
   const backFromDetail = () => {
+    setZoomed(false);
     if (openedFromFeed && onExitToHome) {
       onExitToHome();
       return;
@@ -265,8 +270,13 @@ export function MarketBoard({
               badge={gridBadge(selected, status).text}
               badgeTone={gridBadge(selected, status).tone}
               item={selected}
+              onPhotoClick={selected.imageUrl ? () => setZoomed(true) : undefined}
             />
           </div>
+
+          {zoomed && selected.imageUrl && (
+            <PhotoViewer alt={selected.title} onClose={() => setZoomed(false)} src={selected.imageUrl} />
+          )}
 
           <div className="gathering-detail-body">
             <h2>{selected.title}</h2>

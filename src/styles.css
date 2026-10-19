@@ -14355,3 +14355,42 @@ button.notif-row {
     overflow: visible;
   }
 }
+
+/* ===== 사진 크게 보기(장터 상세) ===== */
+/* 목록 칸은 '상세 열기' 단추라 확대를 달지 않는다. 여기는 상세의 사진에만 붙는다. */
+.poster-photo-zoom {
+  background: none;
+  border: 0;
+  cursor: zoom-in;
+  display: block;
+  height: 100%;
+  padding: 0;
+  width: 100%;
+}
+.poster-photo-zoom:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -3px; }
+
+/* .modal-card 는 폼에 맞춘 420px 라 사진에는 안 맞는다. 사진용 치수만 따로 둔다. */
+.photo-viewer { cursor: zoom-out; padding: var(--space-4); }
+.photo-viewer-img {
+  border-radius: var(--radius-lg);
+  cursor: default;
+  max-height: 92vh;
+  max-width: 100%;
+  object-fit: contain;
+}
+.photo-viewer-close {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-ink);
+  cursor: pointer;
+  display: flex;
+  height: 36px;
+  justify-content: center;
+  position: absolute;
+  right: var(--space-4);
+  top: var(--space-4);
+  width: 36px;
+}
+.photo-viewer-close:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
