@@ -565,6 +565,8 @@ export type MarketItem = {
   // 마감 3분 안에 들어온 입찰로 밀린 시각. 막판에 낚아채고 끝나는 것을 막는다.
   // closeAt 을 직접 고치지 않는 이유는 원래 약속한 마감을 남겨두기 위해서다.
   extendedTo?: string;
+  // 행사 벼룩시장 식별자(marketEvents.ts). 없으면 상시 장터. 상시와 섞이지 않게 가른다.
+  eventTag?: string;
   place: string; // 거래 장소
   imageUrl?: string;
   poster?: GatheringPoster; // 사진이 없을 때만 채워진다
