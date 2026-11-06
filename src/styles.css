@@ -1005,9 +1005,26 @@ h1 {
 }
 
 .two-column {
+  align-items: start;
   display: grid;
   gap: 18px;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+/* 두 열의 입력칸이 같은 높이·같은 세로 위치에 오도록 맞춘다.
+   예전에는 한쪽(최소 인상폭)에만 안내문이 있어 그 열이 더 길어지면,
+   stretch 로 반대쪽 .field 가 같은 높이로 늘어나며 입력칸이 세로로 길어졌다
+   (시작가 54px vs 최소 인상폭 42px). 또 '필수' 배지가 붙은 라벨이 더 높아
+   입력칸 시작점이 12px 어긋났다. align-items:start 로 늘어남을 막고,
+   필드를 그리드로 쌓아 간격을 통일하며, 라벨 높이를 맞춰 입력칸을 정렬한다. */
+.two-column .field {
+  align-content: start;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.two-column .field-label {
+  min-height: 30px;
 }
 
 /* 두 열이 각각 내용만큼만 자란다. 예전에는 네 패널이 한 그리드에 있고 안건 패널이
