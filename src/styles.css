@@ -1886,6 +1886,14 @@ textarea {
   font-weight: 700;
 }
 
+/* 이음장터 상시/행사 탭. .screen(grid) 직속이라 stretch 로 가로로 늘어나는 걸 막고
+   내용 폭만 쓰게 한다. 좁은 폭에서는 줄바꿈되도록 flex-wrap 을 허용한다. */
+.market-scope-tabs {
+  justify-self: start;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
 .privacy-visual {
   align-items: center;
   display: flex;

@@ -43,6 +43,7 @@ import {
 import type { CurrentUser, MarketBid, MarketComment, MarketItem, MarketStatus } from '../../types';
 import { ItemPoster } from './ItemPoster';
 import { MarketForm, type MarketDraft } from './MarketForm';
+import { MARKET_EVENTS, marketEvent } from './marketEvents';
 
 type MarketBoardProps = {
   items: MarketItem[];
@@ -128,6 +129,8 @@ export function MarketBoard({
   // 상세를 '홈 피드'에서 열었는지 기록한다. 뒤로가기 목적지(홈 vs 목록)를 이걸로 정한다.
   const [openedFromFeed, setOpenedFromFeed] = useState(false);
   const [filter, setFilter] = useState<Filter>('거래중');
+  // 상시('') 또는 행사 태그. 상단 탭이 이걸 바꾼다 — 상시와 행사 물건을 완전히 가른다.
+  const [scope, setScope] = useState<string>('');
   const [amountInput, setAmountInput] = useState('');
   const [bidError, setBidError] = useState('');
   // 삭제는 되돌릴 수 없어 상세 안에서 펼치는 확인 UI로 받는다(유머와 같은 방식).
@@ -135,8 +138,16 @@ export function MarketBoard({
   // 상세에서 사진을 눌러 크게 보는 중인가.
   const [zoomed, setZoomed] = useState(false);
 
+  // 현재 탭(상시/행사)에 속한 물건만. 명예의 전당·격자 모두 이 범위 안에서 센다.
+  const scopedItems = items.filter((item) => (item.eventTag ?? '') === scope);
+
+  // 상단 탭: 상시 + (등록 가능하거나 물건이 하나라도 있는) 행사들. 행사가 없으면 탭 자체를 숨긴다.
+  const eventTabs = MARKET_EVENTS.filter(
+    (event) => event.active || items.some((item) => item.eventTag === event.tag),
+  );
+
   const visible = sortItems(
-    items.filter((item) => {
+    scopedItems.filter((item) => {
       const status = deriveStatus(item, bids, now);
       if (filter === '거래중') return status === '거래중';
       if (filter === '나눔') return item.kind === 'giveaway';
@@ -206,7 +217,7 @@ export function MarketBoard({
   if (view === 'create') {
     return (
       <section className="screen">
-        <MarketForm onCancel={() => setView('feed')} onSubmit={create} />
+        <MarketForm defaultEventTag={scope} onCancel={() => setView('feed')} onSubmit={create} />
       </section>
     );
   }
@@ -489,15 +500,43 @@ export function MarketBoard({
   }
 
   const boards = [
-    { key: 'seller', title: '판매왕', rows: rankSellers(items, bids, now), unit: '건' },
-    { key: 'giver', title: '나눔왕', rows: rankGivers(items, bids, now), unit: '건' },
-    { key: 'buyer', title: '구매왕', rows: rankBuyers(items, bids, now), unit: '건' },
-    { key: 'spender', title: '큰손', rows: rankBigSpenders(items, bids, now), unit: '원' },
+    { key: 'seller', title: '판매왕', rows: rankSellers(scopedItems, bids, now), unit: '건' },
+    { key: 'giver', title: '나눔왕', rows: rankGivers(scopedItems, bids, now), unit: '건' },
+    { key: 'buyer', title: '구매왕', rows: rankBuyers(scopedItems, bids, now), unit: '건' },
+    { key: 'spender', title: '큰손', rows: rankBigSpenders(scopedItems, bids, now), unit: '원' },
   ];
   const hasRanking = boards.some((board) => board.rows.length > 0);
+  const scopeLabel = marketEvent(scope)?.label;
 
   return (
     <section className="screen">
+      {/* 상시/행사 탭. 행사 벼룩시장이 열려 있을 때만 보이고, 평소엔 숨어 화면이 그대로다. */}
+      {eventTabs.length > 0 && (
+        <div className="segmented market-scope-tabs" role="tablist" aria-label="장터 전환">
+          <button
+            className={scope === '' ? 'selected' : ''}
+            onClick={() => setScope('')}
+            role="tab"
+            aria-selected={scope === ''}
+            type="button"
+          >
+            상시 장터
+          </button>
+          {eventTabs.map((event) => (
+            <button
+              className={scope === event.tag ? 'selected' : ''}
+              key={event.tag}
+              onClick={() => setScope(event.tag)}
+              role="tab"
+              aria-selected={scope === event.tag}
+              type="button"
+            >
+              {event.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/*
         실적을 맨 위에 둔다. 유~머게시판의 명예의 전당과 같은 자리다 —
         아래에 두면 포스터 격자를 다 지나야 나와 아무도 보지 않는다.
@@ -509,7 +548,7 @@ export function MarketBoard({
       <section className="panel market-hall">
         <div className="market-hall-head">
           <Trophy size={18} />
-          <strong>이음장터 명예의 전당</strong>
+          <strong>{scopeLabel ? `${scopeLabel} 명예의 전당` : '이음장터 명예의 전당'}</strong>
         </div>
         {hasRanking ? (
           <div className="market-rank-grid">

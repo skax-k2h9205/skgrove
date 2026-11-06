@@ -3,10 +3,11 @@ import { Gavel, Gift, ImagePlus, Trash2 } from 'lucide-react';
 import { PanelHeader } from '../../components/PanelHeader';
 import { formatPrice } from '../../marketRules';
 import type { MarketItem, MarketKind } from '../../types';
+import { activeMarketEvents, marketEvent } from './marketEvents';
 
 export type MarketDraft = Pick<
   MarketItem,
-  'title' | 'desc' | 'startPrice' | 'minStep' | 'closeAt' | 'place'
+  'title' | 'desc' | 'startPrice' | 'minStep' | 'closeAt' | 'place' | 'eventTag'
 > & { kind: MarketKind; imageFile: File | null };
 
 type MarketFormProps = {
@@ -14,6 +15,8 @@ type MarketFormProps = {
   onCancel: () => void;
   /** 있으면 수정 모드 — 기존 값으로 채워 시작한다. 입찰 0건일 때만 호출부가 연다. */
   initial?: MarketItem;
+  /** 등록 시 기본으로 고를 장터(행사 탭에서 '물건 내놓기'를 누르면 그 행사로 시작). */
+  defaultEventTag?: string;
 };
 
 /** 'YYYY-MM-DDTHH:mm' 로컬 시각. datetime-local 이 그대로 받는 형식이다. */
@@ -45,10 +48,19 @@ function suggestStep(startPrice: number) {
   return Math.max(1000, raw);
 }
 
-export function MarketForm({ onSubmit, onCancel, initial }: MarketFormProps) {
+export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: MarketFormProps) {
   const isEdit = Boolean(initial);
   const [kind, setKind] = useState<MarketKind>(initial?.kind ?? 'auction');
   const isAuction = kind === 'auction';
+
+  // 어느 장터에 올릴지. 상시(빈 값)가 기본. 행사 탭에서 들어오면 그 행사로 시작한다.
+  const [eventTag, setEventTag] = useState<string>(initial?.eventTag ?? defaultEventTag ?? '');
+  // 등록 가능한 행사 + (수정 중이라면) 이미 달린 행사. 끝난 행사 물건을 수정해도 선택지에 남는다.
+  const openEvents = activeMarketEvents();
+  const current = marketEvent(eventTag);
+  const eventChoices = current && !openEvents.some((event) => event.tag === current.tag)
+    ? [...openEvents, current]
+    : openEvents;
 
   const [title, setTitle] = useState(initial?.title ?? '');
   const [desc, setDesc] = useState(initial?.desc ?? '');
@@ -109,6 +121,7 @@ export function MarketForm({ onSubmit, onCancel, initial }: MarketFormProps) {
       closeAt,
       startPrice: isAuction ? priceNumber : 0,
       minStep: isAuction ? effectiveStep : 0,
+      eventTag: eventTag || undefined,
       imageFile,
     });
   };
@@ -116,6 +129,35 @@ export function MarketForm({ onSubmit, onCancel, initial }: MarketFormProps) {
   return (
     <section className="panel form-panel">
       <PanelHeader icon={isAuction ? Gavel : Gift} title={isEdit ? '물건 수정' : '물건 내놓기'} />
+
+      {/* 어느 장터에 올릴지. 등록 가능한 행사가 있을 때만 보인다 — 평소엔 상시뿐이라 숨긴다. */}
+      {eventChoices.length > 0 && (
+        <div className="field">
+          <span className="field-label">어느 장터에 올리나요</span>
+          <div className="segmented">
+            <button
+              className={eventTag === '' ? 'selected' : ''}
+              onClick={() => setEventTag('')}
+              type="button"
+            >
+              상시 장터
+            </button>
+            {eventChoices.map((event) => (
+              <button
+                className={eventTag === event.tag ? 'selected' : ''}
+                key={event.tag}
+                onClick={() => setEventTag(event.tag)}
+                type="button"
+              >
+                {event.label}
+              </button>
+            ))}
+          </div>
+          {eventTag !== '' && (
+            <p className="field-note">행사 벼룩시장에 올라가며, 상시 장터와 따로 모여요.</p>
+          )}
+        </div>
+      )}
 
       <div className="choice-row">
         <button

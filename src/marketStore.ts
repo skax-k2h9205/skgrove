@@ -17,7 +17,7 @@ const COMMENTS_TABLE = 'market_comments';
 const COMMENT_WRITE_KEYS = ['id', 'item_id', 'author', 'body', 'created_at', 'liked_by', 'parent_id'];
 const ITEM_WRITE_KEYS = ['id', 'kind', 'title', 'description', 'start_price', 'min_step', 'close_at',
   'extended_to', 'place', 'image_url', 'poster', 'seller', 'created_at', 'canceled',
-  'seller_done', 'buyer_done'];
+  'seller_done', 'buyer_done', 'event_tag'];
 const BIDS_TABLE = 'market_bids';
 const IMAGE_BUCKET = 'market-images';
 
@@ -38,6 +38,7 @@ type ItemRow = {
   canceled?: boolean | null;
   seller_done?: boolean | null;
   buyer_done?: boolean | null;
+  event_tag?: string | null;
 };
 
 type BidRow = {
@@ -88,6 +89,7 @@ function itemFromRow(row: ItemRow): MarketItem {
     minStep: typeof row.min_step === 'number' && row.min_step > 0 ? row.min_step : 0,
     closeAt: row.close_at ?? '',
     extendedTo: row.extended_to ?? undefined,
+    eventTag: row.event_tag ?? undefined,
     place: row.place ?? '',
     imageUrl: row.image_url ?? undefined,
     poster: (row.poster as GatheringPoster | null) ?? undefined,
@@ -109,6 +111,7 @@ function itemToRow(item: MarketItem): ItemRow {
     min_step: item.minStep,
     close_at: item.closeAt,
     extended_to: item.extendedTo ?? null,
+    event_tag: item.eventTag ?? null,
     place: item.place,
     image_url: item.imageUrl ?? null,
     poster: item.poster ?? null,
