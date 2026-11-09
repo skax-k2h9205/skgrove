@@ -9699,6 +9699,12 @@ button.notif-row {
   gap: var(--space-2);
 }
 
+/* 등록 폼: 올릴 장터가 들어온 탭으로 정해졌을 때의 안내. */
+.market-dest-name {
+  color: var(--color-ink);
+  font-weight: 700;
+}
+
 .field-required {
   background: var(--tint-danger);
   border-radius: var(--radius-sm);

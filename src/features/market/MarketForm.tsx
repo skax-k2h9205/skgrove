@@ -156,31 +156,40 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
     <section className="panel form-panel">
       <PanelHeader icon={isAuction ? Gavel : Gift} title={isEdit ? '물건 수정' : '물건 내놓기'} />
 
-      {/* 어느 장터에 올릴지. 등록 가능한 행사가 있을 때만 보인다 — 평소엔 상시뿐이라 숨긴다. */}
+      {/* 어느 장터에 올릴지. 등록 가능한 행사가 있을 때만 보인다 — 평소엔 상시뿐이라 숨긴다.
+          등록은 들어온 탭의 장터로 정해지므로 안내만, 수정은 장터 이동을 위해 선택지를 보여준다. */}
       {eventChoices.length > 0 && (
         <div className="field">
-          <span className="field-label">어느 장터에 올리나요</span>
-          <div className="segmented">
-            <button
-              className={eventTag === '' ? 'selected' : ''}
-              onClick={() => setEventTag('')}
-              type="button"
-            >
-              상시 장터
-            </button>
-            {eventChoices.map((event) => (
-              <button
-                className={eventTag === event.tag ? 'selected' : ''}
-                key={event.tag}
-                onClick={() => setEventTag(event.tag)}
-                type="button"
-              >
-                {event.label}
-              </button>
-            ))}
-          </div>
-          {eventTag !== '' && (
-            <p className="field-note">행사 벼룩시장에 올라가며, 상시 장터와 따로 모여요.</p>
+          <span className="field-label">올리는 장터</span>
+          {isEdit ? (
+            <>
+              <div className="segmented">
+                <button
+                  className={eventTag === '' ? 'selected' : ''}
+                  onClick={() => setEventTag('')}
+                  type="button"
+                >
+                  상시 장터
+                </button>
+                {eventChoices.map((event) => (
+                  <button
+                    className={eventTag === event.tag ? 'selected' : ''}
+                    key={event.tag}
+                    onClick={() => setEventTag(event.tag)}
+                    type="button"
+                  >
+                    {event.label}
+                  </button>
+                ))}
+              </div>
+              {eventTag !== '' && (
+                <p className="field-note">행사 벼룩시장에 올라가며, 상시 장터와 따로 모여요.</p>
+              )}
+            </>
+          ) : (
+            <span className="market-dest-name">
+              📍 {eventTag === '' ? '상시 장터' : current?.label}
+            </span>
           )}
         </div>
       )}
