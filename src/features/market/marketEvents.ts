@@ -32,6 +32,9 @@ export type MarketEvent = {
   /** true 면 이 행사 탭에 크리스마스 테마(스노우폴)를 입힌다. 그 탭 화면에만 적용되고
    *  상시 장터·다른 화면은 그대로다. 행사가 끝나면 이 줄만 지우면 된다. */
   xmas?: boolean;
+  /** true 면 '나눔왕'(성사된 나눔이 가장 많은 사람)을 시상하는 행사 — 그 안내 패널을 띄우고
+   *  명예의 전당 나눔왕에 시상 표시를 단다. (경매 판매금은 판매자 본인 소유, 팀 모금 아님) */
+  giverAward?: boolean;
 };
 
 export const MARKET_EVENTS: MarketEvent[] = [
@@ -39,10 +42,11 @@ export const MARKET_EVENTS: MarketEvent[] = [
     tag: 'canmeeting-2026',
     label: '🎪 캔미팅 벼룩시장',
     active: true,
-    fundraiser: true,
+    fundraiser: false, // 경매 판매금은 판매자 본인 소유 — 팀 모금 아님
     fixedCloseAt: '2026-11-30T12:50',
     openAt: '2026-11-30T12:00',
     xmas: true,
+    giverAward: true, // 나눔왕(성사된 나눔 최다) 시상
   },
 ];
 

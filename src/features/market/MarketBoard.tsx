@@ -590,18 +590,20 @@ export function MarketBoard({
   const fund = scopeEvent?.fundraiser && !preOpen ? fundraiseSummary(scopedItems, bids, now) : null;
   // 크리스마스 테마는 이 탭에만. 상시 장터·다른 화면은 그대로다.
   const xmas = Boolean(scopeEvent?.xmas);
+  // 나눔왕 시상 행사 — 안내 패널을 띄우고 명예의 전당 나눔왕에 시상 표시.
+  const giverAward = Boolean(scopeEvent?.giverAward);
 
   return (
     <section className={xmas ? 'screen market-xmas' : 'screen'}>
       {xmas && (
         <div aria-hidden="true" className="xmas-snow">
-          {Array.from({ length: 14 }).map((_, i) => (
+          {Array.from({ length: 24 }).map((_, i) => (
             <i
               key={i}
               style={{
-                left: `${(i * 7 + 4) % 97}%`,
-                animationDuration: `${6 + ((i * 1.3) % 5)}s`,
-                animationDelay: `${(i * 0.7) % 4}s`,
+                left: `${(i * 4.17 + 2) % 98}%`,
+                animationDuration: `${6 + ((i * 1.3) % 6)}s`,
+                animationDelay: `${(i * 0.53) % 6}s`,
               }}
             >
               ❄
@@ -639,7 +641,7 @@ export function MarketBoard({
       {/* 크리스마스 꼬마전구 띠(이 탭 한정). */}
       {xmas && (
         <div aria-hidden="true" className="xmas-lights">
-          {Array.from({ length: 11 }).map((_, i) => (
+          {Array.from({ length: 15 }).map((_, i) => (
             <i key={i} />
           ))}
         </div>
@@ -692,6 +694,20 @@ export function MarketBoard({
         </section>
       )}
 
+      {/* 나눔왕 시상 안내 — 이 행사의 운영 규칙(판매금 본인 소유 + 나눔왕 시상)을 한 번에 알린다. */}
+      {giverAward && (
+        <section className="panel market-award">
+          <div className="award-head">
+            <Trophy size={16} />
+            나눔왕 시상 예정
+          </div>
+          <p className="award-text">
+            성사된 <strong>나눔</strong>이 가장 많은 분을 <strong>나눔왕</strong>으로 시상해요. 아래 명예의 전당에서 확인하세요!
+          </p>
+          <p className="award-sub">경매로 판 물건의 판매금은 판매자 본인이 가져가요.</p>
+        </section>
+      )}
+
       {/*
         실적을 맨 위에 둔다. 유~머게시판의 명예의 전당과 같은 자리다 —
         아래에 두면 포스터 격자를 다 지나야 나와 아무도 보지 않는다.
@@ -709,7 +725,10 @@ export function MarketBoard({
           <div className="market-rank-grid">
             {boards.map((board) => (
               <div className="market-rank" key={board.key}>
-                <h3>{board.title}</h3>
+                <h3>
+                  {giverAward && board.key === 'giver' && <span className="rank-award">🏆 시상</span>}
+                  {board.title}
+                </h3>
                 {board.rows.length === 0 ? (
                   <p className="field-note">아직 없음</p>
                 ) : (
