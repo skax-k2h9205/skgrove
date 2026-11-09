@@ -11,9 +11,11 @@ import {
   Lock,
   MapPin,
   Package,
+  PackageOpen,
   Pencil,
   Plus,
   QrCode,
+  RotateCcw,
   Sparkles,
   Trash2,
   Trophy,
@@ -26,16 +28,19 @@ import {
   bidCount,
   bidsFor,
   canEditMarketItem,
+  canRevealMystery,
   currentPrice,
   isOpen,
   deriveStatus,
   effectiveCloseAt,
   formatPrice,
   fundraiseSummary,
+  isMysteryHidden,
   isSettled,
   leadingBid,
   minNextBid,
   myBid,
+  publicTitle,
   rankBigSpenders,
   rankBuyers,
   rankGivers,
@@ -48,6 +53,7 @@ import type { CurrentUser, MarketBid, MarketComment, MarketItem, MarketStatus } 
 import { ItemPoster } from './ItemPoster';
 import { MarketForm, type MarketDraft } from './MarketForm';
 import { QrSheet } from './QrSheet';
+import { RandomBoxReveal } from './RandomBoxReveal';
 import {
   MARKET_EVENTS,
   isPreOpen,
@@ -94,6 +100,10 @@ type MarketBoardProps = {
   canModerate: boolean;
   /** 완전 삭제(물건 + 입찰 기록). 판매자 또는 팀리더만 호출한다. */
   onDelete: (item: MarketItem) => void;
+  /** 랜덤박스를 열 수 있는 사람인가(리더·커넥셔너). 낙찰 확정 여부는 규칙(canRevealMystery)이 본다. */
+  canReveal: boolean;
+  /** 랜덤박스 열기 — revealedAt 을 찍어 모두에게 내용물을 보이게 한다. 연출은 보드가 띄운다. */
+  onReveal: (item: MarketItem) => void;
   /** 홈 피드에서 이 물건을 눌러 들어온 경우 그 id. 바로 상세를 열고 한 번만 소비한다. */
   focusId?: string | null;
   onFocusHandled?: () => void;
@@ -120,6 +130,8 @@ const FILTERS: Filter[] = ['거래중', '나눔', '내가 올린 것', '전체']
   없으면 이미 팔린 물건을 눌러야만 알게 되어 헛걸음이 생긴다.
 */
 function gridBadge(item: MarketItem, status: MarketStatus): { text: string; tone: 'moss' | 'clay' | 'muted' } {
+  // 낙찰됐지만 아직 안 연 랜덤박스 — '거래완료'보다 '열기 전'이 지금 이 물건의 상태다.
+  if (status === '거래완료' && isMysteryHidden(item)) return { text: '열기 전', tone: 'clay' };
   if (status === '거래완료') return { text: '거래완료', tone: 'muted' };
   if (status === '유찰') return { text: '유찰', tone: 'muted' };
   if (status === '취소') return { text: '취소됨', tone: 'muted' };
@@ -146,6 +158,8 @@ export function MarketBoard({
   onMarkDone,
   canModerate,
   onDelete,
+  canReveal,
+  onReveal,
   focusId,
   onFocusHandled,
   onExitToHome,
@@ -172,6 +186,8 @@ export function MarketBoard({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // 상세에서 사진을 눌러 크게 보는 중인가.
   const [zoomed, setZoomed] = useState(false);
+  // 랜덤박스 열기 연출을 띄우는 중인가. 처음 열 때와 '다시 보기' 둘 다 이걸 켠다.
+  const [revealing, setRevealing] = useState(false);
 
   // 현재 탭(상시/행사)에 속한 물건만. 명예의 전당·격자 모두 이 범위 안에서 센다.
   const scopedItems = items.filter((item) => (item.eventTag ?? '') === scope);
@@ -219,6 +235,7 @@ export function MarketBoard({
 
   const openDetail = (id: string, fromFeed = false) => {
     setZoomed(false); // 앞 물건의 확대가 남아 있으면 안 된다
+    setRevealing(false);
     showDetail(id, fromFeed);
     /* 홈 피드에서 바로 연 상세는 쌓지 않는다. 그 경우 '뒤로'의 목적지가 홈인데,
        홈은 이미 한 칸 아래에 있어서 더 쌓으면 뒤로가기를 두 번 눌러야 한다. */
@@ -330,6 +347,13 @@ export function MarketBoard({
     const blocked = bidBlockedReason(selected, bids, now, currentUser.name);
     const nextMin = minNextBid(selected, bids);
     const mine = myBid(selected, bids, currentUser.name);
+    // 랜덤박스: 열기 전엔 제목·설명·사진을 숨긴다. 연 뒤엔 일반 물건과 같되 '다시 보기'가 남는다.
+    const hidden = isMysteryHidden(selected);
+    const revealable = canRevealMystery(selected, bids, now, canReveal);
+    const reveal = () => {
+      onReveal(selected);
+      setRevealing(true);
+    };
 
     const placeBid = () => {
       if (selected.kind === 'giveaway') {
@@ -359,17 +383,52 @@ export function MarketBoard({
               badge={gridBadge(selected, status).text}
               badgeTone={gridBadge(selected, status).tone}
               item={selected}
-              onPhotoClick={selected.imageUrl ? () => setZoomed(true) : undefined}
+              onPhotoClick={selected.imageUrl && !hidden ? () => setZoomed(true) : undefined}
             />
           </div>
 
-          {zoomed && selected.imageUrl && (
+          {zoomed && selected.imageUrl && !hidden && (
             <PhotoViewer alt={selected.title} onClose={() => setZoomed(false)} src={selected.imageUrl} />
           )}
 
+          {revealing && <RandomBoxReveal item={selected} onClose={() => setRevealing(false)} />}
+
           <div className="gathering-detail-body">
-            <h2>{selected.title}</h2>
+            <h2>{hidden ? `🎁 ${publicTitle(selected)}` : selected.title}</h2>
             <p className="gathering-host">{selected.seller}님이 내놓았어요</p>
+
+            {/* 랜덤박스 안내 — 열기 전: 언제 누가 여는지. 판매자 본인에게만 내용물을 덧붙인다(확인용). */}
+            {hidden && (
+              <div className="market-mystery-note">
+                <PackageOpen size={16} />
+                <p>
+                  안에 뭐가 들었는지는 비밀이에요. 낙찰이 확정되면 리더가 무대에서 열어봅니다.
+                  {isSeller && (
+                    <>
+                      <br />
+                      <em>내가 넣은 것(나만 보임): {selected.title}</em>
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
+
+            {/* 열어보기 — 리더·커넥셔너, 낙찰 확정 뒤에만 버튼이 나온다. 누르면 기록하고 연출을 띄운다. */}
+            {revealable && (
+              <button className="primary-button market-reveal-button" onClick={reveal} type="button">
+                <PackageOpen size={18} />
+                열어보기
+              </button>
+            )}
+            {hidden && !revealable && status === '거래완료' && (
+              <p className="field-note">낙찰이 확정됐어요. 리더가 열어보면 내용물이 공개됩니다.</p>
+            )}
+            {selected.mystery && selected.revealedAt && (
+              <button className="btn-ghost market-replay-button" onClick={() => setRevealing(true)} type="button">
+                <RotateCcw size={16} />
+                열리는 장면 다시 보기
+              </button>
+            )}
 
             {/* 지금 얼마인지가 이 화면의 첫 질문이다. 사실 목록보다 먼저 답한다. */}
             <div className="market-price-head">
@@ -394,8 +453,15 @@ export function MarketBoard({
                   방식
                 </dt>
                 <dd>
-                  {selected.kind === 'giveaway' ? '나눔' : '경매'}
-                  <em> · {selected.kind === 'giveaway' ? '먼저 누른 분이 가져감' : '최고가 낙찰'}</em>
+                  {selected.kind === 'giveaway' ? '나눔' : selected.mystery ? '랜덤박스 경매' : '경매'}
+                  <em>
+                    {' · '}
+                    {selected.kind === 'giveaway'
+                      ? '먼저 누른 분이 가져감'
+                      : selected.mystery
+                        ? '최고가 낙찰 · 내용물은 낙찰 뒤 공개'
+                        : '최고가 낙찰'}
+                  </em>
                 </dd>
               </div>
               <div>
@@ -423,7 +489,7 @@ export function MarketBoard({
               </div>
             </dl>
 
-            {selected.desc && <p className="gathering-desc">{selected.desc}</p>}
+            {selected.desc && !hidden && <p className="gathering-desc">{selected.desc}</p>}
 
             <div className="gathering-actions">
               {blocked ? (
@@ -788,7 +854,7 @@ export function MarketBoard({
                   )}
                 </button>
                 <figcaption className="ig-shop-meta">
-                  <strong>{item.title}</strong>
+                  <strong>{publicTitle(item)}</strong>
                   <span>
                     {minePreOpen
                       ? '🔒 나만 보임 · 공개 전'

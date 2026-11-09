@@ -144,6 +144,34 @@ export function bidBlockedReason(
   return null;
 }
 
+/* ===== 랜덤박스 =====
+   안에 뭐가 들었는지 모른 채 부르는 경매. 내용물(제목·사진·설명)은 처음부터 저장돼 있고,
+   '열었는가'만 revealedAt 으로 남긴다. 열기 전엔 격자·상세·알림·홈 피드 어디서도 제목이
+   새면 안 되므로, 보여줄 이름은 반드시 publicTitle 을 거친다. */
+
+export const MYSTERY_TITLE = '랜덤박스';
+
+/** 아직 안 연 랜덤박스인가. 일반 물건과 이미 연 박스는 false. */
+export function isMysteryHidden(item: Pick<MarketItem, 'mystery' | 'revealedAt'>) {
+  return Boolean(item.mystery) && !item.revealedAt;
+}
+
+/** 화면·알림에 쓸 제목. 안 연 랜덤박스는 진짜 제목 대신 '랜덤박스'. */
+export function publicTitle(item: Pick<MarketItem, 'title' | 'mystery' | 'revealedAt'>) {
+  return isMysteryHidden(item) ? MYSTERY_TITLE : item.title;
+}
+
+/*
+  지금 이 박스를 열 수 있는가. 낙찰이 확정(거래완료)된 뒤에만 — 입찰 중에 열리면
+  랜덤박스가 아니다. 누가 여는지는 호출부가 권한(리더·커넥셔너)으로 정해 privileged 로 넘긴다.
+  규칙 모듈은 사용자 역할 체계를 모르는 채로 둔다.
+*/
+export function canRevealMystery(item: MarketItem, bids: MarketBid[], now: string, privileged: boolean) {
+  if (!privileged) return false;
+  if (!isMysteryHidden(item)) return false;
+  return deriveStatus(item, bids, now) === '거래완료';
+}
+
 /** 낙찰자. 마감 전에는 아직 아무도 아니다 — 진행 중 최고가를 낙찰로 부르면 오해가 생긴다. */
 export function winner(item: MarketItem, bids: MarketBid[], now: string) {
   if (deriveStatus(item, bids, now) !== '거래완료') return null;

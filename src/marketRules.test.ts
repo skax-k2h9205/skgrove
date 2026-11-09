@@ -2,13 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   bidBlockedReason,
   canEditMarketItem,
+  canRevealMystery,
   currentPrice,
   deriveStatus,
   effectiveCloseAt,
   extendedCloseFor,
   formatPrice,
+  isMysteryHidden,
   leadingBid,
   minNextBid,
+  publicTitle,
   rankBigSpenders,
   rankBuyers,
   rankGivers,
@@ -321,5 +324,41 @@ describe('랭킹', () => {
     const open = [auction({ id: 'O', seller: '최근화', closeAt: '2026-08-20T18:00' })];
     const openBids = [bid({ id: 'ob', itemId: 'O', name: '이관국', amount: 10000 })];
     expect(rankSellers(open, openBids, NOW)).toEqual([]);
+  });
+});
+
+/*
+  랜덤박스 — 내용물은 저장돼 있지만 열기 전엔 어디서도 제목이 새면 안 되고,
+  여는 것은 낙찰 확정 뒤 권한 있는 사람만이다.
+*/
+describe('랜덤박스', () => {
+  const box = (patch: Partial<MarketItem> = {}) =>
+    auction({ id: 'BOX', title: '스타벅스 기프티콘 3만원', mystery: true, eventTag: 'canmeeting-2026', ...patch });
+  const AFTER = '2026-08-07T09:00'; // 마감(08-06 18:00) 뒤
+
+  it('열기 전엔 제목이 "랜덤박스"로 가려지고, 연 뒤엔 진짜 제목이 나온다', () => {
+    expect(isMysteryHidden(box())).toBe(true);
+    expect(publicTitle(box())).toBe('랜덤박스');
+    expect(publicTitle(box({ revealedAt: '2026-08-07T09:10' }))).toBe('스타벅스 기프티콘 3만원');
+    expect(isMysteryHidden(box({ revealedAt: '2026-08-07T09:10' }))).toBe(false);
+  });
+
+  it('일반 물건은 랜덤박스 규칙에 걸리지 않는다', () => {
+    expect(isMysteryHidden(auction())).toBe(false);
+    expect(publicTitle(auction())).toBe('허먼밀러 세이코체어');
+  });
+
+  it('낙찰이 확정(거래완료)돼야 열 수 있다 — 입찰 중이나 유찰이면 못 연다', () => {
+    const bids = [bid({ id: 'b1', itemId: 'BOX', name: '이관국', amount: 130000 })];
+    expect(canRevealMystery(box(), bids, NOW, true)).toBe(false); // 아직 거래중
+    expect(canRevealMystery(box(), bids, AFTER, true)).toBe(true); // 마감 뒤 낙찰 확정
+    expect(canRevealMystery(box(), [], AFTER, true)).toBe(false); // 아무도 안 불러 유찰
+  });
+
+  it('권한이 없으면 낙찰 뒤에도 못 열고, 이미 연 박스는 다시 못 연다', () => {
+    const bids = [bid({ id: 'b1', itemId: 'BOX', name: '이관국', amount: 130000 })];
+    expect(canRevealMystery(box(), bids, AFTER, false)).toBe(false);
+    expect(canRevealMystery(box({ revealedAt: '2026-08-07T09:10' }), bids, AFTER, true)).toBe(false);
+    expect(canRevealMystery(auction(), bids, AFTER, true)).toBe(false); // 랜덤박스가 아니다
   });
 });

@@ -1,6 +1,7 @@
 // 홈 통합 피드 — 5개 도메인(안건·액션·번개·팀추억·장터)을 하나의 최신순 목록으로 접는다.
 // 화면 없이 정렬·개수·매핑을 테스트할 수 있도록 순수 함수로 둔다. 카드의 색·아이콘·라벨은
 // 화면(Dashboard)이 kind 로 정하고, 여기서는 데이터만 만든다.
+import { publicTitle } from './marketRules';
 import type { ActionItem, Agenda, Gathering, MarketItem, Section, TeamMemory } from './types';
 
 export type HomeFeedKind = 'agenda' | 'action' | 'gathering' | 'memory' | 'market';
@@ -87,7 +88,7 @@ export function buildHomeFeed(sources: HomeFeedSources): HomeFeedItem[] {
         id: `market:${marketItem.id}`,
         section: 'market',
         kind: 'market',
-        title: marketItem.title,
+        title: publicTitle(marketItem), // 안 연 랜덤박스는 제목이 새면 안 된다
         createdAt: marketItem.createdAt,
         imageUrl: marketItem.imageUrl,
         meta: marketItem.kind === 'giveaway' ? '나눔' : '경매',

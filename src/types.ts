@@ -567,6 +567,11 @@ export type MarketItem = {
   extendedTo?: string;
   // 행사 벼룩시장 식별자(marketEvents.ts). 없으면 상시 장터. 상시와 섞이지 않게 가른다.
   eventTag?: string;
+  // 랜덤박스 — 안에 뭐가 들었는지 모른 채 입찰하는 경매. 제목·사진·설명은 저장하되
+  // 화면에는 '랜덤박스'로만 보이고, 낙찰 뒤 리더가 '열어보기'를 누르면 드러난다.
+  mystery?: boolean;
+  // 랜덤박스를 연 시각 'YYYY-MM-DDTHH:mm'. 있으면 모두에게 내용물이 보인다(marketRules.isMysteryHidden).
+  revealedAt?: string;
   place: string; // 거래 장소
   imageUrl?: string;
   poster?: GatheringPoster; // 사진이 없을 때만 채워진다
