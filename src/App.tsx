@@ -125,6 +125,8 @@ import {
   saveNotifySettings,
   type NotifySettings,
 } from './notifySettingsStore';
+import { MARKET_OPEN_KEY, loadConfig, saveConfig } from './configStore';
+import { isPreOpen, type MarketOpenOverrides } from './features/market/marketEvents';
 import { SystemManagement } from './features/system/SystemManagement';
 import {
   loadHumorComments,
@@ -326,6 +328,8 @@ export function App() {
   const [marketItems, setMarketItems] = useState<MarketItem[]>([]);
   const [marketBids, setMarketBids] = useState<MarketBid[]>([]);
   const [marketComments, setMarketComments] = useState<MarketComment[]>([]);
+  // 행사 벼룩시장 공개 시각 오버라이드(팀 공용). 리더가 라이브 중 바꿀 수 있다.
+  const [marketOpenOverrides, setMarketOpenOverrides] = useState<MarketOpenOverrides>({});
   // 알림이 DB(있으면)에서 로드 완료됐는지. 마감 임박 체크는 이게 true여야 실행(중복 슬랙 방지).
   const [notificationsReady, setNotificationsReady] = useState(false);
   // 계정별 아바타(색·사진). Avatar가 ProfilesContext로 읽는다. 로그인 후 DB에서 로드.
@@ -493,6 +497,9 @@ export function App() {
     loadMarketComments().then((loaded) => {
       if (isMounted) setMarketComments(loaded);
     });
+    loadConfig<MarketOpenOverrides>(MARKET_OPEN_KEY, {}).then((loaded) => {
+      if (isMounted) setMarketOpenOverrides(loaded);
+    });
     loadGatherings().then((loaded) => {
       if (isMounted) setGatherings(loaded);
     });
@@ -514,6 +521,8 @@ export function App() {
       if (document.visibilityState !== 'visible') return;
       void loadHumorPosts().then(setHumorPosts);
       void loadHumorComments().then(setHumorComments);
+      // 다른 리더가 바꾼 공개 시각을 이어받는다(행사 당일 라이브 조정 반영).
+      void loadConfig<MarketOpenOverrides>(MARKET_OPEN_KEY, {}).then(setMarketOpenOverrides);
     };
     document.addEventListener('visibilitychange', refresh);
     return () => document.removeEventListener('visibilitychange', refresh);
@@ -1531,6 +1540,13 @@ export function App() {
     void saveMarketItems(next);
   };
 
+  // 행사 공개 시각을 바꾼다(리더 전용). 팀 공용 설정에 저장해 모든 참여자 화면에 반영한다.
+  const setMarketEventOpenAt = (tag: string, openAt: string) => {
+    const next = { ...marketOpenOverrides, [tag]: openAt };
+    setMarketOpenOverrides(next);
+    void saveConfig(MARKET_OPEN_KEY, next);
+  };
+
   /*
     썸네일 생성은 10초 넘게 걸리므로, 그 사이 목록이 바뀔 수 있다(다른 물건 등록·취소).
     등록 시점에 닫힌 변수로 잡아둔 배열에 덮어쓰면 그 사이의 변경이 조용히 사라진다.
@@ -2135,7 +2151,7 @@ export function App() {
           gatherings={gatherings}
           signups={gatheringSignups}
           memories={memories}
-          marketItems={marketItems}
+          marketItems={marketItems.filter((item) => !isPreOpen(item, nowStamp(), marketOpenOverrides))}
           today={today()}
           now={nowStamp()}
           onSectionChange={changeSection}
@@ -2291,6 +2307,8 @@ export function App() {
           items={marketItems}
           now={nowStamp()}
           imagePendingIds={imagePendingIds}
+          openOverrides={marketOpenOverrides}
+          onSetEventOpenAt={isAdmin(currentUser) ? setMarketEventOpenAt : undefined}
           onBid={(item, amount) => void placeMarketBid(item, amount)}
           onCancelItem={cancelMarketItem}
           onCreate={(draft) => void createMarketItem(draft)}

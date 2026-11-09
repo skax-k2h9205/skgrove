@@ -12368,6 +12368,91 @@ button.notif-row {
   margin: var(--space-3) 0 0;
 }
 
+/* 공개 전 안내 — 지금은 미리 모으는 기간. 열리는 느낌을 주려고 점선 테두리로 '봉인'을 암시한다. */
+.market-preopen {
+  background: var(--color-sunken);
+  border: 1px dashed var(--color-primary-soft);
+}
+
+.preopen-head {
+  align-items: center;
+  color: var(--tint-primary-ink);
+  display: flex;
+  font-size: var(--text-body);
+  font-weight: 700;
+  gap: var(--space-2);
+}
+
+.preopen-text {
+  color: var(--color-ink);
+  font-size: var(--text-body);
+  margin: var(--space-2) 0 0;
+}
+
+.preopen-count {
+  color: var(--color-muted);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  margin: var(--space-2) 0 0;
+}
+
+/* 공개 시각 조정 — 리더 전용 한 칸. */
+.market-openedit {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.market-openedit input {
+  max-width: 260px;
+}
+
+/* 공개 전 가려진 물건 타일 — 선물상자 + '???'. 포스터와 같은 4/5 비율을 지켜 격자가 어긋나지 않는다. */
+.poster-locked {
+  align-items: center;
+  aspect-ratio: 4 / 5;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--color-sunken),
+    var(--color-sunken) 10px,
+    var(--color-surface) 10px,
+    var(--color-surface) 20px
+  );
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  justify-content: center;
+  width: 100%;
+}
+
+.poster-locked span {
+  font-size: clamp(22px, 6vw, 28px);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.ig-shop-cell.locked .ig-shop-meta strong {
+  color: var(--color-muted);
+}
+
+/* 공개 전 남의 물건을 상세로 열려 했을 때의 안내 화면. */
+.market-locked-detail {
+  align-items: center;
+  color: var(--color-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+}
+
+.market-locked-detail h2 {
+  color: var(--color-ink);
+  margin: 0;
+}
+
 .market-hall {
   display: grid;
   gap: var(--space-4);
