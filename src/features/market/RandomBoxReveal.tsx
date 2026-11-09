@@ -216,14 +216,21 @@ export function RandomBoxReveal({ item, onClose }: RandomBoxRevealProps) {
       {/* 결과 직전의 번쩍임 — 화면 전체. 북에서 결과로 넘어가는 경계를 눈이 놓치지 않게. */}
       <div aria-hidden className="rb-flash-big" />
 
-      {/* 내용물 카드 — 번쩍임 뒤 가운데서 튀어나온다. 결과 장면에서만 읽힌다. */}
-      <div className="rb-card" aria-hidden={!done}>
-        <p className="rb-card-kicker">🎁 {item.seller}님의 랜덤박스 속에는…</p>
-        <div className="rb-card-poster">
-          <ItemPoster forceReveal item={item} />
+      {/*
+        내용물 카드 — 번쩍임 뒤 상자에서 솟아오르며 세로축으로 세 바퀴 돌고 정면으로 멈춘다
+        (참고 영상의 공개 장면). 뒷면은 금색 '🎁' 라 돌아가는 동안 뭔지 읽히지 않는다.
+        결과 장면에서만 읽힌다.
+      */}
+      <div className="rb-card-spin" aria-hidden={!done}>
+        <div className="rb-card">
+          <p className="rb-card-kicker">🎁 {item.seller}님의 랜덤박스 속에는…</p>
+          <div className="rb-card-poster">
+            <ItemPoster forceReveal item={item} />
+          </div>
+          <h2 className="rb-card-title">{item.title}</h2>
+          {item.desc && <p className="rb-card-desc">{item.desc}</p>}
         </div>
-        <h2 className="rb-card-title">{item.title}</h2>
-        {item.desc && <p className="rb-card-desc">{item.desc}</p>}
+        <div aria-hidden className="rb-card-back">🎁</div>
       </div>
 
       {done ? (

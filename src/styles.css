@@ -14777,6 +14777,8 @@ button.notif-row {
   inset: 0;
   isolation: isolate;
   overflow: hidden;
+  /* 결과 카드가 세로축으로 돌 때 원근이 생기도록. 직계 자식의 3D 변환에만 작용한다. */
+  perspective: 1200px;
   position: fixed;
   z-index: 70;
 }
@@ -15105,31 +15107,57 @@ button.notif-row {
   100% { opacity: 0; }
 }
 
-/* 내용물 카드. 번쩍임 뒤 가운데서 튀어나온다 — 북이 있던 자리가 아니라 화면 한가운데다. */
+/*
+  내용물 카드. 번쩍임 뒤 상자 자리에서 솟아오르며 세로축으로 세 바퀴 돌고(옆면이 보일 만큼)
+  화면 한가운데 정면으로 멈춘다 — 참고 영상의 공개 장면. 회전은 래퍼(.rb-card-spin)가 맡고
+  앞면(.rb-card)·뒷면(.rb-card-back)은 backface-visibility 로 서로를 가린다.
+*/
+.rb-card-spin {
+  left: 50%;
+  opacity: 0;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, 10%) scale(0.35) rotateY(0deg);
+  transform-style: preserve-3d;
+  width: min(86vw, 360px);
+  z-index: 4;
+}
+.phase-lights .rb-card-spin {
+  animation: rb-spin-in 1.8s cubic-bezier(0.15, 0.75, 0.25, 1) forwards;
+  animation-delay: 0.15s;
+}
+@keyframes rb-spin-in {
+  0% { opacity: 0; transform: translate(-50%, 10%) scale(0.35) rotateY(0deg); }
+  12% { opacity: 1; }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotateY(1080deg); }
+}
 .rb-card {
+  backface-visibility: hidden;
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--rb-shadow-card);
   color: var(--color-ink);
-  left: 50%;
   max-height: 86vh;
-  opacity: 0;
   overflow: auto;
   padding: var(--space-4);
-  position: absolute;
+  position: relative;
   text-align: center;
-  top: 50%;
-  transform: translate(-50%, -50%) scale(0.6);
-  width: min(86vw, 360px);
-  z-index: 4;
 }
-.phase-lights .rb-card {
-  animation: rb-pop 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.15) forwards;
-  animation-delay: 0.15s;
-}
-@keyframes rb-pop {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
-  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+/* 뒷면 — 금색 포장지. 돌아가는 동안 반 바퀴마다 보인다. */
+.rb-card-back {
+  align-items: center;
+  backface-visibility: hidden;
+  background:
+    repeating-linear-gradient(45deg, transparent 0 18px, var(--rb-glass) 18px 20px),
+    linear-gradient(160deg, var(--rb-gold), var(--rb-gold-deep));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--rb-shadow-card);
+  display: flex;
+  font-size: 64px;
+  inset: 0;
+  justify-content: center;
+  position: absolute;
+  transform: rotateY(180deg);
 }
 
 .rb-card-kicker {
@@ -15186,8 +15214,8 @@ button.notif-row {
 .rb-skip:focus-visible { outline: 2px solid var(--rb-ink); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .rb-box, .rb-lid, .rb-flash, .rb-flash-big, .rb-drum-card, .rb-card { animation: none !important; }
-  .phase-lights .rb-card { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .rb-box, .rb-lid, .rb-flash, .rb-flash-big, .rb-drum-card, .rb-card-spin { animation: none !important; }
+  .phase-lights .rb-card-spin { opacity: 1; transform: translate(-50%, -50%) scale(1) rotateY(0deg); }
   .phase-lights .rb-lid { opacity: 0; }
   .rb-drum-card { display: none; }
 }
