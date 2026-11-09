@@ -185,18 +185,12 @@
   --leading-normal: 1.5;
   --leading-relaxed: 1.7;
 
-  /* 크리스마스 테마(캔미팅 탭 한정, .market-xmas). 토큰으로 둬서 하드코딩 hex 를 늘리지 않는다. */
-  --xmas-red: #c0392b;
-  --xmas-red-soft: #f7e0dd;
-  --xmas-red-ink: #8e2a20;
-  --xmas-green: #1f7a4d;
-  --xmas-green-soft: #dbeee4;
-  --xmas-green-ink: #145536;
-  --xmas-gold: #c99a2e;
-  --xmas-snow: #ffffff; /* 레드 탭 위 흰 글씨 */
-  --xmas-flake: #7fb0e0; /* 내리는 눈 — 밝은 배경에서도 보이는 소프트 블루 */
-  --xmas-frost: #eaf2fb; /* 화면 상단 은은한 겨울 톤 */
-  --xmas-cord: #4a3f2e; /* 전구 줄 */
+  /* 크리스마스 테마(캔미팅 탭 한정, .market-xmas). 토큰으로 둬서 하드코딩 hex 를 늘리지 않는다.
+     캐릭터 장면 색은 MarketXmasScene(SVG) 안의 리터럴이고, 여기엔 탭·배너 틀 색만 둔다. */
+  --xmas-red: #e8503f; /* 캔디 레드 — 선택된 캔미팅 탭 */
+  --xmas-snow: #ffffff; /* 탭 위 흰 글씨 */
+  --xmas-sky: #e8f1fb; /* 히어로 장면 하늘 */
+  --xmas-cream: #fff6ea; /* 히어로 장면 눈밭 아래 */
 }
 
 * {
@@ -14549,97 +14543,61 @@ button.notif-row {
   white-space: nowrap;
 }
 
-/* ===== 크리스마스 테마 — 캔미팅 벼룩시장 탭 한정(스노우폴) ===== */
-/* .market-xmas 가 붙은 장터 화면에만 적용. 상시 장터·다른 화면은 그대로다. */
-.market-xmas {
-  /* 상단에서 아래로 옅게 깔리는 겨울 톤 — 아늑한 연말 분위기. 내용은 그 위에 선명하게. */
-  background: linear-gradient(180deg, var(--xmas-frost), transparent 460px);
-  border-radius: var(--radius);
-  overflow: hidden; /* 눈이 화면 밖으로 새지 않게 */
-  position: relative;
-}
+/* ===== 크리스마스 테마 — 캔미팅 벼룩시장 탭 한정 ===== */
+/* .market-xmas 화면에만 적용. 상시 장터·다른 화면은 그대로. 캐릭터 장면은 MarketXmasScene(SVG)이
+   그리고, 여기선 배너 틀·탭 색·애니메이션만 맡는다. 장면 색은 그 컴포넌트 안의 리터럴. */
 
-.market-xmas > *:not(.xmas-snow) {
-  position: relative;
-  z-index: 1;
-}
-
-/* 내리는 눈. 내용 위로 아주 옅게 드리운다 — pointer-events:none 이라 클릭은 그대로 통과하고,
-   소프트 블루 작은 송이라 글씨·사진을 거의 가리지 않는다(장터는 패널이 폭을 꽉 채워
-   '뒤쪽'엔 눈이 보일 자리가 없어서 위로 올렸다). */
-.xmas-snow {
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  position: absolute;
-  z-index: 5;
-}
-
-.xmas-snow i {
-  animation: xmas-fall linear infinite;
-  color: var(--xmas-flake);
-  font-size: 14px;
-  position: absolute;
-  top: -14px;
-}
-
-/* 크고 작은 눈이 섞이면 깊이감이 생겨 더 풍성해 보인다. */
-.xmas-snow i:nth-child(3n) { font-size: 18px; }
-.xmas-snow i:nth-child(3n + 1) { font-size: 11px; opacity: 0.85; }
-
-@keyframes xmas-fall {
-  0% { opacity: 0; transform: translateY(-14px) translateX(0); }
-  10% { opacity: 0.9; }
-  85% { opacity: 0.9; }
-  100% { opacity: 0.55; transform: translateY(1400px) translateX(24px); }
-}
-
-/* 꼬마전구 갈런드 — 줄에 매달린 전구가 반짝인다(살짝 늘어진 스웨그). */
-.xmas-lights {
-  align-items: flex-start;
-  border-top: 2px solid var(--xmas-cord);
-  border-radius: 2px;
-  display: flex;
-  height: 22px;
-  justify-content: space-between;
-  padding: 0 6px;
-}
-
-.xmas-lights i {
-  border-radius: 50%;
-  box-shadow: 0 0 9px currentColor, 0 0 4px currentColor;
-  display: block;
-  height: 9px;
-  width: 9px;
-  animation: xmas-twinkle 2.4s ease-in-out infinite;
-}
-
-/* 짝수 전구는 조금 더 내려 걸어 줄이 늘어진 느낌을 준다. */
-.xmas-lights i:nth-child(even) { margin-top: 9px; }
-.xmas-lights i:nth-child(3n + 1) { background: var(--xmas-red); color: var(--xmas-red); animation-delay: 0s; }
-.xmas-lights i:nth-child(3n + 2) { background: var(--xmas-gold); color: var(--xmas-gold); animation-delay: 0.8s; }
-.xmas-lights i:nth-child(3n) { background: var(--xmas-green); color: var(--xmas-green); animation-delay: 1.5s; }
-
-@keyframes xmas-twinkle {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-/* 선택된 캔미팅 탭 — 축제 레드 */
+/* 선택된 캔미팅 탭 — 캔디 레드 */
 .market-xmas .market-scope-tabs .selected {
   background: var(--xmas-red);
   color: var(--xmas-snow);
 }
 
-/* 모금 현황 패널 — 골드 테두리 + 레드/그린 그라디언트 */
-.market-xmas .fund-panel {
-  background: linear-gradient(135deg, var(--xmas-red-soft), var(--xmas-green-soft));
-  border-color: var(--xmas-gold);
+/* 산타·루돌프·트리 히어로 배너 */
+.xmas-hero {
+  background: linear-gradient(180deg, var(--xmas-sky), var(--xmas-cream) 62%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  margin: 10px 0;
+  overflow: hidden;
+}
+
+.xmas-hero svg {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+/* 장면 애니메이션 — 산타/루돌프 들썩, 별 깜빡, 코 반짝, 눈 내림. (동작 줄이기 시 정지) */
+.xh-santa { animation: xh-bob 3.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.xh-rudolph { animation: xh-bob 3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.xh-star { animation: xh-twinkle 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.xh-nose { animation: xh-glow 1.8s ease-in-out infinite; }
+.xh-flake { animation: xh-fall linear infinite; transform-box: fill-box; }
+
+@keyframes xh-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes xh-twinkle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.82); }
+}
+
+@keyframes xh-glow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@keyframes xh-fall {
+  0% { transform: translateY(0); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translateY(300px); opacity: 0.25; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .xmas-snow i { animation: none; opacity: 0.4; }
-  .xmas-lights i { animation: none; }
+  .xh-santa, .xh-rudolph, .xh-star, .xh-nose, .xh-flake { animation: none; }
 }
 
 /* ===== 장터 QR 시트(물건별 바로가기) ===== */
