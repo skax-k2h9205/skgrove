@@ -131,11 +131,14 @@ export function MarketBoard({
   // 상세를 '홈 피드'에서 열었는지 기록한다. 뒤로가기 목적지(홈 vs 목록)를 이걸로 정한다.
   const [openedFromFeed, setOpenedFromFeed] = useState(false);
   const [filter, setFilter] = useState<Filter>('거래중');
-  // 'all'(전체) · ''(상시) · 행사 태그. 상단 탭이 이걸 바꾼다.
-  // 행사가 열려 있으면 상시·행사를 한눈에 보도록 '전체'로 시작한다(행사가 없으면 상시 하나뿐이라 '').
-  const [scope, setScope] = useState<string>(() =>
-    MARKET_EVENTS.some((event) => event.active) ? 'all' : '',
-  );
+  // 상시('') 또는 행사 태그. 상단 탭이 이걸 바꾼다 — 상시와 행사 물건을 완전히 가른다.
+  const [scope, setScope] = useState<string>('');
+
+  // 탭을 바꿀 때 하위 필터 기본값도 맞춘다: 상시는 '거래중', 행사는 '전체'(올라온 걸 한눈에 보도록).
+  const selectScope = (next: string) => {
+    setScope(next);
+    setFilter(next === '' ? '거래중' : '전체');
+  };
   const [amountInput, setAmountInput] = useState('');
   const [bidError, setBidError] = useState('');
   // 삭제는 되돌릴 수 없어 상세 안에서 펼치는 확인 UI로 받는다(유머와 같은 방식).
@@ -143,9 +146,8 @@ export function MarketBoard({
   // 상세에서 사진을 눌러 크게 보는 중인가.
   const [zoomed, setZoomed] = useState(false);
 
-  // 현재 탭에 속한 물건만. 명예의 전당·격자 모두 이 범위 안에서 센다.
-  // '전체'는 상시+행사 전부, 그 외는 해당 태그(상시는 빈 태그)만.
-  const scopedItems = scope === 'all' ? items : items.filter((item) => (item.eventTag ?? '') === scope);
+  // 현재 탭(상시/행사)에 속한 물건만. 명예의 전당·격자 모두 이 범위 안에서 센다.
+  const scopedItems = items.filter((item) => (item.eventTag ?? '') === scope);
 
   // 상단 탭: 상시 + (등록 가능하거나 물건이 하나라도 있는) 행사들. 행사가 없으면 탭 자체를 숨긴다.
   const eventTabs = MARKET_EVENTS.filter(
@@ -223,7 +225,7 @@ export function MarketBoard({
   if (view === 'create') {
     return (
       <section className="screen">
-        <MarketForm defaultEventTag={scope === 'all' ? '' : scope} onCancel={() => setView('feed')} onSubmit={create} />
+        <MarketForm defaultEventTag={scope} onCancel={() => setView('feed')} onSubmit={create} />
       </section>
     );
   }
@@ -523,17 +525,8 @@ export function MarketBoard({
       {eventTabs.length > 0 && (
         <div className="segmented market-scope-tabs" role="tablist" aria-label="장터 전환">
           <button
-            className={scope === 'all' ? 'selected' : ''}
-            onClick={() => setScope('all')}
-            role="tab"
-            aria-selected={scope === 'all'}
-            type="button"
-          >
-            전체
-          </button>
-          <button
             className={scope === '' ? 'selected' : ''}
-            onClick={() => setScope('')}
+            onClick={() => selectScope('')}
             role="tab"
             aria-selected={scope === ''}
             type="button"
@@ -544,7 +537,7 @@ export function MarketBoard({
             <button
               className={scope === event.tag ? 'selected' : ''}
               key={event.tag}
-              onClick={() => setScope(event.tag)}
+              onClick={() => selectScope(event.tag)}
               role="tab"
               aria-selected={scope === event.tag}
               type="button"
