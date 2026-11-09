@@ -12429,32 +12429,6 @@ button.notif-row {
 }
 
 /* 공개 전 안내 — 지금은 미리 모으는 기간. 열리는 느낌을 주려고 점선 테두리로 '봉인'을 암시한다. */
-.market-preopen {
-  background: var(--color-sunken);
-  border: 1px dashed var(--color-primary-soft);
-}
-
-.preopen-head {
-  align-items: center;
-  color: var(--tint-primary-ink);
-  display: flex;
-  font-size: var(--text-body);
-  font-weight: 700;
-  gap: var(--space-2);
-}
-
-.preopen-text {
-  color: var(--color-ink);
-  font-size: var(--text-body);
-  margin: var(--space-2) 0 0;
-}
-
-.preopen-count {
-  color: var(--color-muted);
-  font-size: var(--text-meta);
-  font-variant-numeric: tabular-nums;
-  margin: var(--space-2) 0 0;
-}
 
 /* 공개 시각 조정 — 리더 전용 한 칸. */
 .market-openedit {
@@ -14528,6 +14502,45 @@ button.notif-row {
   margin-right: 5px;
   padding: 1px 6px;
   white-space: nowrap;
+}
+
+/* ===== 공개/마감 카운트다운 (슬림 pill) ===== */
+.market-countdown {
+  align-items: center;
+  background: var(--color-sunken);
+  border-radius: 999px;
+  color: var(--color-ink);
+  display: flex;
+  font-size: var(--text-meta);
+  font-weight: 800;
+  gap: 7px;
+  justify-content: center;
+  margin: 10px auto 0;
+  padding: 7px 14px;
+  width: fit-content;
+}
+
+.market-countdown .cd-label {
+  color: var(--color-muted);
+  font-weight: 700;
+}
+
+.market-countdown .cd-time {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.market-countdown.urgent {
+  background: var(--tint-danger);
+  color: var(--color-danger);
+}
+
+.market-countdown.urgent .cd-label {
+  color: var(--color-danger);
+}
+
+.market-countdown.closed {
+  color: var(--color-muted);
 }
 
 /* ===== 크리스마스 테마 — 캔미팅 벼룩시장 탭 한정 ===== */
