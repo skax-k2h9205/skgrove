@@ -391,7 +391,17 @@ export function MarketBoard({
             <PhotoViewer alt={selected.title} onClose={() => setZoomed(false)} src={selected.imageUrl} />
           )}
 
-          {revealing && <RandomBoxReveal item={selected} onClose={() => setRevealing(false)} />}
+          {revealing && (
+            <RandomBoxReveal
+              // 무대 주변에 세울 사람들 — 이 물건에 부른 사람들, 높이 부른 순. 낙찰자가 맨 앞.
+              crowd={[...new Set(
+                [...itemBids].sort((a, b) => b.amount - a.amount || a.createdAt.localeCompare(b.createdAt)).map((bid) => bid.name),
+              )]}
+              item={selected}
+              onClose={() => setRevealing(false)}
+              winner={won?.name}
+            />
+          )}
 
           <div className="gathering-detail-body">
             <h2>{hidden ? `🎁 ${publicTitle(selected)}` : selected.title}</h2>

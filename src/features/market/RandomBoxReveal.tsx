@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { Avatar } from '../../components/Avatar';
 import type { MarketItem } from '../../types';
 import { ItemPoster } from './ItemPoster';
 
@@ -10,6 +11,9 @@ import { ItemPoster } from './ItemPoster';
     shake  상자가 흔들린다. "지금 열린다"는 예고 — 이게 없으면 결과를 조회하는 느낌이 된다.
     open   뚜껑이 튀어 오르고 색종이가 터진다.
     drum   상자 안에서 북 카드가 솟고, 북채 둘이 번갈아 친다(두구두구). 결과 직전의 뜸.
+           이때 이 물건에 입찰한 사람들의 아바타가 바닥에서 올라와 박자에 맞춰 뛴다 —
+           참고 영상에서 상자 주위에서 춤추던 작은 인형들의 자리다. 외부 에셋 대신
+           "지금 이 방에 있는 사람들"을 세운다. 낙찰자에겐 왕관이 붙는다.
     lights 번쩍하며 북이 사라지고, 무지개 조명 아래 내용물 카드가 가운데서 튀어나온다. 여기부터 '결과'다.
 
   색종이는 Canvas 2D 로 그린다. 조각 180개를 DOM 으로 두면 저사양 폰에서 끊기고,
@@ -73,12 +77,19 @@ function makeParticles(x: number, y: number, count: number): Particle[] {
   });
 }
 
+/** 무대에 세울 사람 수 상한. 더 많으면 좁은 화면에서 세 줄이 되어 상자를 가린다. */
+const CROWD_MAX = 8;
+
 type RandomBoxRevealProps = {
   item: MarketItem;
+  /** 무대 주변에 세울 사람들(입찰자 이름). 낙찰자가 맨 앞이어야 왕관이 가운데 온다. */
+  crowd?: string[];
+  /** 낙찰자 이름. crowd 안의 이 사람에게 왕관을 씌운다. */
+  winner?: string;
   onClose: () => void;
 };
 
-export function RandomBoxReveal({ item, onClose }: RandomBoxRevealProps) {
+export function RandomBoxReveal({ item, crowd = [], winner, onClose }: RandomBoxRevealProps) {
   const [reduced] = useState(prefersReducedMotion);
   const [phase, setPhase] = useState<Phase>(reduced ? 'lights' : 'shake');
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -201,6 +212,23 @@ export function RandomBoxReveal({ item, onClose }: RandomBoxRevealProps) {
         </div>
         <div className="rb-body" />
       </div>
+
+      {/* 입찰자들 — 북이 울리면 바닥에서 올라와 박자에 맞춰 뛴다. 사진 없는 사람은 이니셜 칩(Avatar 폴백). */}
+      {crowd.length > 0 && (
+        <ul aria-hidden className="rb-crowd">
+          {crowd.slice(0, CROWD_MAX).map((name, index) => (
+            <li
+              className={name === winner ? 'rb-crowd-member winner' : 'rb-crowd-member'}
+              key={name}
+              style={{ '--i': index } as React.CSSProperties}
+            >
+              {name === winner && <span className="rb-crown">👑</span>}
+              <Avatar className="rb-crowd-avatar" name={name} />
+              <span className="rb-crowd-name">{name}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* 북 카드 — 상자에서 솟아 두구두구. 결과가 나오면 번쩍이며 사라진다. 장식이라 읽어 주지 않는다. */}
       <div aria-hidden className="rb-drum-card">
