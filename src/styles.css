@@ -14446,6 +14446,55 @@ button.notif-row {
   size: A4;
 }
 
+/* ===== 장터 QR 시트(물건별 바로가기) ===== */
+.qr-sheet-head {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.qr-sheet-head h2 {
+  margin: 0 0 4px;
+}
+
+.qr-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.qr-item {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  text-align: center;
+}
+
+.qr-img {
+  height: auto;
+  max-width: 100%;
+  width: 100%;
+}
+
+.qr-item-title {
+  font-size: var(--text-body);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.qr-item-sub {
+  color: var(--color-muted);
+  font-size: var(--text-meta);
+}
+
 @media print {
   /* 결과 표만 남긴다. display:none 으로 지우면 부모 레이아웃까지 무너져 자리가 틀어진다. */
   body * {
@@ -14453,8 +14502,14 @@ button.notif-row {
   }
 
   .can-template,
-  .can-template * {
+  .can-template *,
+  .qr-sheet,
+  .qr-sheet * {
     visibility: visible;
+  }
+
+  .no-print {
+    display: none !important;
   }
 
   .can-template {
@@ -14514,6 +14569,29 @@ button.notif-row {
     -webkit-line-clamp: none;
     display: block;
     overflow: visible;
+  }
+
+  /* QR 시트: 앱 껍데기를 걷어내고 시트만 종이에 채운다. 칸은 페이지 경계에서 쪼개지지 않게. */
+  .qr-sheet {
+    left: 0;
+    position: absolute;
+    top: 0;
+    width: 100%;
+  }
+
+  .qr-grid {
+    gap: 10pt;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .qr-item {
+    border: 1px solid #333333;
+    break-inside: avoid;
+  }
+
+  .qr-item-title,
+  .qr-item-sub {
+    color: #000000;
   }
 }
 

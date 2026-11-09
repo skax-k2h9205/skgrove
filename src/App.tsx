@@ -1931,7 +1931,15 @@ export function App() {
   useEffect(() => {
     if (!currentUser) return;
     const applyHash = () => {
-      const target = SECTION_BY_HASH[window.location.hash];
+      /*
+        해시는 '#market' 처럼 화면만 가리키거나, '#market=<물건id>' 처럼 특정 항목까지
+        가리킨다(물건 QR 스캔 진입점). '=' 앞이 화면, 뒤가 항목 id 다.
+      */
+      const raw = window.location.hash;
+      const eq = raw.indexOf('=');
+      const base = eq === -1 ? raw : raw.slice(0, eq);
+      const param = eq === -1 ? '' : decodeURIComponent(raw.slice(eq + 1));
+      const target = SECTION_BY_HASH[base];
       if (!target) return;
       /*
         딥링크는 히스토리를 새로 '쌓지' 않고 지금 항목을 덮어쓴다(replace).
@@ -1942,6 +1950,8 @@ export function App() {
       */
       const resolved = resolveSection(target);
       setActive(resolved);
+      // 특정 물건까지 가리키는 링크면(QR 스캔) 그 상세를 연다. 보드가 focusId 로 한 번만 소비한다.
+      if (param && resolved === 'market') setFeedFocus({ section: 'market', id: param });
       // 해시를 읽는 하위 화면(예: 티미팅 tea 탭)이 먼저 읽도록 다음 틱에 지운다.
       // state 는 null 로 비우지 않는다 — 비우면 화면 기록이 날아가 popstate 가 화면을 못 찾는다.
       window.setTimeout(() => {

@@ -13,6 +13,7 @@ import {
   Package,
   Pencil,
   Plus,
+  QrCode,
   Sparkles,
   Trash2,
   Trophy,
@@ -46,6 +47,7 @@ import {
 import type { CurrentUser, MarketBid, MarketComment, MarketItem, MarketStatus } from '../../types';
 import { ItemPoster } from './ItemPoster';
 import { MarketForm, type MarketDraft } from './MarketForm';
+import { QrSheet } from './QrSheet';
 import {
   MARKET_EVENTS,
   isPreOpen,
@@ -105,7 +107,7 @@ type MarketBoardProps = {
   onDetailExit: () => boolean;
 };
 
-type BoardView = 'feed' | 'create' | 'edit' | 'detail';
+type BoardView = 'feed' | 'create' | 'edit' | 'detail' | 'qrsheet';
 type Filter = '거래중' | '나눔' | '내가 올린 것' | '전체';
 
 const FILTERS: Filter[] = ['거래중', '나눔', '내가 올린 것', '전체'];
@@ -180,6 +182,10 @@ export function MarketBoard({
   // 특정 물건이 지금 이 사용자에게 가려지는가 — 공개 전 + 남의 물건.
   const isLocked = (item: MarketItem) =>
     isPreOpen(item, now, openOverrides) && item.seller !== currentUser.name;
+
+  // 물건별 딥링크 — 스캔하면 (로그인 후) 이 물건 상세로 바로 온다. App 의 '#market=<id>' 해시가 받는다.
+  const marketLink = (item: MarketItem) =>
+    `${window.location.origin}${window.location.pathname}#market=${item.id}`;
 
   // 상단 탭: 상시 + (등록 가능하거나 물건이 하나라도 있는) 행사들. 행사가 없으면 탭 자체를 숨긴다.
   const eventTabs = MARKET_EVENTS.filter(
@@ -259,6 +265,18 @@ export function MarketBoard({
       <section className="screen">
         <MarketForm defaultEventTag={scope} onCancel={() => setView('feed')} onSubmit={create} />
       </section>
+    );
+  }
+
+  // QR 시트 — 운영자가 접수된 물건들의 QR을 한 장으로 뽑아 진열대에 붙인다(현재 탭 범위).
+  if (view === 'qrsheet') {
+    return (
+      <QrSheet
+        items={scopedItems}
+        linkFor={marketLink}
+        onBack={() => setView('feed')}
+        title={marketEvent(scope)?.label ?? '이음장터'}
+      />
     );
   }
 
@@ -703,6 +721,12 @@ export function MarketBoard({
             </button>
           ))}
         </div>
+        {canModerate && scopedItems.length > 0 && (
+          <button className="btn-ghost" onClick={() => setView('qrsheet')} type="button">
+            <QrCode size={18} />
+            QR 출력
+          </button>
+        )}
         <button className="primary-button" onClick={() => setView('create')} type="button">
           <Plus size={18} />
           물건 내놓기
