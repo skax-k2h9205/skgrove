@@ -802,20 +802,6 @@ export function MarketBoard({
         </section>
       )}
 
-      {/* 나눔왕 시상 안내 — 이 행사의 운영 규칙(판매금 본인 소유 + 나눔왕 시상)을 한 번에 알린다. */}
-      {giverAward && (
-        <section className="panel market-award">
-          <div className="award-head">
-            <Trophy size={16} />
-            나눔왕 시상 예정
-          </div>
-          <p className="award-text">
-            성사된 <strong>나눔</strong>이 가장 많은 분을 <strong>나눔왕</strong>으로 시상해요. 아래 명예의 전당에서 확인하세요!
-          </p>
-          <p className="award-sub">경매로 판 물건의 판매금은 판매자 본인이 가져가요.</p>
-        </section>
-      )}
-
       {/*
         실적을 맨 위에 둔다. 유~머게시판의 명예의 전당과 같은 자리다 —
         아래에 두면 포스터 격자를 다 지나야 나와 아무도 보지 않는다.
@@ -829,6 +815,11 @@ export function MarketBoard({
           <Trophy size={18} />
           <strong>{scopeLabel ? `${scopeLabel} 명예의 전당` : '이음장터 명예의 전당'}</strong>
         </div>
+        {giverAward && (
+          <p className="market-hall-note">
+            🏆 성사된 나눔이 가장 많은 분을 <strong>나눔왕</strong>으로 시상해요 · 경매 판매금은 판매자 본인이 가져가요.
+          </p>
+        )}
         {hasRanking ? (
           <div className="market-rank-grid">
             {boards.map((board) => (
