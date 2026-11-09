@@ -177,9 +177,11 @@ export function MarketBoard({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // 상세를 '홈 피드'에서 열었는지 기록한다. 뒤로가기 목적지(홈 vs 목록)를 이걸로 정한다.
   const [openedFromFeed, setOpenedFromFeed] = useState(false);
-  const [filter, setFilter] = useState<Filter>('거래중');
+  // 진행 중인 행사가 있으면 그 탭을 기본으로 연다(없으면 상시 장터).
+  const initialScope = MARKET_EVENTS.find((event) => event.active)?.tag ?? '';
+  const [filter, setFilter] = useState<Filter>(initialScope === '' ? '거래중' : '전체');
   // 상시('') 또는 행사 태그. 상단 탭이 이걸 바꾼다 — 상시와 행사 물건을 완전히 가른다.
-  const [scope, setScope] = useState<string>('');
+  const [scope, setScope] = useState<string>(initialScope);
 
   // 탭을 바꿀 때 하위 필터 기본값도 맞춘다: 상시는 '거래중', 행사는 '전체'(올라온 걸 한눈에 보도록).
   const selectScope = (next: string) => {
