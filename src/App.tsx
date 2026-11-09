@@ -1541,6 +1541,13 @@ export function App() {
     void saveMarketItems(next);
   };
 
+  // 장터 물건·입찰 다시 읽기. 시세판이 라이브로 돌 때 5초마다 부른다.
+  // 로컬 전용 모드에선 같은 localStorage 를 다시 읽을 뿐이라 해롭지 않다.
+  const refreshMarket = () => {
+    void loadMarketItems().then(setMarketItems);
+    void loadMarketBids().then(setMarketBids);
+  };
+
   // 행사 공개 시각을 바꾼다(리더 전용). 팀 공용 설정에 저장해 모든 참여자 화면에 반영한다.
   const setMarketEventOpenAt = (tag: string, openAt: string) => {
     const next = { ...marketOpenOverrides, [tag]: openAt };
@@ -2339,6 +2346,7 @@ export function App() {
           onDelete={deleteMarketItem}
           canReveal={isLeader(currentUser)}
           onReveal={revealMarketItem}
+          onRefresh={refreshMarket}
           focusId={focusFor('market')}
           onFocusHandled={clearFeedFocus}
           onExitToHome={() => changeSection('dashboard')}
