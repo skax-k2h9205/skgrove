@@ -14506,33 +14506,17 @@ button.notif-row {
   size: A4;
 }
 
-/* ===== 나눔왕 시상 안내 패널 ===== */
-.market-award {
-  background: var(--tint-primary);
-  border-color: var(--color-primary-soft);
-}
-
-.award-head {
-  align-items: center;
-  color: var(--tint-primary-ink);
-  display: flex;
-  font-weight: 800;
-  gap: 6px;
-}
-
-.award-text {
-  color: var(--color-ink);
-  margin: 6px 0 0;
-}
-
-.award-text strong {
-  color: var(--tint-primary-ink);
-}
-
-.award-sub {
+/* ===== 나눔왕 시상 — 명예의 전당 안 요약 문구 + 나눔왕 배지 ===== */
+/* 별도 배너 대신 명예의 전당 머리 아래 한 줄로 요약한다(배너 과밀 방지). */
+.market-hall-note {
   color: var(--color-muted);
   font-size: var(--text-meta);
-  margin: 6px 0 0;
+  margin: 2px 0 10px;
+}
+
+.market-hall-note strong {
+  color: var(--tint-primary-ink);
+  font-weight: 800;
 }
 
 .rank-award {
