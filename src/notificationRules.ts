@@ -1,5 +1,6 @@
 // 알림 기준 정의 (SKSOOP-110). "어떤 이벤트가 → 누구에게 → 어떤 알림을" 을 한 곳에 명문화.
 // 순수 함수만 두어 단위 테스트로 회귀 검증한다(팀 관례: *Rules.ts). React·상태 의존 없음.
+import { publicTitle } from './marketRules';
 import { daysLeft, isOpen } from './agendaRules';
 import type {
   ActionItem,
@@ -275,7 +276,7 @@ export function marketOutbidDrafts(item: MarketItem, outbid: MarketBid[], now: s
     kind: 'market',
     recipientName: bid.name,
     fromName: '시스템',
-    title: `누가 더 불렀어요 · ${item.title}`,
+    title: `누가 더 불렀어요 · ${publicTitle(item)}`,
     body: '지금 다시 부르면 아직 가져갈 수 있어요.',
     section: 'market',
     sourceId: item.id,
@@ -299,7 +300,7 @@ export function marketWonDrafts(item: MarketItem, buyerName: string, now: string
       kind: 'market' as const,
       recipientName: buyerName,
       fromName: '시스템',
-      title: `${isGift ? '나눔받았어요' : '낙찰됐어요'} · ${item.title}`,
+      title: `${isGift ? '나눔받았어요' : '낙찰됐어요'} · ${publicTitle(item)}`,
       body: `${item.seller}님과 ${where || '거래 장소'}에서 만나 주고받으세요.`,
       section: 'market' as const,
       sourceId: item.id,
@@ -311,7 +312,7 @@ export function marketWonDrafts(item: MarketItem, buyerName: string, now: string
       kind: 'market' as const,
       recipientName: item.seller,
       fromName: '시스템',
-      title: `${isGift ? '나눔 상대가 정해졌어요' : '거래가 성사됐어요'} · ${item.title}`,
+      title: `${isGift ? '나눔 상대가 정해졌어요' : '거래가 성사됐어요'} · ${publicTitle(item)}`,
       body: `${buyerName}님이 가져갑니다. ${where || '거래 장소'}에서 만나세요.`,
       section: 'market' as const,
       sourceId: item.id,
@@ -330,7 +331,7 @@ export function marketCanceledDrafts(item: MarketItem, names: string[], now: str
       kind: 'market',
       recipientName: name,
       fromName: '시스템',
-      title: `거래가 내려갔어요 · ${item.title}`,
+      title: `거래가 내려갔어요 · ${publicTitle(item)}`,
       body: `${item.seller}님이 거래를 취소했어요.`,
       section: 'market',
       sourceId: item.id,

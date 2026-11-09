@@ -154,6 +154,7 @@ import { resolveSkillLoser } from './features/gatherings/games/coffeeGames';
 import {
   bidBlockedReason,
   canEditMarketItem,
+  canRevealMystery,
   deriveStatus as deriveMarketStatus,
   extendedCloseFor,
   leadingBid,
@@ -1540,6 +1541,13 @@ export function App() {
     void saveMarketItems(next);
   };
 
+  // 장터 물건·입찰 다시 읽기. 시세판이 라이브로 돌 때 5초마다 부른다.
+  // 로컬 전용 모드에선 같은 localStorage 를 다시 읽을 뿐이라 해롭지 않다.
+  const refreshMarket = () => {
+    void loadMarketItems().then(setMarketItems);
+    void loadMarketBids().then(setMarketBids);
+  };
+
   // 행사 공개 시각을 바꾼다(리더 전용). 팀 공용 설정에 저장해 모든 참여자 화면에 반영한다.
   const setMarketEventOpenAt = (tag: string, openAt: string) => {
     const next = { ...marketOpenOverrides, [tag]: openAt };
@@ -1759,6 +1767,16 @@ export function App() {
     const nextBids = marketBids.filter((bid) => bid.itemId !== item.id);
     setMarketBids(nextBids);
     cacheMarketBids(nextBids);
+  };
+
+  /*
+    랜덤박스 열기. 리더·커넥셔너가 낙찰 확정 뒤 무대에서 누른다. 한 번 열면 revealedAt 이
+    남아 모두에게 내용물이 보인다. 화면(버튼)에서도 막지만 저장 직전 같은 규칙으로 재확인한다.
+  */
+  const revealMarketItem = (item: MarketItem) => {
+    if (!currentUser || !isLeader(currentUser)) return;
+    if (!canRevealMystery(item, marketBids, nowStamp(), true)) return;
+    patchMarketItem(item.id, { revealedAt: nowStamp() });
   };
 
   /* 거래 완료는 양쪽이 각각 누른다. 앱은 결제를 다루지 않아 누가 잘못했는지
@@ -2326,6 +2344,9 @@ export function App() {
           onMarkDone={markMarketDone}
           canModerate={isAdmin(currentUser)}
           onDelete={deleteMarketItem}
+          canReveal={isLeader(currentUser)}
+          onReveal={revealMarketItem}
+          onRefresh={refreshMarket}
           focusId={focusFor('market')}
           onFocusHandled={clearFeedFocus}
           onExitToHome={() => changeSection('dashboard')}

@@ -1,5 +1,5 @@
 import { useState, type ChangeEvent } from 'react';
-import { Gavel, Gift, ImagePlus, Trash2 } from 'lucide-react';
+import { Gavel, Gift, ImagePlus, PackageOpen, Trash2 } from 'lucide-react';
 import { PanelHeader } from '../../components/PanelHeader';
 import { formatPrice } from '../../marketRules';
 import type { MarketItem, MarketKind } from '../../types';
@@ -7,7 +7,7 @@ import { activeMarketEvents, marketEvent } from './marketEvents';
 
 export type MarketDraft = Pick<
   MarketItem,
-  'title' | 'desc' | 'startPrice' | 'minStep' | 'closeAt' | 'place' | 'eventTag'
+  'title' | 'desc' | 'startPrice' | 'minStep' | 'closeAt' | 'place' | 'eventTag' | 'mystery'
 > & { kind: MarketKind; imageFile: File | null };
 
 type MarketFormProps = {
@@ -86,6 +86,14 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
   const [minStep, setMinStep] = useState(initial?.minStep ? String(initial.minStep) : '');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [error, setError] = useState('');
+  /*
+    랜덤박스 — 내용물을 숨긴 채 입찰받는 경매. 행사 벼룩시장에서만 연다:
+    낙찰 뒤 리더가 무대에서 '열어보기'를 눌러 공개하는 연출이 전제라, 상시 장터처럼
+    각자 따로 거래하는 곳에는 열어 줄 자리가 없다. 나눔으로 바꾸거나 상시로 옮기면 꺼진다.
+  */
+  const [mystery, setMystery] = useState(Boolean(initial?.mystery));
+  const mysteryAllowed = isAuction && eventTag !== '';
+  const effectiveMystery = mysteryAllowed && mystery;
 
   // 고정 마감 행사면 입력값 대신 그 시각으로 제출한다.
   const effectiveClose = lockedClose ?? closeAt;
@@ -139,6 +147,7 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
       startPrice: isAuction ? priceNumber : 0,
       minStep: isAuction ? effectiveStep : 0,
       eventTag: eventTag || undefined,
+      mystery: effectiveMystery,
       imageFile,
     });
   };
@@ -197,17 +206,34 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
         </button>
       </div>
 
+      {/* 랜덤박스 토글 — 행사 경매에서만. 제목·사진은 그대로 적고, 보이는 쪽만 가린다. */}
+      {mysteryAllowed && (
+        <div className="field">
+          <label className="checkline mystery-toggle">
+            <input checked={mystery} onChange={(event) => setMystery(event.target.checked)} type="checkbox" />
+            <PackageOpen size={18} />
+            <span>
+              <strong>랜덤박스로 내놓기</strong>
+              <small>무엇인지 모른 채 입찰해요. 낙찰이 확정되면 리더가 '열어보기'로 공개합니다.</small>
+            </span>
+          </label>
+        </div>
+      )}
+
       <label className="field">
         <span className="field-label">
-          무엇을 내놓나요 <em>필수</em>
+          {effectiveMystery ? '안에 무엇이 들어 있나요' : '무엇을 내놓나요'} <em>필수</em>
         </span>
         <input
           autoFocus
           maxLength={40}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="예) 기계식 키보드 적축 풀배열"
+          placeholder={effectiveMystery ? '예) 스타벅스 기프티콘 3만원' : '예) 기계식 키보드 적축 풀배열'}
           value={title}
         />
+        {effectiveMystery && (
+          <p className="field-note">열어보기 전까지는 아무에게도 보이지 않고 '랜덤박스'로만 떠요.</p>
+        )}
       </label>
 
       <label className="field">
@@ -301,10 +327,15 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
         <textarea
           maxLength={300}
           onChange={(event) => setDesc(event.target.value)}
-          placeholder="쓴 기간, 상태, 아쉬운 점을 적어주세요. 미리 알수록 거래가 깔끔합니다."
+          placeholder={
+            effectiveMystery
+              ? '예) 새 제품, 유효기간 넉넉해요. (설명도 열기 전까지 가려집니다)'
+              : '쓴 기간, 상태, 아쉬운 점을 적어주세요. 미리 알수록 거래가 깔끔합니다.'
+          }
           rows={3}
           value={desc}
         />
+        {effectiveMystery && <p className="field-note">설명도 열어보기 전까지 가려져요. 힌트는 입찰자가 보는 곳이 없습니다.</p>}
       </label>
 
       <div className="field">
@@ -325,7 +356,9 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
             <small>
               {isEdit && initial?.imageUrl
                 ? '지금 이미지를 그대로 둡니다. 새 사진을 넣으면 교체됩니다.'
-                : '넣지 않으면 입력한 내용으로 포스터를 만들어 드려요.'}
+                : effectiveMystery
+                  ? '열어볼 때 상자에서 나올 사진이에요. 넣지 않으면 내용물로 포스터를 만들어 드려요.'
+                  : '넣지 않으면 입력한 내용으로 포스터를 만들어 드려요.'}
             </small>
           </label>
         )}
@@ -338,7 +371,7 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
           취소
         </button>
         <button className="primary-button" onClick={submit} type="button">
-          {isEdit ? '저장' : isAuction ? '경매 시작' : '나눔 올리기'}
+          {isEdit ? '저장' : effectiveMystery ? '랜덤박스 올리기' : isAuction ? '경매 시작' : '나눔 올리기'}
         </button>
       </div>
     </section>

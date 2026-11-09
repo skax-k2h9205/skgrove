@@ -144,6 +144,34 @@ export function bidBlockedReason(
   return null;
 }
 
+/* ===== 랜덤박스 =====
+   안에 뭐가 들었는지 모른 채 부르는 경매. 내용물(제목·사진·설명)은 처음부터 저장돼 있고,
+   '열었는가'만 revealedAt 으로 남긴다. 열기 전엔 격자·상세·알림·홈 피드 어디서도 제목이
+   새면 안 되므로, 보여줄 이름은 반드시 publicTitle 을 거친다. */
+
+export const MYSTERY_TITLE = '랜덤박스';
+
+/** 아직 안 연 랜덤박스인가. 일반 물건과 이미 연 박스는 false. */
+export function isMysteryHidden(item: Pick<MarketItem, 'mystery' | 'revealedAt'>) {
+  return Boolean(item.mystery) && !item.revealedAt;
+}
+
+/** 화면·알림에 쓸 제목. 안 연 랜덤박스는 진짜 제목 대신 '랜덤박스'. */
+export function publicTitle(item: Pick<MarketItem, 'title' | 'mystery' | 'revealedAt'>) {
+  return isMysteryHidden(item) ? MYSTERY_TITLE : item.title;
+}
+
+/*
+  지금 이 박스를 열 수 있는가. 낙찰이 확정(거래완료)된 뒤에만 — 입찰 중에 열리면
+  랜덤박스가 아니다. 누가 여는지는 호출부가 권한(리더·커넥셔너)으로 정해 privileged 로 넘긴다.
+  규칙 모듈은 사용자 역할 체계를 모르는 채로 둔다.
+*/
+export function canRevealMystery(item: MarketItem, bids: MarketBid[], now: string, privileged: boolean) {
+  if (!privileged) return false;
+  if (!isMysteryHidden(item)) return false;
+  return deriveStatus(item, bids, now) === '거래완료';
+}
+
 /** 낙찰자. 마감 전에는 아직 아무도 아니다 — 진행 중 최고가를 낙찰로 부르면 오해가 생긴다. */
 export function winner(item: MarketItem, bids: MarketBid[], now: string) {
   if (deriveStatus(item, bids, now) !== '거래완료') return null;
@@ -266,4 +294,74 @@ export function fundraiseSummary(items: MarketItem[], bids: MarketBid[], now: st
     }
   }
   return { total, soldCount, ongoingCount, giveawayCount };
+}
+
+/* ===== 시세판 — 주식창처럼 보는 행사 경매 =====
+   가격은 입찰에서만 오르고 내려가지 않는다. 그래서 '변동'은 언제나 시작가 대비 상승분이고,
+   스파크라인은 계단형으로 올라가기만 한다. 아래 함수들은 그 그림의 근거 숫자만 만든다. */
+
+export type PricePoint = { at: string; amount: number };
+
+/** 가격 흐름. 등록(시작가)에서 출발해 입찰이 들어온 순서대로 최고가가 갱신된 자취. */
+export function priceHistory(item: MarketItem, bids: MarketBid[]): PricePoint[] {
+  const points: PricePoint[] = [{ at: item.createdAt, amount: item.startPrice }];
+  let top = item.startPrice;
+  for (const bid of bidsFor(item.id, bids)) {
+    if (bid.amount > top) {
+      top = bid.amount;
+      points.push({ at: bid.createdAt, amount: top });
+    }
+  }
+  return points;
+}
+
+/** 시작가 대비 얼마나 올랐나. 시작가 0(나눔)이면 비율은 0으로 둔다 — 0으로 나눌 수 없다. */
+export function priceChange(item: MarketItem, bids: MarketBid[]) {
+  const diff = currentPrice(item, bids) - item.startPrice;
+  const pct = item.startPrice > 0 ? (diff / item.startPrice) * 100 : 0;
+  return { diff, pct };
+}
+
+/*
+  시세판에 올릴 물건: 경매만, 취소 제외. 많이 오른 순 → 같은 비율이면 비싼 순 → 제목순.
+  나눔은 값이 없어 시세판에 둘 자리가 없고, 취소는 더 움직이지 않으니 뺀다.
+  마감된 경매는 남긴다 — 낙찰가가 확정된 '종가'로 읽히는 게 주식창의 문법이다.
+*/
+export function tickerItems(items: MarketItem[], bids: MarketBid[]) {
+  return items
+    .filter((item) => item.kind === 'auction' && !item.canceled)
+    .sort((a, b) => {
+      const ca = priceChange(a, bids);
+      const cb = priceChange(b, bids);
+      return cb.pct - ca.pct || currentPrice(b, bids) - currentPrice(a, bids) || a.title.localeCompare(b.title);
+    });
+}
+
+/** 최근 체결(입찰) — 시세판 물건에 붙은 입찰을 최신순으로. 테이프·체결 내역에 쓴다. */
+export function recentBids(items: MarketItem[], bids: MarketBid[], limit = 12) {
+  const ids = new Set(tickerItems(items, bids).map((item) => item.id));
+  return sortBids(bids.filter((bid) => ids.has(bid.itemId)))
+    .reverse()
+    .slice(0, limit);
+}
+
+/**
+ * 시세판 지수 — 올라온 경매 전체의 현재가 합과 시작가 합. 둘의 차가 "오늘 얼마나 올랐나".
+ * 모금 현황(fundraiseSummary)은 확정된 낙찰가만 세지만, 지수는 진행 중인 호가까지 더한다 —
+ * 라이브 무대에서 보고 싶은 건 확정액이 아니라 지금 이 순간의 열기다.
+ */
+export function tickerIndex(items: MarketItem[], bids: MarketBid[], now: string) {
+  let current = 0;
+  let start = 0;
+  let open = 0;
+  let closed = 0;
+  let bidCountTotal = 0;
+  for (const item of tickerItems(items, bids)) {
+    current += currentPrice(item, bids);
+    start += item.startPrice;
+    bidCountTotal += bidCount(item, bids);
+    if (isOpen(item, bids, now)) open += 1;
+    else closed += 1;
+  }
+  return { current, start, diff: current - start, pct: start > 0 ? ((current - start) / start) * 100 : 0, open, closed, bidCount: bidCountTotal };
 }

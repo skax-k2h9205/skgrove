@@ -1,5 +1,6 @@
 import { ArrowLeft, Printer } from 'lucide-react';
 import { QrCode } from '../../components/QrCode';
+import { publicTitle } from '../../marketRules';
 import type { MarketItem } from '../../types';
 
 /*
@@ -48,7 +49,8 @@ export function QrSheet({
             {items.map((item) => (
               <div className="qr-item" key={item.id}>
                 <QrCode className="qr-img" size={160} value={linkFor(item)} />
-                <strong className="qr-item-title">{item.title}</strong>
+                {/* 안 연 랜덤박스는 진열대에 붙는 종이에도 '랜덤박스'로만. */}
+                <strong className="qr-item-title">{publicTitle(item)}</strong>
                 <span className="qr-item-sub">
                   {item.kind === 'giveaway' ? '나눔' : '경매'} · {item.seller}
                 </span>

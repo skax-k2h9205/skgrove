@@ -2,18 +2,26 @@ import { describe, expect, it } from 'vitest';
 import {
   bidBlockedReason,
   canEditMarketItem,
+  canRevealMystery,
   currentPrice,
   deriveStatus,
   effectiveCloseAt,
   extendedCloseFor,
   formatPrice,
+  isMysteryHidden,
   leadingBid,
   minNextBid,
+  priceChange,
+  priceHistory,
+  publicTitle,
+  recentBids,
   rankBigSpenders,
   rankBuyers,
   rankGivers,
   rankSellers,
   sortItems,
+  tickerIndex,
+  tickerItems,
   timeLeft,
   winner,
 } from './marketRules';
@@ -321,5 +329,91 @@ describe('랭킹', () => {
     const open = [auction({ id: 'O', seller: '최근화', closeAt: '2026-08-20T18:00' })];
     const openBids = [bid({ id: 'ob', itemId: 'O', name: '이관국', amount: 10000 })];
     expect(rankSellers(open, openBids, NOW)).toEqual([]);
+  });
+});
+
+/*
+  랜덤박스 — 내용물은 저장돼 있지만 열기 전엔 어디서도 제목이 새면 안 되고,
+  여는 것은 낙찰 확정 뒤 권한 있는 사람만이다.
+*/
+describe('랜덤박스', () => {
+  const box = (patch: Partial<MarketItem> = {}) =>
+    auction({ id: 'BOX', title: '스타벅스 기프티콘 3만원', mystery: true, eventTag: 'canmeeting-2026', ...patch });
+  const AFTER = '2026-08-07T09:00'; // 마감(08-06 18:00) 뒤
+
+  it('열기 전엔 제목이 "랜덤박스"로 가려지고, 연 뒤엔 진짜 제목이 나온다', () => {
+    expect(isMysteryHidden(box())).toBe(true);
+    expect(publicTitle(box())).toBe('랜덤박스');
+    expect(publicTitle(box({ revealedAt: '2026-08-07T09:10' }))).toBe('스타벅스 기프티콘 3만원');
+    expect(isMysteryHidden(box({ revealedAt: '2026-08-07T09:10' }))).toBe(false);
+  });
+
+  it('일반 물건은 랜덤박스 규칙에 걸리지 않는다', () => {
+    expect(isMysteryHidden(auction())).toBe(false);
+    expect(publicTitle(auction())).toBe('허먼밀러 세이코체어');
+  });
+
+  it('낙찰이 확정(거래완료)돼야 열 수 있다 — 입찰 중이나 유찰이면 못 연다', () => {
+    const bids = [bid({ id: 'b1', itemId: 'BOX', name: '이관국', amount: 130000 })];
+    expect(canRevealMystery(box(), bids, NOW, true)).toBe(false); // 아직 거래중
+    expect(canRevealMystery(box(), bids, AFTER, true)).toBe(true); // 마감 뒤 낙찰 확정
+    expect(canRevealMystery(box(), [], AFTER, true)).toBe(false); // 아무도 안 불러 유찰
+  });
+
+  it('권한이 없으면 낙찰 뒤에도 못 열고, 이미 연 박스는 다시 못 연다', () => {
+    const bids = [bid({ id: 'b1', itemId: 'BOX', name: '이관국', amount: 130000 })];
+    expect(canRevealMystery(box(), bids, AFTER, false)).toBe(false);
+    expect(canRevealMystery(box({ revealedAt: '2026-08-07T09:10' }), bids, AFTER, true)).toBe(false);
+    expect(canRevealMystery(auction(), bids, AFTER, true)).toBe(false); // 랜덤박스가 아니다
+  });
+});
+
+/* 시세판 — 가격은 오르기만 하므로 변동은 항상 시작가 대비 상승분이다. */
+describe('시세판', () => {
+  const chair = auction(); // 시작가 120,000
+  const lamp = auction({ id: 'MKT-2', title: '스탠드 조명', startPrice: 10000, minStep: 1000 });
+  const gift = auction({ id: 'MKT-3', kind: 'giveaway', title: '머그컵', startPrice: 0, minStep: 0 });
+  const gone = auction({ id: 'MKT-4', title: '취소된 것', canceled: true });
+  const bids = [
+    bid({ id: 'a', itemId: 'MKT-1', name: '이관국', amount: 125000, createdAt: '2026-08-05T10:00:00.000Z' }),
+    bid({ id: 'b', itemId: 'MKT-2', name: '김승현', amount: 12000, createdAt: '2026-08-05T10:05:00.000Z' }),
+    bid({ id: 'c', itemId: 'MKT-2', name: '이두민', amount: 15000, createdAt: '2026-08-05T10:10:00.000Z' }),
+    bid({ id: 'd', itemId: 'MKT-1', name: '김수정', amount: 130000, createdAt: '2026-08-05T10:20:00.000Z' }),
+  ];
+
+  it('가격 흐름은 시작가에서 출발해 최고가가 갱신될 때만 점을 찍는다', () => {
+    expect(priceHistory(lamp, bids).map((p) => p.amount)).toEqual([10000, 12000, 15000]);
+    // 더 낮은 금액이 뒤에 와도 계단은 내려가지 않는다.
+    const lower = [...bids, bid({ id: 'e', itemId: 'MKT-2', name: '박서연', amount: 11000, createdAt: '2026-08-05T10:30:00.000Z' })];
+    expect(priceHistory(lamp, lower).map((p) => p.amount)).toEqual([10000, 12000, 15000]);
+    expect(priceHistory(auction({ id: 'MKT-9' }), bids)).toEqual([{ at: '2026-08-05', amount: 120000 }]);
+  });
+
+  it('변동은 시작가 대비 금액과 비율로 센다', () => {
+    expect(priceChange(lamp, bids)).toEqual({ diff: 5000, pct: 50 });
+    expect(priceChange(chair, bids).diff).toBe(10000);
+    expect(priceChange(chair, bids).pct).toBeCloseTo(8.333, 2);
+    expect(priceChange(gift, bids)).toEqual({ diff: 0, pct: 0 }); // 0으로 나누지 않는다
+  });
+
+  it('시세판에는 경매만 오르고(나눔·취소 제외), 많이 오른 순으로 선다', () => {
+    const rows = tickerItems([chair, lamp, gift, gone], bids);
+    expect(rows.map((item) => item.id)).toEqual(['MKT-2', 'MKT-1']);
+  });
+
+  it('최근 체결은 시세판 물건의 입찰만 최신순으로 자른다', () => {
+    const stray = bid({ id: 'z', itemId: 'MKT-3', name: '아무개', amount: 0, createdAt: '2026-08-05T11:00:00.000Z' });
+    expect(recentBids([chair, lamp, gift], [...bids, stray], 2).map((b) => b.id)).toEqual(['d', 'c']);
+  });
+
+  it('지수는 현재가 합·시작가 합·진행/마감 수를 한 번에 준다', () => {
+    const index = tickerIndex([chair, lamp, gift, gone], bids, NOW);
+    expect(index.current).toBe(145000);
+    expect(index.start).toBe(130000);
+    expect(index.diff).toBe(15000);
+    expect(index.pct).toBeCloseTo(11.54, 1);
+    expect(index.open).toBe(2);
+    expect(index.closed).toBe(0);
+    expect(index.bidCount).toBe(4);
   });
 });
