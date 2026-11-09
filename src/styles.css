@@ -9699,6 +9699,20 @@ button.notif-row {
   gap: var(--space-2);
 }
 
+/* 등록 폼: 올릴 장터가 이미 정해졌을 때의 안내 + '다른 장터' 전환. */
+.market-dest {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  justify-content: space-between;
+}
+
+.market-dest-name {
+  color: var(--color-ink);
+  font-weight: 700;
+}
+
 .field-required {
   background: var(--tint-danger);
   border-radius: var(--radius-sm);
