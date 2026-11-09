@@ -120,6 +120,8 @@
   --rb-shadow-card: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 6px rgba(255, 255, 255, 0.08);
   --rb-flash: radial-gradient(circle, rgba(255, 255, 255, 0.95), rgba(255, 209, 102, 0.6) 40%, transparent 70%);
   --rb-flash-big: radial-gradient(circle at 50% 55%, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0.85) 30%, rgba(255, 255, 255, 0) 75%);
+  /* 낙찰자 인형이 상자 중심에서 오른쪽으로 비켜서는 거리. 좁은 화면에선 화면 안에 들어오게 줄어든다. */
+  --rb-dancer-shift: min(150px, calc(50vw - 72px));
   --rb-stick: #d9b27c;
   --rb-stick-tip: #f1dfc0;
   --rb-silver: #eef1f6;
@@ -15095,7 +15097,6 @@ button.notif-row {
    머리는 Avatar(사진/이니셜), 몸통·팔·다리는 CSS. 팔은 어깨, 다리는 엉덩이를 축으로 돈다.
    박자는 북채(0.28초 한 사이클)에 맞춘다. 뽑기 무대의 춤추는 고양이 영상과 같은 역할. */
 .rb-dancer {
-  --dancer-shift: 150px; /* 상자 중심에서 오른쪽으로 */
   align-items: center;
   bottom: calc(8vh + env(safe-area-inset-bottom, 0px));
   display: grid;
@@ -15105,15 +15106,12 @@ button.notif-row {
   opacity: 0;
   pointer-events: none;
   position: absolute;
-  transform: translate(calc(-50% + var(--dancer-shift)), 30px);
+  transform: translate(calc(-50% + var(--rb-dancer-shift)), 30px);
   transition: opacity 0.5s ease, transform 0.5s ease;
   z-index: 2;
 }
-@media (max-width: 480px) {
-  .rb-dancer { --dancer-shift: 118px; zoom: 0.85; }
-}
 .phase-drum .rb-dancer,
-.phase-lights .rb-dancer { opacity: 1; transform: translate(calc(-50% + var(--dancer-shift)), 0); }
+.phase-lights .rb-dancer { opacity: 1; transform: translate(calc(-50% + var(--rb-dancer-shift)), 0); }
 .rb-dancer .rb-crown {
   font-size: 26px;
   line-height: 1;
@@ -15188,9 +15186,9 @@ button.notif-row {
   .phase-drum .rb-leg.right, .phase-lights .rb-leg.right { animation: rb-dance-leg 0.56s ease-in-out infinite; animation-delay: -0.28s; }
 }
 @keyframes rb-dance-body {
-  0%, 100% { transform: translate(calc(-50% + var(--dancer-shift)), 0) rotate(-6deg); }
-  25%, 75% { transform: translate(calc(-50% + var(--dancer-shift)), -14px) rotate(0deg); }
-  50% { transform: translate(calc(-50% + var(--dancer-shift)), 0) rotate(6deg); }
+  0%, 100% { transform: translate(calc(-50% + var(--rb-dancer-shift)), 0) rotate(-6deg); }
+  25%, 75% { transform: translate(calc(-50% + var(--rb-dancer-shift)), -14px) rotate(0deg); }
+  50% { transform: translate(calc(-50% + var(--rb-dancer-shift)), 0) rotate(6deg); }
 }
 @keyframes rb-dance-head {
   0%, 100% { transform: rotate(8deg); }
