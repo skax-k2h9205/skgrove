@@ -73,9 +73,6 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
   const eventChoices = current && !openEvents.some((event) => event.tag === current.tag)
     ? [...openEvents, current]
     : openEvents;
-  // 탭에서 '물건 내놓기'로 들어오면 올릴 장터는 이미 정해진 셈 — 평소엔 안내만 보여주고,
-  // 바꾸고 싶을 때만 선택지를 편다. 수정 중(장터 이동)엔 항상 펴 둔다.
-  const [pickerOpen, setPickerOpen] = useState(isEdit);
   // 이 행사가 마감을 고정했으면 사용자가 못 바꾼다 — 당일 일괄 마감 행사(예: 캔미팅).
   const lockedClose = current?.fixedCloseAt;
 
@@ -160,11 +157,11 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
       <PanelHeader icon={isAuction ? Gavel : Gift} title={isEdit ? '물건 수정' : '물건 내놓기'} />
 
       {/* 어느 장터에 올릴지. 등록 가능한 행사가 있을 때만 보인다 — 평소엔 상시뿐이라 숨긴다.
-          탭에서 들어오면 장터가 정해진 셈이라 안내만 보여주고, '다른 장터'로 바꿀 때만 선택지를 편다. */}
+          등록은 들어온 탭의 장터로 정해지므로 안내만, 수정은 장터 이동을 위해 선택지를 보여준다. */}
       {eventChoices.length > 0 && (
         <div className="field">
           <span className="field-label">올리는 장터</span>
-          {pickerOpen ? (
+          {isEdit ? (
             <>
               <div className="segmented">
                 <button
@@ -190,14 +187,9 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
               )}
             </>
           ) : (
-            <div className="market-dest">
-              <span className="market-dest-name">
-                📍 {eventTag === '' ? '상시 장터' : current?.label}
-              </span>
-              <button className="btn-link" onClick={() => setPickerOpen(true)} type="button">
-                다른 장터에 올리기
-              </button>
-            </div>
+            <span className="market-dest-name">
+              📍 {eventTag === '' ? '상시 장터' : current?.label}
+            </span>
           )}
         </div>
       )}
