@@ -588,9 +588,27 @@ export function MarketBoard({
   const scopeLabel = scopeEvent?.label;
   // 모금 현황은 기부 행사 탭에서만. 공개 전엔 거래가 없어 0원이라 숨긴다.
   const fund = scopeEvent?.fundraiser && !preOpen ? fundraiseSummary(scopedItems, bids, now) : null;
+  // 크리스마스 테마는 이 탭에만. 상시 장터·다른 화면은 그대로다.
+  const xmas = Boolean(scopeEvent?.xmas);
 
   return (
-    <section className="screen">
+    <section className={xmas ? 'screen market-xmas' : 'screen'}>
+      {xmas && (
+        <div aria-hidden="true" className="xmas-snow">
+          {Array.from({ length: 14 }).map((_, i) => (
+            <i
+              key={i}
+              style={{
+                left: `${(i * 7 + 4) % 97}%`,
+                animationDuration: `${6 + ((i * 1.3) % 5)}s`,
+                animationDelay: `${(i * 0.7) % 4}s`,
+              }}
+            >
+              ❄
+            </i>
+          ))}
+        </div>
+      )}
       {/* 상시/행사 탭. 행사 벼룩시장이 열려 있을 때만 보이고, 평소엔 숨어 화면이 그대로다. */}
       {eventTabs.length > 0 && (
         <div className="segmented market-scope-tabs" role="tablist" aria-label="장터 전환">
@@ -616,6 +634,18 @@ export function MarketBoard({
             </button>
           ))}
         </div>
+      )}
+
+      {/* 크리스마스 꼬마전구 띠 + 인사 배너(이 탭 한정). */}
+      {xmas && (
+        <>
+          <div aria-hidden="true" className="xmas-lights">
+            {Array.from({ length: 11 }).map((_, i) => (
+              <i key={i} />
+            ))}
+          </div>
+          <div className="xmas-garland">🎄 Merry Christmas · {scopeLabel} 🎁</div>
+        </>
       )}
 
       {/* 공개 전 안내 — 지금은 물건을 미리 모으는 기간. 남의 물건은 공개 시각까지 '???'로 가려진다. */}

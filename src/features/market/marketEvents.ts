@@ -29,6 +29,9 @@ export type MarketEvent = {
    *  사진·제목·가격·설명 없이 '???'로 가려지고(겉보기 티저), 홈 피드에도 안 뜬다.
    *  운영 중 바꿀 수 있다: app_config 오버라이드가 이 기본값을 이긴다([[configStore]]). */
   openAt?: string;
+  /** true 면 이 행사 탭에 크리스마스 테마(스노우폴)를 입힌다. 그 탭 화면에만 적용되고
+   *  상시 장터·다른 화면은 그대로다. 행사가 끝나면 이 줄만 지우면 된다. */
+  xmas?: boolean;
 };
 
 export const MARKET_EVENTS: MarketEvent[] = [
@@ -39,6 +42,7 @@ export const MARKET_EVENTS: MarketEvent[] = [
     fundraiser: true,
     fixedCloseAt: '2026-11-30T12:50',
     openAt: '2026-11-30T12:00',
+    xmas: true,
   },
 ];
 

@@ -134,6 +134,16 @@
   --leading-normal: 1.5;
   --leading-relaxed: 1.7;
 
+  /* 크리스마스 테마(캔미팅 탭 한정, .market-xmas). 토큰으로 둬서 하드코딩 hex 를 늘리지 않는다. */
+  --xmas-red: #c0392b;
+  --xmas-red-soft: #f7e0dd;
+  --xmas-red-ink: #8e2a20;
+  --xmas-green: #1f7a4d;
+  --xmas-green-soft: #dbeee4;
+  --xmas-green-ink: #145536;
+  --xmas-gold: #c99a2e;
+  --xmas-snow: #ffffff; /* 레드 탭 위 흰 글씨 */
+  --xmas-flake: #7fb0e0; /* 내리는 눈 — 밝은 배경에서도 보이는 소프트 블루 */
 }
 
 * {
@@ -14444,6 +14454,96 @@ button.notif-row {
 @page {
   margin: 14mm;
   size: A4;
+}
+
+/* ===== 크리스마스 테마 — 캔미팅 벼룩시장 탭 한정(스노우폴) ===== */
+/* .market-xmas 가 붙은 장터 화면에만 적용. 상시 장터·다른 화면은 그대로다. */
+.market-xmas {
+  overflow: hidden; /* 눈이 화면 밖으로 새지 않게 */
+  position: relative;
+}
+
+.market-xmas > *:not(.xmas-snow) {
+  position: relative;
+  z-index: 1;
+}
+
+/* 내리는 눈. 내용 위로 아주 옅게 드리운다 — pointer-events:none 이라 클릭은 그대로 통과하고,
+   소프트 블루 작은 송이라 글씨·사진을 거의 가리지 않는다(장터는 패널이 폭을 꽉 채워
+   '뒤쪽'엔 눈이 보일 자리가 없어서 위로 올렸다). */
+.xmas-snow {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  z-index: 5;
+}
+
+.xmas-snow i {
+  animation: xmas-fall linear infinite;
+  color: var(--xmas-flake);
+  font-size: 14px;
+  position: absolute;
+  top: -14px;
+}
+
+@keyframes xmas-fall {
+  0% { opacity: 0; transform: translateY(-14px) translateX(0); }
+  10% { opacity: 0.9; }
+  85% { opacity: 0.9; }
+  100% { opacity: 0.55; transform: translateY(1400px) translateX(24px); }
+}
+
+/* 꼬마전구 띠 */
+.xmas-lights {
+  align-items: center;
+  display: flex;
+  height: 14px;
+  justify-content: space-around;
+  padding: 0 8px;
+}
+
+.xmas-lights i {
+  border-radius: 50%;
+  box-shadow: 0 0 6px currentColor;
+  display: block;
+  height: 7px;
+  width: 7px;
+}
+
+.xmas-lights i:nth-child(3n + 1) { background: var(--xmas-red); color: var(--xmas-red); }
+.xmas-lights i:nth-child(3n + 2) { background: var(--xmas-gold); color: var(--xmas-gold); }
+.xmas-lights i:nth-child(3n) { background: var(--xmas-green); color: var(--xmas-green); }
+
+/* 인사 배너 */
+.xmas-garland {
+  align-items: center;
+  background: linear-gradient(90deg, var(--xmas-red-soft), var(--xmas-green-soft));
+  border: 1px solid var(--xmas-green-soft);
+  border-radius: var(--radius);
+  color: var(--xmas-green-ink);
+  display: flex;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: center;
+  padding: 10px 14px;
+  text-align: center;
+}
+
+/* 선택된 캔미팅 탭 — 축제 레드 */
+.market-xmas .market-scope-tabs .selected {
+  background: var(--xmas-red);
+  color: var(--xmas-snow);
+}
+
+/* 모금 현황 패널 — 골드 테두리 + 레드/그린 그라디언트 */
+.market-xmas .fund-panel {
+  background: linear-gradient(135deg, var(--xmas-red-soft), var(--xmas-green-soft));
+  border-color: var(--xmas-gold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xmas-snow i { animation: none; opacity: 0.4; }
 }
 
 /* ===== 장터 QR 시트(물건별 바로가기) ===== */
