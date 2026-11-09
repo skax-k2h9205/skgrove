@@ -53,6 +53,7 @@ import type { CurrentUser, MarketBid, MarketComment, MarketItem, MarketStatus } 
 import { ItemPoster } from './ItemPoster';
 import { MarketForm, type MarketDraft } from './MarketForm';
 import { MarketTicker, MarketTickerPanel } from './MarketTicker';
+import { MarketCountdown } from './MarketCountdown';
 import { MarketXmasScene } from './MarketXmasScene';
 import { QrSheet } from './QrSheet';
 import { RandomBoxReveal } from './RandomBoxReveal';
@@ -740,6 +741,11 @@ export function MarketBoard({
 
       {/* 크리스마스 히어로 장면(이 탭 한정) — 산타·루돌프·트리. */}
       {xmas && <MarketXmasScene />}
+
+      {/* 공개/마감 카운트다운(행사 탭, 슬림 한 줄). */}
+      {(scopeOpenAt || scopeEvent?.fixedCloseAt) && (
+        <MarketCountdown closeAt={scopeEvent?.fixedCloseAt} openAt={scopeOpenAt} />
+      )}
 
       {/* 공개 전 안내 — 지금은 물건을 미리 모으는 기간. 남의 물건은 공개 시각까지 '???'로 가려진다. */}
       {preOpen && (

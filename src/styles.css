@@ -14530,6 +14530,45 @@ button.notif-row {
   white-space: nowrap;
 }
 
+/* ===== 공개/마감 카운트다운 (슬림 pill) ===== */
+.market-countdown {
+  align-items: center;
+  background: var(--color-sunken);
+  border-radius: 999px;
+  color: var(--color-ink);
+  display: flex;
+  font-size: var(--text-meta);
+  font-weight: 800;
+  gap: 7px;
+  justify-content: center;
+  margin: 10px auto 0;
+  padding: 7px 14px;
+  width: fit-content;
+}
+
+.market-countdown .cd-label {
+  color: var(--color-muted);
+  font-weight: 700;
+}
+
+.market-countdown .cd-time {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.market-countdown.urgent {
+  background: var(--tint-danger);
+  color: var(--color-danger);
+}
+
+.market-countdown.urgent .cd-label {
+  color: var(--color-danger);
+}
+
+.market-countdown.closed {
+  color: var(--color-muted);
+}
+
 /* ===== 크리스마스 테마 — 캔미팅 벼룩시장 탭 한정 ===== */
 /* .market-xmas 화면에만 적용. 상시 장터·다른 화면은 그대로. 캐릭터 장면은 MarketXmasScene(SVG)이
    그리고, 여기선 배너 틀·탭 색·애니메이션만 맡는다. 장면 색은 그 컴포넌트 안의 리터럴. */
