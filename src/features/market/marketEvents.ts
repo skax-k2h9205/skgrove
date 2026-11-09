@@ -19,10 +19,13 @@ export type MarketEvent = {
   label: string;
   /** true 면 지금 등록 가능한 행사(폼 선택지+탭). 끝나면 false. */
   active: boolean;
+  /** 수익을 팀에 기부하는 행사면 true — 그 탭 상단에 '모금 현황'(거래완료 낙찰가 합)을 띄운다.
+   *  상시 장터는 판매금이 개인 것이라 모금이 아니므로 항상 false 취급. */
+  fundraiser?: boolean;
 };
 
 export const MARKET_EVENTS: MarketEvent[] = [
-  { tag: 'canmeeting-2026', label: '🎪 캔미팅 벼룩시장', active: true },
+  { tag: 'canmeeting-2026', label: '🎪 캔미팅 벼룩시장', active: true, fundraiser: true },
 ];
 
 /** 태그로 행사 정의를 찾는다. 상시(빈 태그)거나 모르는 태그면 undefined. */

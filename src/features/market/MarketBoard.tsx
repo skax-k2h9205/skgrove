@@ -12,6 +12,7 @@ import {
   Package,
   Pencil,
   Plus,
+  Sparkles,
   Trash2,
   Trophy,
 } from 'lucide-react';
@@ -28,6 +29,7 @@ import {
   deriveStatus,
   effectiveCloseAt,
   formatPrice,
+  fundraiseSummary,
   isSettled,
   leadingBid,
   minNextBid,
@@ -506,7 +508,10 @@ export function MarketBoard({
     { key: 'spender', title: '큰손', rows: rankBigSpenders(scopedItems, bids, now), unit: '원' },
   ];
   const hasRanking = boards.some((board) => board.rows.length > 0);
-  const scopeLabel = marketEvent(scope)?.label;
+  const scopeEvent = marketEvent(scope);
+  const scopeLabel = scopeEvent?.label;
+  // 모금 현황은 기부 행사 탭에서만. 상시 판매금은 개인 몫이라 모금이 아니다.
+  const fund = scopeEvent?.fundraiser ? fundraiseSummary(scopedItems, bids, now) : null;
 
   return (
     <section className="screen">
@@ -535,6 +540,21 @@ export function MarketBoard({
             </button>
           ))}
         </div>
+      )}
+
+      {/* 모금 현황 — 기부 행사 탭 상단. 거래완료(낙찰 확정)된 경매 금액의 합. */}
+      {fund && (
+        <section className="panel fund-panel">
+          <div className="fund-head">
+            <Sparkles size={16} />
+            {scopeLabel} 모금 현황
+          </div>
+          <div className="fund-total">{formatPrice(fund.total)}</div>
+          <div className="fund-sub">
+            거래완료 {fund.soldCount}건 · 진행중 {fund.ongoingCount}건 · 나눔 {fund.giveawayCount}건
+          </div>
+          <p className="fund-note">낙찰 확정(거래완료)된 경매 금액의 합이에요. 전액 팀을 위해 쓰입니다.</p>
+        </section>
       )}
 
       {/*

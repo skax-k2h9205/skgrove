@@ -242,3 +242,28 @@ export function rankBigSpenders(items: MarketItem[], bids: MarketBid[], now: str
     });
   return rank(totals);
 }
+
+/**
+ * 모금 집계(행사 벼룩시장). 낙찰 확정(거래완료)된 경매 낙찰가의 합을 모금액으로 본다.
+ * 나눔은 0원이라 금액엔 안 잡히고 건수로만 센다. 진행중 경매는 아직 확정 전이라 금액 제외.
+ */
+export function fundraiseSummary(items: MarketItem[], bids: MarketBid[], now: string) {
+  let total = 0;
+  let soldCount = 0;
+  let ongoingCount = 0;
+  let giveawayCount = 0;
+  for (const item of items) {
+    const status = deriveStatus(item, bids, now);
+    if (item.kind === 'auction') {
+      if (status === '거래완료') {
+        total += currentPrice(item, bids);
+        soldCount += 1;
+      } else if (status === '거래중') {
+        ongoingCount += 1;
+      }
+    } else if (status === '거래완료') {
+      giveawayCount += 1;
+    }
+  }
+  return { total, soldCount, ongoingCount, giveawayCount };
+}
