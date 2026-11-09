@@ -12317,6 +12317,44 @@ button.notif-row {
 }
 
 /* 월별 실적. 유~머게시판의 명예의 전당과 같은 자리·같은 무게로 둔다. */
+/* 모금 현황 카드(행사 벼룩시장 전용). 거래완료된 경매 낙찰가의 합을 크게 보여준다.
+   팀을 위한 모금이라 한눈에 들어오게 틴트 배경 + 큰 숫자로 강조한다. */
+.fund-panel {
+  background: linear-gradient(135deg, var(--tint-primary), var(--color-surface));
+  border: 1px solid var(--color-primary-soft);
+}
+
+.fund-head {
+  align-items: center;
+  color: var(--tint-primary-ink);
+  display: flex;
+  font-size: var(--text-body);
+  font-weight: 700;
+  gap: var(--space-2);
+}
+
+.fund-total {
+  color: var(--color-primary-strong);
+  font-size: clamp(30px, 8vw, 40px);
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: var(--space-2) 0 2px;
+}
+
+.fund-sub {
+  color: var(--color-muted);
+  font-size: var(--text-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.fund-note {
+  color: var(--color-muted);
+  font-size: var(--text-micro);
+  margin: var(--space-3) 0 0;
+}
+
 .market-hall {
   display: grid;
   gap: var(--space-4);
