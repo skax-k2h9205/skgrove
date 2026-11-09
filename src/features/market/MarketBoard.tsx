@@ -47,6 +47,7 @@ import {
 import type { CurrentUser, MarketBid, MarketComment, MarketItem, MarketStatus } from '../../types';
 import { ItemPoster } from './ItemPoster';
 import { MarketForm, type MarketDraft } from './MarketForm';
+import { MarketXmasScene } from './MarketXmasScene';
 import { QrSheet } from './QrSheet';
 import {
   MARKET_EVENTS,
@@ -595,22 +596,6 @@ export function MarketBoard({
 
   return (
     <section className={xmas ? 'screen market-xmas' : 'screen'}>
-      {xmas && (
-        <div aria-hidden="true" className="xmas-snow">
-          {Array.from({ length: 24 }).map((_, i) => (
-            <i
-              key={i}
-              style={{
-                left: `${(i * 4.17 + 2) % 98}%`,
-                animationDuration: `${6 + ((i * 1.3) % 6)}s`,
-                animationDelay: `${(i * 0.53) % 6}s`,
-              }}
-            >
-              ❄
-            </i>
-          ))}
-        </div>
-      )}
       {/* 상시/행사 탭. 행사 벼룩시장이 열려 있을 때만 보이고, 평소엔 숨어 화면이 그대로다. */}
       {eventTabs.length > 0 && (
         <div className="segmented market-scope-tabs" role="tablist" aria-label="장터 전환">
@@ -638,14 +623,8 @@ export function MarketBoard({
         </div>
       )}
 
-      {/* 크리스마스 꼬마전구 띠(이 탭 한정). */}
-      {xmas && (
-        <div aria-hidden="true" className="xmas-lights">
-          {Array.from({ length: 15 }).map((_, i) => (
-            <i key={i} />
-          ))}
-        </div>
-      )}
+      {/* 크리스마스 히어로 장면(이 탭 한정) — 산타·루돌프·트리. */}
+      {xmas && <MarketXmasScene />}
 
       {/* 공개 전 안내 — 지금은 물건을 미리 모으는 기간. 남의 물건은 공개 시각까지 '???'로 가려진다. */}
       {preOpen && (
