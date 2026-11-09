@@ -32,6 +32,18 @@ function inDays(days: number, hour: number) {
   return localStamp(date);
 }
 
+/** 고정 마감('YYYY-MM-DDTHH:mm')을 '11월 30일(월) 오후 12:50'처럼 보여준다. */
+function fixedCloseLabel(stamp: string) {
+  const [datePart, timePart] = stamp.split('T');
+  const [, month, day] = datePart.split('-');
+  const [hh, mm] = timePart.split(':');
+  const hour = Number(hh);
+  const ampm = hour < 12 ? '오전' : '오후';
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  const dow = ['일', '월', '화', '수', '목', '금', '토'][new Date(stamp).getDay()] ?? '';
+  return `${Number(month)}월 ${Number(day)}일(${dow}) ${ampm} ${hour12}:${mm}`;
+}
+
 /* 마감을 직접 고르게 하면 등록이 느려진다. 대부분 며칠 안에 끝나므로 칩으로 끝내고,
    안 맞을 때만 직접 고르게 한다(모임 폼과 같은 판단). */
 const CLOSE_CHIPS: Array<{ label: string; value: () => string }> = [
@@ -61,6 +73,8 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
   const eventChoices = current && !openEvents.some((event) => event.tag === current.tag)
     ? [...openEvents, current]
     : openEvents;
+  // 이 행사가 마감을 고정했으면 사용자가 못 바꾼다 — 당일 일괄 마감 행사(예: 캔미팅).
+  const lockedClose = current?.fixedCloseAt;
 
   const [title, setTitle] = useState(initial?.title ?? '');
   const [desc, setDesc] = useState(initial?.desc ?? '');
@@ -72,6 +86,9 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
   const [minStep, setMinStep] = useState(initial?.minStep ? String(initial.minStep) : '');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [error, setError] = useState('');
+
+  // 고정 마감 행사면 입력값 대신 그 시각으로 제출한다.
+  const effectiveClose = lockedClose ?? closeAt;
 
   const priceNumber = Number(startPrice.replace(/[^\d]/g, '')) || 0;
   const stepNumber = Number(minStep.replace(/[^\d]/g, '')) || 0;
@@ -107,7 +124,7 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
       setError('최소 인상폭은 1원 이상이어야 합니다. 없으면 1원씩 올리는 눈치싸움이 됩니다.');
       return;
     }
-    if (closeAt <= localStamp(new Date())) {
+    if (effectiveClose <= localStamp(new Date())) {
       setError('마감은 지금 이후로 정해주세요. 이미 지난 시각이면 아무도 부를 수 없습니다.');
       return;
     }
@@ -118,7 +135,7 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
       title: title.trim(),
       desc: desc.trim(),
       place: place.trim(),
-      closeAt,
+      closeAt: effectiveClose,
       startPrice: isAuction ? priceNumber : 0,
       minStep: isAuction ? effectiveStep : 0,
       eventTag: eventTag || undefined,
@@ -242,29 +259,41 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
 
       <div className="field">
         <span className="field-label">
-          언제 마감하나요 <em>필수</em>
+          언제 마감하나요 {lockedClose ? null : <em>필수</em>}
         </span>
-        <div className="chip-row">
-          {CLOSE_CHIPS.map((chip) => {
-            const value = chip.value();
-            return (
-              <button
-                className={closeAt === value ? 'chip selected' : 'chip'}
-                key={chip.label}
-                onClick={() => setCloseAt(value)}
-                type="button"
-              >
-                {chip.label}
-              </button>
-            );
-          })}
-        </div>
-        <input onChange={(event) => setCloseAt(event.target.value)} type="datetime-local" value={closeAt} />
-        <p className="field-note">
-          {isAuction
-            ? '마감 3분 안에 입찰이 들어오면 3분 미뤄집니다. 마지막 순간에 낚아채고 끝나는 일을 막습니다.'
-            : '마감 전에 먼저 누르는 분이 가져갑니다.'}
-        </p>
+        {lockedClose ? (
+          // 행사 마감 고정 — 당일 일괄 마감이라 사용자가 고르지 않는다.
+          <>
+            <p className="form-static-value">{fixedCloseLabel(lockedClose)} 일괄 마감</p>
+            <p className="field-note">
+              {current?.label} 물건은 행사 당일에 함께 마감돼요. 마감 시각은 고를 수 없습니다.
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="chip-row">
+              {CLOSE_CHIPS.map((chip) => {
+                const value = chip.value();
+                return (
+                  <button
+                    className={closeAt === value ? 'chip selected' : 'chip'}
+                    key={chip.label}
+                    onClick={() => setCloseAt(value)}
+                    type="button"
+                  >
+                    {chip.label}
+                  </button>
+                );
+              })}
+            </div>
+            <input onChange={(event) => setCloseAt(event.target.value)} type="datetime-local" value={closeAt} />
+            <p className="field-note">
+              {isAuction
+                ? '마감 3분 안에 입찰이 들어오면 3분 미뤄집니다. 마지막 순간에 낚아채고 끝나는 일을 막습니다.'
+                : '마감 전에 먼저 누르는 분이 가져갑니다.'}
+            </p>
+          </>
+        )}
       </div>
 
       <label className="field">
