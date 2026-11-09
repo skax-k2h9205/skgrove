@@ -693,6 +693,24 @@ export function MarketBoard({
 
   return (
     <section className={xmas ? 'screen market-xmas' : 'screen'}>
+      {/* 페이지 전체에 내리는 눈(이 탭 한정). 배너 밖 화면에도 소복소복. */}
+      {xmas && (
+        <div aria-hidden="true" className="xmas-pagesnow">
+          {Array.from({ length: 20 }).map((_, i) => (
+            <span
+              key={i}
+              style={{
+                left: `${(i * 5 + 2) % 98}%`,
+                fontSize: `${[10, 13, 16][i % 3]}px`,
+                animationDuration: `${7 + ((i * 1.7) % 7)}s`,
+                animationDelay: `${(i * 0.6) % 7}s`,
+              }}
+            >
+              ❄
+            </span>
+          ))}
+        </div>
+      )}
       {/* 상시/행사 탭. 행사 벼룩시장이 열려 있을 때만 보이고, 평소엔 숨어 화면이 그대로다. */}
       {eventTabs.length > 0 && (
         <div className="segmented market-scope-tabs" role="tablist" aria-label="장터 전환">
