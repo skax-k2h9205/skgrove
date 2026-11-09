@@ -14602,14 +14602,16 @@ button.notif-row {
   width: 100%;
 }
 
-/* 전문 Lottie 에셋 컨테이너(public/xmas-scene.json 있을 때). 없으면 위 손그림 svg 가 뜬다. */
+/* 전문 Lottie 에셋 컨테이너(public/xmas-scene.json 있을 때). 없으면 위 손그림 svg 가 뜬다.
+   정사각 장면이라도 와이드 배너 안에 가운데로 들어가고, 양옆은 하늘→크림 배경(눈밭)이 채운다. */
 .xmas-lottie {
+  aspect-ratio: 2 / 1;
   width: 100%;
 }
 
 .xmas-lottie svg {
   display: block;
-  height: auto;
+  height: 100%;
   width: 100%;
 }
 

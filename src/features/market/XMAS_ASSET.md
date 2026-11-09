@@ -19,5 +19,11 @@
 ## 접근성
 `prefers-reduced-motion`(동작 줄이기) 설정 사용자는 Lottie 가 **정지 상태(autoplay off)** 로 뜬다.
 
+## 현재 적용된 에셋
+- 파일: `public/xmas-scene.json` (산타 낚시 + Merry Christmas 장면, 정사각 600×600)
+- 출처: LottieFiles 무료 크리스마스 모음 (embed id 88527), Animated by **Nawfal jean**
+- 라이선스: **Lottie Simple License** (무료·상업 사용 가능, 출처표기 불필요하나 크레딧 권장)
+- 교체하려면 같은 경로에 다른 JSON 을 덮어쓰면 된다.
+
 ## 폴백 손그림 수정
 `MarketXmasScene.tsx` 의 `XmasSceneSvg` 안의 SVG 를 고치면 된다. 캐릭터는 같은 바닥선(y≈205)에 맞춰 배치.
