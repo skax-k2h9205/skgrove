@@ -15816,3 +15816,89 @@ button.notif-row {
   .tk-col-spark, .tk-col-time { display: none; }
   .tk-feed ol { grid-template-columns: 1fr; }
 }
+
+
+/* ===== 이음장터 — 탭 상단 실시간 시세 패널(MarketTickerPanel) ===== */
+/* 밝은 장터 페이지 한가운데 놓이는 어두운 판 하나. 그래서 눈이 먼저 간다 — 누르지 않아도 보이는 게 목적. */
+.tkp {
+  background: var(--tk-bg);
+  border: 1px solid var(--tk-line);
+  color: var(--tk-ink);
+  display: grid;
+  gap: var(--space-3);
+}
+.tkp-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+.tkp-title {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  font-size: var(--text-body-lg);
+  gap: var(--space-2);
+  margin: 0;
+}
+.tkp-title svg { color: var(--tk-up); }
+.tkp .tk-live { font-size: var(--text-micro); }
+.tkp-open {
+  align-items: center;
+  background: var(--tk-up);
+  border: 0;
+  border-radius: var(--radius-full);
+  color: var(--rb-ink);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: var(--text-meta);
+  font-weight: 800;
+  gap: var(--space-1);
+  padding: 8px 14px;
+}
+.tkp-open:hover { filter: brightness(1.08); }
+.tkp-open:focus-visible { outline: 2px solid var(--rb-ink); outline-offset: 2px; }
+.tkp-note { color: var(--tk-muted); font-size: var(--text-body); margin: 0; }
+.tkp-index {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+.tkp-index .tk-num { font-size: clamp(22px, 4vw, 30px); font-weight: 800; }
+.tkp-index .tk-change { font-size: var(--text-body); }
+.tkp-index .tk-sub { flex-basis: 100%; }
+.tkp-rows { display: grid; list-style: none; margin: 0; padding: 0; }
+.tkp-row {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--tk-line);
+  color: var(--tk-ink);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: var(--space-3);
+  grid-template-columns: 20px minmax(0, 1fr) 84px 110px 84px;
+  padding: var(--space-2) 0;
+  text-align: left;
+  width: 100%;
+}
+.tkp-row:hover .tkp-name { color: var(--tk-chip-ink); }
+.tkp-row:focus-visible { outline: 2px solid var(--tk-chip-ink); outline-offset: -2px; }
+.tkp-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tkp-spark .tk-spark, .tkp-spark .tk-spark-locked { width: 84px; }
+.tkp-price { font-size: var(--text-body-lg); font-weight: 800; text-align: right; }
+.tkp-change { color: var(--tk-muted); font-size: var(--text-meta); text-align: right; }
+.tkp-row.up .tkp-price, .tkp-row.up .tkp-change { color: var(--tk-up); }
+@media (prefers-reduced-motion: no-preference) {
+  .tkp-row.flash { animation: tk-flash 1.2s ease-out; }
+}
+.tkp-more { color: var(--tk-muted); font-size: var(--text-micro); margin: 0; }
+@media (max-width: 720px) {
+  .tkp-row { gap: var(--space-2); grid-template-columns: 18px minmax(0, 1fr) 92px 76px; }
+  .tkp-spark { display: none; }
+  .tkp-price { font-size: var(--text-body); }
+  .tkp-change { font-size: var(--text-micro); white-space: nowrap; }
+}
