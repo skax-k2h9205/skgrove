@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Maximize, Minimize, Radio } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Maximize, Minimize, Radio, TrendingUp } from 'lucide-react';
 import {
   bidCount,
   currentPrice,
@@ -33,6 +33,54 @@ import type { MarketBid, MarketItem } from '../../types';
 const REFRESH_MS = 5000;
 const CLOCK_MS = 1000;
 const FLASH_MS = 1200;
+
+/** 5초 폴링 — 탭이 보일 때만. 백그라운드로 가면 쉬었다가 돌아오면 바로 한 번 읽는다. */
+function useLiveRefresh(onRefresh: (() => void) | undefined, enabled = true) {
+  useEffect(() => {
+    if (!onRefresh || !enabled) return undefined;
+    const tick = () => {
+      if (document.visibilityState === 'visible') onRefresh();
+    };
+    const timer = window.setInterval(tick, REFRESH_MS);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [onRefresh, enabled]);
+}
+
+/*
+  값이 오른 물건 id 를 FLASH_MS 동안 돌려준다. 이전 값은 ref 에 들고 비교한다(상태에 두면
+  비교하는 순간 또 렌더가 돈다). 첫 렌더는 기준만 잡고 번쩍이지 않는다.
+*/
+function useRiseFlash(rows: MarketItem[], bids: MarketBid[]) {
+  const [flashing, setFlashing] = useState<Set<string>>(() => new Set());
+  const prevPrices = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    const prev = prevPrices.current;
+    const risen: string[] = [];
+    rows.forEach((item) => {
+      const price = currentPrice(item, bids);
+      const before = prev.get(item.id);
+      if (before !== undefined && price > before) risen.push(item.id);
+      prev.set(item.id, price);
+    });
+    if (risen.length === 0) return undefined;
+    setFlashing((current) => new Set([...current, ...risen]));
+    const timer = window.setTimeout(() => {
+      setFlashing((current) => {
+        const next = new Set(current);
+        risen.forEach((id) => next.delete(id));
+        return next;
+      });
+    }, FLASH_MS);
+    return () => window.clearTimeout(timer);
+    // bids 가 바뀔 때만 비교하면 된다. rows 는 bids 에서 파생된다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bids]);
+  return flashing;
+}
 
 type MarketTickerProps = {
   /** 이 행사(탭) 범위의 물건들. 나눔·취소는 규칙(tickerItems)이 거른다. */
@@ -103,12 +151,114 @@ function Sparkline({ item, bids }: { item: MarketItem; bids: MarketBid[] }) {
   );
 }
 
+/*
+  탭 상단에 박히는 실시간 시세 요약. 누르지 않아도 보이는 것이 이 패널의 존재 이유다 —
+  전체 시세판은 무대 화면용이고, 폰으로 장터를 들여다보는 사람은 여기서 "지금 뭐가 얼마까지
+  올랐나"를 바로 본다. 같은 폴링(5초)과 같은 번쩍임을 쓴다.
+*/
+type MarketTickerPanelProps = {
+  items: MarketItem[];
+  bids: MarketBid[];
+  isLocked: (item: MarketItem) => boolean;
+  /** 행사 공개 전인가. 공개 전엔 입찰이 없어 숫자 대신 "언제부터 올라오는지"를 말한다. */
+  preOpen: boolean;
+  /** 공개 시각 안내문('11월 30일(월) 오후 12:00'). preOpen 일 때만 쓴다. */
+  openLabel?: string;
+  onRefresh?: () => void;
+  onOpenBoard: () => void;
+  onOpenItem: (id: string) => void;
+};
+
+const PANEL_ROWS = 5;
+
+export function MarketTickerPanel({
+  items,
+  bids,
+  isLocked,
+  preOpen,
+  openLabel,
+  onRefresh,
+  onOpenBoard,
+  onOpenItem,
+}: MarketTickerPanelProps) {
+  const rows = tickerItems(items, bids);
+  const index = tickerIndex(items, bids, stamp(new Date()));
+  const flashing = useRiseFlash(rows, bids);
+  // 공개 전엔 입찰이 들어올 수 없으니 폴링도 쉰다.
+  useLiveRefresh(onRefresh, !preOpen);
+
+  return (
+    <section className="panel tkp" aria-label="실시간 시세">
+      <header className="tkp-head">
+        <h3 className="tkp-title">
+          <TrendingUp size={18} />
+          실시간 시세
+        </h3>
+        {!preOpen && (
+          <span className="tk-live">
+            <Radio size={12} />
+            LIVE
+            {onRefresh && <small>5초마다 갱신</small>}
+          </span>
+        )}
+        <button className="tkp-open" onClick={onOpenBoard} type="button">
+          전체 시세판
+          <ArrowRight size={16} />
+        </button>
+      </header>
+
+      {preOpen ? (
+        <p className="tkp-note">
+          {openLabel ? `${openLabel}에 공개되고 입찰이 시작되면` : '공개되고 입찰이 시작되면'} 여기에 경매가가 실시간으로
+          올라와요. 전체 시세판은 무대 화면용이에요.
+        </p>
+      ) : rows.length === 0 ? (
+        <p className="tkp-note">올라온 경매가 없어요. 경매 물건이 올라오면 여기 한 줄씩 생깁니다.</p>
+      ) : (
+        <>
+          <div className="tkp-index">
+            <span className="tk-label">호가 합계</span>
+            <strong className={index.diff > 0 ? 'tk-num up' : 'tk-num'}>{formatPrice(index.current)}</strong>
+            <span className={index.diff > 0 ? 'tk-change up' : 'tk-change'}>
+              {index.diff > 0 ? '▲' : '—'} {formatPrice(index.diff)} ({formatPct(index.pct)})
+            </span>
+            <span className="tk-sub">
+              진행중 {index.open} · 마감 {index.closed} · 입찰 {index.bidCount}건
+            </span>
+          </div>
+          <ol className="tkp-rows">
+            {rows.slice(0, PANEL_ROWS).map((item, rank) => {
+              const locked = isLocked(item);
+              const change = priceChange(item, bids);
+              const cls = ['tkp-row', flashing.has(item.id) ? 'flash' : '', change.diff > 0 ? 'up' : ''].filter(Boolean).join(' ');
+              return (
+                <li key={item.id}>
+                  <button className={cls} onClick={() => onOpenItem(item.id)} type="button">
+                    <span className="tk-rank">{rank + 1}</span>
+                    <span className="tkp-name">{locked ? '???' : publicTitle(item)}</span>
+                    <span className="tkp-spark">{locked ? <span className="tk-spark-locked" /> : <Sparkline bids={bids} item={item} />}</span>
+                    <span className="tkp-price tk-num">{locked ? '—' : formatPrice(currentPrice(item, bids))}</span>
+                    <span className="tkp-change tk-num">{locked ? '' : change.diff > 0 ? `▲ ${formatPct(change.pct)}` : formatPct(0)}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+          {rows.length > PANEL_ROWS && (
+            <p className="tkp-more">
+              외 {rows.length - PANEL_ROWS}개 — 전체 시세판에서 모두 볼 수 있어요.
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 export function MarketTicker({ items, bids, title, isLocked, onRefresh, onOpenItem, onBack }: MarketTickerProps) {
   const [clockAt, setClockAt] = useState(() => new Date());
-  const [flashing, setFlashing] = useState<Set<string>>(() => new Set());
   const [fullscreen, setFullscreen] = useState(false);
   const stageRef = useRef<HTMLElement>(null);
-  const prevPrices = useRef<Map<string, number>>(new Map());
 
   const now = stamp(clockAt);
   const rows = tickerItems(items, bids);
@@ -122,43 +272,8 @@ export function MarketTicker({ items, bids, title, isLocked, onRefresh, onOpenIt
     return () => window.clearInterval(timer);
   }, []);
 
-  // 5초 폴링 — 탭이 보일 때만. 무대 PC 가 백그라운드로 가면 쉬었다가 돌아오면 바로 한 번 읽는다.
-  useEffect(() => {
-    if (!onRefresh) return undefined;
-    const tick = () => {
-      if (document.visibilityState === 'visible') onRefresh();
-    };
-    const timer = window.setInterval(tick, REFRESH_MS);
-    document.addEventListener('visibilitychange', tick);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', tick);
-    };
-  }, [onRefresh]);
-
-  // 값이 오른 줄을 찾아 잠깐 번쩍인다. 첫 렌더는 기준만 잡고 번쩍이지 않는다.
-  useEffect(() => {
-    const prev = prevPrices.current;
-    const risen: string[] = [];
-    rows.forEach((item) => {
-      const price = currentPrice(item, bids);
-      const before = prev.get(item.id);
-      if (before !== undefined && price > before) risen.push(item.id);
-      prev.set(item.id, price);
-    });
-    if (risen.length === 0) return undefined;
-    setFlashing((current) => new Set([...current, ...risen]));
-    const timer = window.setTimeout(() => {
-      setFlashing((current) => {
-        const next = new Set(current);
-        risen.forEach((id) => next.delete(id));
-        return next;
-      });
-    }, FLASH_MS);
-    return () => window.clearTimeout(timer);
-    // bids 가 바뀔 때만 비교하면 된다. rows 는 bids 에서 파생된다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bids]);
+  useLiveRefresh(onRefresh);
+  const flashing = useRiseFlash(rows, bids);
 
   // 전체 화면 — 무대 PC 용. 지원 안 하면 단추를 숨긴다. Esc 로 나가면 상태도 따라온다.
   const canFullscreen = typeof document !== 'undefined' && Boolean(document.documentElement.requestFullscreen);

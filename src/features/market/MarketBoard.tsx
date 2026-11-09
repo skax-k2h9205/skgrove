@@ -8,7 +8,6 @@ import {
   Gavel,
   Gift,
   Hourglass,
-  LineChart,
   Lock,
   MapPin,
   Package,
@@ -53,7 +52,7 @@ import {
 import type { CurrentUser, MarketBid, MarketComment, MarketItem, MarketStatus } from '../../types';
 import { ItemPoster } from './ItemPoster';
 import { MarketForm, type MarketDraft } from './MarketForm';
-import { MarketTicker } from './MarketTicker';
+import { MarketTicker, MarketTickerPanel } from './MarketTicker';
 import { MarketXmasScene } from './MarketXmasScene';
 import { QrSheet } from './QrSheet';
 import { RandomBoxReveal } from './RandomBoxReveal';
@@ -271,11 +270,21 @@ export function MarketBoard({
   }, [detailNav.tick]);
 
   // 홈 피드에서 이 물건을 눌러 들어오면 바로 그 상세를 연다(한 번만 소비).
+  // '#market=ticker' 는 물건이 아니라 시세판 딥링크 — 무대 PC 가 주소만 열면 바로 시세판이 뜬다.
   useEffect(() => {
-    if (focusId) {
-      openDetail(focusId, true);
+    if (!focusId) return;
+    if (focusId === 'ticker') {
+      const event = eventTabs[0];
+      if (event) {
+        selectScope(event.tag);
+        setView('ticker');
+      }
       onFocusHandled?.();
+      return;
     }
+    openDetail(focusId, true);
+    onFocusHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId]);
 
   const create = (draft: MarketDraft) => {
@@ -746,6 +755,20 @@ export function MarketBoard({
         </section>
       )}
 
+      {/* 실시간 시세 — 행사 탭 상단에 누르지 않아도 보인다. 전체 시세판(무대용)은 여기서 연다. */}
+      {scopeEvent && (
+        <MarketTickerPanel
+          bids={bids}
+          isLocked={isLocked}
+          items={scopedItems}
+          onOpenBoard={() => setView('ticker')}
+          onOpenItem={(id) => openDetail(id)}
+          onRefresh={onRefresh}
+          openLabel={scopeOpenAt ? formatStamp(scopeOpenAt) : undefined}
+          preOpen={preOpen}
+        />
+      )}
+
       {/* 모금 현황 — 기부 행사 탭 상단. 거래완료(낙찰 확정)된 경매 금액의 합. */}
       {fund && (
         <section className="panel fund-panel">
@@ -834,13 +857,6 @@ export function MarketBoard({
             </button>
           ))}
         </div>
-        {/* 시세판은 행사 탭에서만. 상시 장터는 물건이 띄엄띄엄 올라와 '지수'가 뜻이 없다. */}
-        {scopeEvent && (
-          <button className="btn-ghost" onClick={() => setView('ticker')} type="button">
-            <LineChart size={18} />
-            시세판
-          </button>
-        )}
         {canModerate && scopedItems.length > 0 && (
           <button className="btn-ghost" onClick={() => setView('qrsheet')} type="button">
             <QrCode size={18} />
