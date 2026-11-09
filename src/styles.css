@@ -120,8 +120,9 @@
   --rb-shadow-card: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 6px rgba(255, 255, 255, 0.08);
   --rb-flash: radial-gradient(circle, rgba(255, 255, 255, 0.95), rgba(255, 209, 102, 0.6) 40%, transparent 70%);
   --rb-flash-big: radial-gradient(circle at 50% 55%, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0.85) 30%, rgba(255, 255, 255, 0) 75%);
-  /* 낙찰자 인형이 상자 중심에서 오른쪽으로 비켜서는 거리. 좁은 화면에선 화면 안에 들어오게 줄어든다. */
-  --rb-dancer-shift: min(150px, calc(50vw - 72px));
+  /* 낙찰자 인형의 정장(참고 영상의 검은 양복). 장갑·셔츠는 --rb-ink, 넥타이는 --rb-red-deep. */
+  --rb-suit: #1c1d2b;
+  --rb-suit-light: #34364a;
   --rb-stick: #d9b27c;
   --rb-stick-tip: #f1dfc0;
   --rb-silver: #eef1f6;
@@ -15093,118 +15094,193 @@ button.notif-row {
   margin: 0;
 }
 
-/* ----- 낙찰자 인형 — 북이 울리면 상자 옆에서 춤춘다 -----
-   머리는 Avatar(사진/이니셜), 몸통·팔·다리는 CSS. 팔은 어깨, 다리는 엉덩이를 축으로 돈다.
-   박자는 북채(0.28초 한 사이클)에 맞춘다. 뽑기 무대의 춤추는 고양이 영상과 같은 역할. */
+/* ----- 낙찰자 인형들 — 북이 울리면 가장자리에서 춤춘다 -----
+   참고 영상의 검은 정장·흰 장갑 인형. 머리는 Avatar(사진/이니셜), 나머지는 CSS.
+   자리(--x·--y)·크기(--s)·박자(--d·--delay)는 컴포넌트가 인형마다 다르게 준다.
+   '자연스러움'은 네 가지에서 나온다: 몸·팔·머리·다리가 각자 다른 궤적으로 움직이고,
+   한 사이클 안에서도 좌우가 대칭이 아니며, 인형마다 박자가 다르고, ease-in-out 으로 멈칫한다. */
+.rb-dancers { inset: 0; pointer-events: none; position: absolute; z-index: 2; }
 .rb-dancer {
-  align-items: center;
-  bottom: calc(8vh + env(safe-area-inset-bottom, 0px));
-  display: grid;
-  gap: 0;
-  justify-items: center;
-  left: 50%;
+  height: 160px;
+  left: var(--x, 50%);
   opacity: 0;
-  pointer-events: none;
   position: absolute;
-  transform: translate(calc(-50% + var(--rb-dancer-shift)), 30px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
-  z-index: 2;
+  top: var(--y, 80%);
+  transform: translate(-50%, -50%) scale(var(--s, 1));
+  transition: opacity 0.6s ease;
+  width: 96px;
 }
 .phase-drum .rb-dancer,
-.phase-lights .rb-dancer { opacity: 1; transform: translate(calc(-50% + var(--rb-dancer-shift)), 0); }
+.phase-lights .rb-dancer { opacity: 1; }
+/* 결과 장면에선 카드가 주인공. 인형은 계속 추되 조금 가라앉는다. */
+.phase-lights .rb-dancer { opacity: 0.8; }
+.rb-dancer-inner {
+  display: grid;
+  justify-items: center;
+  transform-origin: 50% 88%;
+}
 .rb-dancer .rb-crown {
-  font-size: 26px;
+  font-size: 22px;
   line-height: 1;
-  margin-bottom: -8px;
+  margin-bottom: -10px;
   position: static;
-  transform: rotate(-10deg);
+  transform: rotate(-12deg);
   z-index: 2;
 }
-.rb-dancer-head { position: relative; z-index: 1; }
+.rb-dancer-head { position: relative; z-index: 1; transform-origin: 50% 90%; }
 .rb-dancer .tiny-avatar.rb-dancer-face {
   border: 3px solid var(--rb-ink);
   border-radius: 50%;
   box-shadow: var(--rb-shadow-lid);
   font-size: var(--text-heading);
-  height: 72px;
-  width: 72px;
+  height: 64px;
+  width: 64px;
 }
-.rb-dancer-body { height: 118px; margin-top: -6px; position: relative; width: 64px; }
-.rb-torso {
-  background:
-    linear-gradient(90deg, transparent 0 46%, var(--rb-gold) 46% 54%, transparent 54%),
-    linear-gradient(180deg, var(--rb-lid) 0%, var(--rb-red-deep) 100%);
-  border-radius: 18px 18px 12px 12px;
-  height: 66px;
+.rb-dancer-body { height: 104px; margin-top: -8px; position: relative; width: 96px; }
+/* 정장 몸통 + 흰 셔츠(가운데 역삼각) + 빨간 넥타이 */
+.rb-suit {
+  background: linear-gradient(180deg, var(--rb-suit-light) 0%, var(--rb-suit) 100%);
+  border-radius: 16px 16px 10px 10px;
+  height: 60px;
   left: 50%;
   position: absolute;
   top: 0;
   transform: translateX(-50%);
-  width: 52px;
+  width: 54px;
 }
+.rb-suit::before {
+  background: var(--rb-ink);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  content: '';
+  height: 26px;
+  left: 50%;
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 22px;
+}
+.rb-suit::after {
+  background: var(--rb-red-deep);
+  clip-path: polygon(30% 0, 70% 0, 100% 100%, 0 100%);
+  content: '';
+  height: 26px;
+  left: 50%;
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  width: 10px;
+}
+/* 팔: 정장 소매 + 끝에 흰 장갑(::after). 어깨를 축으로 위로 들어 흔든다. */
 .rb-arm {
-  background: linear-gradient(90deg, var(--rb-red-deep), var(--rb-lid) 60%, var(--rb-stick-tip) 60%);
+  background: var(--rb-suit);
   border-radius: 7px;
   height: 13px;
   position: absolute;
-  top: 8px;
-  width: 50px;
+  top: 10px;
+  width: 44px;
 }
-/* 왼팔: 축이 오른쪽 끝(어깨). 기본은 위로 번쩍 든 자세. 오른팔은 거울. */
-.rb-arm.left { right: calc(50% + 18px); transform: rotate(-125deg); transform-origin: 100% 50%; }
-.rb-arm.right {
-  background: linear-gradient(270deg, var(--rb-red-deep), var(--rb-lid) 60%, var(--rb-stick-tip) 60%);
-  left: calc(50% + 18px);
-  transform: rotate(125deg);
-  transform-origin: 0 50%;
-}
-.rb-leg {
-  background: linear-gradient(180deg, var(--rb-night-1) 0 72%, var(--rb-ink) 72%);
-  border-radius: 7px 7px 9px 9px;
-  height: 52px;
+.rb-arm::after {
+  background: var(--rb-ink);
+  border-radius: 50%;
+  box-shadow: 0 2px 4px var(--rb-glass);
+  content: '';
+  height: 18px;
   position: absolute;
-  top: 60px;
-  transform-origin: 50% 0;
-  width: 16px;
+  top: -3px;
+  width: 18px;
 }
-.rb-leg.left { left: calc(50% - 20px); }
-.rb-leg.right { left: calc(50% + 4px); }
-.rb-dancer-name {
+.rb-arm.left { right: calc(50% + 20px); transform: rotate(45deg); transform-origin: 100% 50%; }
+.rb-arm.left::after { left: -6px; }
+.rb-arm.right { left: calc(50% + 20px); transform: rotate(-45deg); transform-origin: 0 50%; }
+.rb-arm.right::after { right: -6px; }
+/* 다리: 정장 바지 + 검은 구두 */
+.rb-leg {
+  background: linear-gradient(180deg, var(--rb-suit) 0 70%, var(--rb-sky-3) 70%);
+  border-radius: 6px 6px 8px 8px;
+  height: 44px;
+  position: absolute;
+  top: 56px;
+  transform-origin: 50% 0;
+  width: 15px;
+}
+.rb-leg.left { left: calc(50% - 18px); }
+.rb-leg.right { left: calc(50% + 3px); }
+
+.rb-dancer-caption {
+  bottom: calc(2vh + env(safe-area-inset-bottom, 0px));
   color: var(--rb-gold);
   font-size: var(--text-meta);
   font-weight: 800;
-  margin-top: var(--space-2);
-  white-space: nowrap;
+  left: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  text-align: center;
+  transition: opacity 0.6s ease;
+  z-index: 2;
 }
+.phase-drum .rb-dancer-caption,
+.phase-lights .rb-dancer-caption { opacity: 1; }
+
 @media (prefers-reduced-motion: no-preference) {
-  /* 몸 전체는 통통 튀며 좌우로 기울고, 팔은 번갈아 흔들고, 다리는 번갈아 찬다. 전부 0.56초(두 박). */
-  .phase-drum .rb-dancer, .phase-lights .rb-dancer { animation: rb-dance-body 0.56s ease-in-out infinite; }
-  .phase-drum .rb-dancer-head, .phase-lights .rb-dancer-head { animation: rb-dance-head 0.56s ease-in-out infinite; }
-  .phase-drum .rb-arm.left, .phase-lights .rb-arm.left { animation: rb-dance-arm-left 0.56s ease-in-out infinite; }
-  .phase-drum .rb-arm.right, .phase-lights .rb-arm.right { animation: rb-dance-arm-right 0.56s ease-in-out infinite; }
-  .phase-drum .rb-leg.left, .phase-lights .rb-leg.left { animation: rb-dance-leg 0.56s ease-in-out infinite; }
-  .phase-drum .rb-leg.right, .phase-lights .rb-leg.right { animation: rb-dance-leg 0.56s ease-in-out infinite; animation-delay: -0.28s; }
+  .phase-drum .rb-dancer-inner,
+  .phase-lights .rb-dancer-inner { animation: rb-dance-body var(--d, 1s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
+  .phase-drum .rb-dancer-head,
+  .phase-lights .rb-dancer-head { animation: rb-dance-head var(--d, 1s) ease-in-out infinite; animation-delay: calc(var(--delay, 0s) - 0.08s); }
+  .phase-drum .rb-arm.left,
+  .phase-lights .rb-arm.left { animation: rb-dance-arm-left var(--d, 1s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
+  .phase-drum .rb-arm.right,
+  .phase-lights .rb-arm.right { animation: rb-dance-arm-right var(--d, 1s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
+  .phase-drum .rb-leg.left,
+  .phase-lights .rb-leg.left { animation: rb-dance-leg-left var(--d, 1s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
+  .phase-drum .rb-leg.right,
+  .phase-lights .rb-leg.right { animation: rb-dance-leg-right var(--d, 1s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
 }
+/* 몸: 두 번 튀되 높이가 다르고, 기울기는 왼쪽으로 더 간다(대칭이면 메트로놈처럼 보인다). */
 @keyframes rb-dance-body {
-  0%, 100% { transform: translate(calc(-50% + var(--rb-dancer-shift)), 0) rotate(-6deg); }
-  25%, 75% { transform: translate(calc(-50% + var(--rb-dancer-shift)), -14px) rotate(0deg); }
-  50% { transform: translate(calc(-50% + var(--rb-dancer-shift)), 0) rotate(6deg); }
+  0% { transform: translateY(0) rotate(-7deg); }
+  22% { transform: translateY(-14px) rotate(-3deg); }
+  45% { transform: translateY(0) rotate(4deg); }
+  58% { transform: translateY(-7px) rotate(7deg); }
+  72% { transform: translateY(-2px) rotate(5deg); }
+  100% { transform: translateY(0) rotate(-7deg); }
 }
+/* 머리: 몸과 반대로 까딱여 목이 있는 것처럼 */
 @keyframes rb-dance-head {
-  0%, 100% { transform: rotate(8deg); }
-  50% { transform: rotate(-8deg); }
+  0% { transform: rotate(9deg) translateY(0); }
+  30% { transform: rotate(-4deg) translateY(-2px); }
+  55% { transform: rotate(-10deg) translateY(0); }
+  80% { transform: rotate(3deg) translateY(-3px); }
+  100% { transform: rotate(9deg) translateY(0); }
 }
+/* 팔: 번쩍 든 채 흔든다. 왼팔이 올라갈 때 오른팔은 반 박자 늦게 */
 @keyframes rb-dance-arm-left {
-  0%, 100% { transform: rotate(-125deg); }
-  50% { transform: rotate(-160deg); }
+  0% { transform: rotate(45deg); }
+  25% { transform: rotate(74deg); }
+  50% { transform: rotate(34deg); }
+  70% { transform: rotate(68deg); }
+  100% { transform: rotate(45deg); }
 }
 @keyframes rb-dance-arm-right {
-  0%, 100% { transform: rotate(160deg); }
-  50% { transform: rotate(125deg); }
+  0% { transform: rotate(-58deg); }
+  20% { transform: rotate(-30deg); }
+  48% { transform: rotate(-76deg); }
+  78% { transform: rotate(-38deg); }
+  100% { transform: rotate(-58deg); }
 }
-@keyframes rb-dance-leg {
+/* 다리: 튈 때 한쪽씩 접힌다 */
+@keyframes rb-dance-leg-left {
   0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(-22deg) translateY(-6px); }
+  22% { transform: rotate(-26deg) translateY(-6px); }
+  45% { transform: rotate(0deg); }
+}
+@keyframes rb-dance-leg-right {
+  0%, 45% { transform: rotate(0deg); }
+  58% { transform: rotate(24deg) translateY(-4px); }
+  72% { transform: rotate(6deg); }
+  100% { transform: rotate(0deg); }
 }
 
 /* 결과 직전 화면 전체 번쩍임. lights 가 시작되는 순간 한 번. */
@@ -15331,8 +15407,8 @@ button.notif-row {
 
 @media (prefers-reduced-motion: reduce) {
   .rb-box, .rb-lid, .rb-flash, .rb-flash-big, .rb-drum-card, .rb-card-spin,
-  .rb-dancer, .rb-dancer-head, .rb-arm, .rb-leg { animation: none !important; }
-  .rb-dancer { transition: none; }
+  .rb-dancer-inner, .rb-dancer-head, .rb-arm, .rb-leg { animation: none !important; }
+  .rb-dancer, .rb-dancer-caption { transition: none; }
   .phase-lights .rb-card-spin { opacity: 1; transform: translate(-50%, -50%) scale(1) rotateY(0deg); }
   .phase-lights .rb-lid { opacity: 0; }
   .rb-drum-card { display: none; }
