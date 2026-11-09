@@ -678,6 +678,10 @@ create table if not exists public.market_items (
 alter table public.market_items enable row level security;
 drop policy if exists "Allow prototype market items all" on public.market_items;
 create policy "Allow prototype market items all" on public.market_items for all using (true) with check (true);
+-- 뒤에 붙은 컬럼들. 이미 만든 DB 에는 아래 alter 만 실행하면 된다.
+alter table public.market_items add column if not exists event_tag text;                        -- 행사 벼룩시장 태그(marketEvents.ts). 없으면 상시
+alter table public.market_items add column if not exists mystery boolean not null default false; -- 랜덤박스(내용물 숨김 경매)
+alter table public.market_items add column if not exists revealed_at text;                      -- 랜덤박스를 연 시각. 있으면 공개
 
 -- 입찰은 별도 행이다. 물건 안에 배열로 넣으면 두 사람이 같은 순간에 부를 때
 -- 나중 쓰기가 앞 쓰기를 지워 한 건이 조용히 사라진다.

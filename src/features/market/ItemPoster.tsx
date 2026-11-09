@@ -13,7 +13,7 @@ import {
   Smartphone,
   Coffee,
 } from 'lucide-react';
-import { formatPrice } from '../../marketRules';
+import { MYSTERY_TITLE, formatPrice, isMysteryHidden } from '../../marketRules';
 import type { GatheringPoster, MarketItem } from '../../types';
 
 /*
@@ -96,15 +96,34 @@ type ItemPosterProps = {
     목록의 칸은 이미 '상세 열기' 단추라, 여기에 또 누를 것을 겹치면 서로 싸운다.
   */
   onPhotoClick?: () => void;
+  /*
+    안 연 랜덤박스도 내용물을 그린다. 열어보기 연출의 마지막 장면(상자에서 나온 카드)에서만
+    쓴다 — 그 밖의 모든 자리는 기본값(가림)이어야 제목·사진이 새지 않는다.
+  */
+  forceReveal?: boolean;
 };
 
-export function ItemPoster({ item, badge, badgeTone = 'moss', onPhotoClick }: ItemPosterProps) {
+export function ItemPoster({ item, badge, badgeTone = 'moss', onPhotoClick, forceReveal = false }: ItemPosterProps) {
   /*
     사진 주소가 죽었을 때 빈 칸을 남기지 않는다(PosterFrame 과 같은 처리).
     버킷이 없어 blob: 로 떨어진 주소가 새로고침에서 죽는 일이 실제로 있었고,
     파일이 지워지거나 주소가 바뀌어도 같은 일이 난다.
   */
   const [photoBroken, setPhotoBroken] = useState(false);
+
+  // 안 연 랜덤박스 — 사진도 제목도 아니고 '상자'만 보인다. 격자에서 색으로 눈에 걸리게 따로 톤을 둔다.
+  if (isMysteryHidden(item) && !forceReveal) {
+    return (
+      <div className="poster mystery">
+        <Gift aria-hidden className="poster-motif" size={64} strokeWidth={1.25} />
+        {badge ? <span className={`poster-badge ${badgeTone}`}>{badge}</span> : null}
+        <div className="poster-text">
+          <strong>{MYSTERY_TITLE}</strong>
+          <span>안에 뭐가 들었을까요?</span>
+        </div>
+      </div>
+    );
+  }
 
   const poster = item.poster ?? localItemPoster(item);
   const Motif = MOTIF_ICON[poster.motif] ?? Package;

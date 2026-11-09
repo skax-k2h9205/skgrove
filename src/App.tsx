@@ -154,6 +154,7 @@ import { resolveSkillLoser } from './features/gatherings/games/coffeeGames';
 import {
   bidBlockedReason,
   canEditMarketItem,
+  canRevealMystery,
   deriveStatus as deriveMarketStatus,
   extendedCloseFor,
   leadingBid,
@@ -1761,6 +1762,16 @@ export function App() {
     cacheMarketBids(nextBids);
   };
 
+  /*
+    랜덤박스 열기. 리더·커넥셔너가 낙찰 확정 뒤 무대에서 누른다. 한 번 열면 revealedAt 이
+    남아 모두에게 내용물이 보인다. 화면(버튼)에서도 막지만 저장 직전 같은 규칙으로 재확인한다.
+  */
+  const revealMarketItem = (item: MarketItem) => {
+    if (!currentUser || !isLeader(currentUser)) return;
+    if (!canRevealMystery(item, marketBids, nowStamp(), true)) return;
+    patchMarketItem(item.id, { revealedAt: nowStamp() });
+  };
+
   /* 거래 완료는 양쪽이 각각 누른다. 앱은 결제를 다루지 않아 누가 잘못했는지
      판정할 수 없으므로, 한쪽 말만 듣고 완료로 바꾸지 않는다. */
   const markMarketDone = (item: MarketItem) => {
@@ -2326,6 +2337,8 @@ export function App() {
           onMarkDone={markMarketDone}
           canModerate={isAdmin(currentUser)}
           onDelete={deleteMarketItem}
+          canReveal={isLeader(currentUser)}
+          onReveal={revealMarketItem}
           focusId={focusFor('market')}
           onFocusHandled={clearFeedFocus}
           onExitToHome={() => changeSection('dashboard')}

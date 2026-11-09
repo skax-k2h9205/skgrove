@@ -93,6 +93,41 @@
      비쳐 보인다. 토큰으로 두면 styles.css 본문의 rgba 개수를 늘리지 않는다. */
   --divider-on-dark: rgba(255, 255, 255, 0.16);
 
+  /* 랜덤박스 열기 무대(RandomBoxReveal). 밤하늘 위 빨간 상자·금 리본 — 어두운 무대라 앱
+     표면 토큰과 섞이지 않는다. 전부 여기 두어 본문의 hex·rgba 개수를 늘리지 않는다. */
+  --rb-sky-1: #262a5a;
+  --rb-sky-2: #141633;
+  --rb-sky-3: #07081a;
+  --rb-night-1: #2b2d5c;
+  --rb-night-2: #121330;
+  --rb-night-border: #3b3e78;
+  --rb-glow: rgba(255, 255, 255, 0.16);
+  --rb-glow-gold: rgba(255, 183, 3, 0.22);
+  --rb-star: rgba(255, 255, 255, 0.9);
+  --rb-star-dim: rgba(255, 255, 255, 0.6);
+  --rb-ink: #ffffff;
+  --rb-ink-soft: rgba(255, 255, 255, 0.72);
+  --rb-gold: #ffd166;
+  --rb-gold-deep: #f6b93b;
+  --rb-red: #ff5a5f;
+  --rb-red-deep: #d62839;
+  --rb-lid: #ff7a7f;
+  --rb-lid-deep: #e63946;
+  --rb-glass: rgba(255, 255, 255, 0.12);
+  --rb-glass-border: rgba(255, 255, 255, 0.3);
+  --rb-shadow-box: inset 0 -14px 0 rgba(0, 0, 0, 0.14), 0 24px 40px rgba(0, 0, 0, 0.45);
+  --rb-shadow-lid: 0 8px 16px rgba(0, 0, 0, 0.35);
+  --rb-shadow-card: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 6px rgba(255, 255, 255, 0.08);
+  --rb-flash: radial-gradient(circle, rgba(255, 255, 255, 0.95), rgba(255, 209, 102, 0.6) 40%, transparent 70%);
+  --rb-flash-big: radial-gradient(circle at 50% 55%, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0.85) 30%, rgba(255, 255, 255, 0) 75%);
+  /* 낙찰자 인형의 정장(참고 영상의 검은 양복). 장갑·셔츠는 --rb-ink, 넥타이는 --rb-red-deep. */
+  --rb-suit: #1c1d2b;
+  --rb-suit-light: #34364a;
+  --rb-stick: #d9b27c;
+  --rb-stick-tip: #f1dfc0;
+  --rb-silver: #eef1f6;
+  --rb-silver-deep: #b9c2cf;
+
   /* 간격 4px 스케일 */
   --space-1: 4px;
   --space-2: 8px;
@@ -14833,3 +14868,693 @@ button.notif-row {
 
 .photo-viewer-close:focus-visible,
 .photo-viewer-tools button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+/* ===== 이음장터 — 랜덤박스 ===== */
+
+/* 등록 폼 토글. checkline 위에 제목·설명 두 줄을 얹는다. */
+.mystery-toggle {
+  align-items: flex-start;
+  background: var(--color-sunken);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-ink);
+  cursor: pointer;
+  padding: var(--space-3);
+}
+.mystery-toggle input { margin-top: 2px; }
+.mystery-toggle > svg { color: var(--color-primary); flex: none; margin-top: 1px; }
+.mystery-toggle span { display: grid; gap: 2px; }
+.mystery-toggle small { color: var(--color-muted); font-size: var(--text-micro); line-height: var(--leading-tight); }
+
+/* 안 연 랜덤박스 포스터. 밤하늘 톤 — 격자에서 "이건 다르다"가 색으로 먼저 읽혀야 한다. */
+.poster.mystery {
+  background:
+    radial-gradient(circle at 30% 20%, var(--rb-glow), transparent 40%),
+    radial-gradient(circle at 70% 80%, var(--rb-glow-gold), transparent 45%),
+    linear-gradient(160deg, var(--rb-night-1), var(--rb-night-2));
+  border-color: var(--rb-night-border);
+  color: var(--rb-gold);
+}
+.poster.mystery .poster-text { color: var(--rb-ink); }
+.poster.mystery .poster-text span { color: var(--rb-ink-soft); }
+
+/* 상세 — 열기 전 안내 한 칸. */
+.market-mystery-note {
+  align-items: flex-start;
+  background: var(--color-sunken);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-ink);
+  display: flex;
+  font-size: var(--text-body);
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+}
+.market-mystery-note svg { color: var(--color-primary); flex: none; margin-top: 2px; }
+.market-mystery-note p { margin: 0; }
+.market-mystery-note em { color: var(--color-muted); font-size: var(--text-meta); font-style: normal; }
+
+.market-reveal-button { margin-top: var(--space-3); width: 100%; }
+.market-replay-button { margin-top: var(--space-2); }
+
+/* ----- 열기 연출 무대 ----- */
+.rb-stage {
+  background: radial-gradient(ellipse at 50% 30%, var(--rb-sky-1) 0%, var(--rb-sky-2) 45%, var(--rb-sky-3) 100%);
+  color: var(--rb-ink);
+  inset: 0;
+  isolation: isolate;
+  overflow: hidden;
+  /* 결과 카드가 세로축으로 돌 때 원근이 생기도록. 직계 자식의 3D 변환에만 작용한다. */
+  perspective: 1200px;
+  position: fixed;
+  z-index: 70;
+}
+
+/* 별 — 작은 점 세 겹을 겹친다. 이미지 없이 밤하늘. */
+.rb-stars {
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, var(--rb-star), transparent 60%),
+    radial-gradient(1px 1px at 48% 8%, var(--rb-star-dim), transparent 60%),
+    radial-gradient(1.5px 1.5px at 78% 22%, var(--rb-star), transparent 60%),
+    radial-gradient(1px 1px at 88% 48%, var(--rb-star-dim), transparent 60%),
+    radial-gradient(1px 1px at 22% 62%, var(--rb-star-dim), transparent 60%),
+    radial-gradient(1.5px 1.5px at 62% 72%, var(--rb-star), transparent 60%),
+    radial-gradient(1px 1px at 36% 88%, var(--rb-star-dim), transparent 60%),
+    radial-gradient(1px 1px at 92% 86%, var(--rb-star-dim), transparent 60%);
+  inset: 0;
+  opacity: 0.8;
+  position: absolute;
+}
+
+.rb-confetti {
+  height: 100%;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+  z-index: 3;
+}
+
+/* 조명 빔 — 화면 위 한 점에서 아래로 퍼지는 부채. lights 부터 켜진다. */
+.rb-beams {
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity 0.6s ease;
+  z-index: 1;
+}
+.phase-lights .rb-beams { opacity: 1; }
+.rb-beam {
+  /* --beam-color·--beam-index 는 컴포넌트가 인라인으로 준다. 폴백은 "빔 없음"이다. */
+  --beam-base: calc((var(--beam-index, 0) - 2.5) * 22deg);
+  background: linear-gradient(to bottom, var(--beam-color, transparent) 0%, transparent 85%);
+  clip-path: polygon(44% 0, 56% 0, 100% 100%, 0 100%);
+  height: 170vh;
+  left: 50%;
+  mix-blend-mode: screen;
+  opacity: 0.7;
+  position: absolute;
+  top: -12vh;
+  transform-origin: 50% 0;
+  transform: translateX(-50%) rotate(var(--beam-base, 0deg));
+  width: 26vw;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .phase-lights .rb-beam {
+    animation: rb-sweep 2.6s ease-in-out infinite alternate;
+    animation-delay: calc(var(--beam-index, 0) * -0.45s);
+  }
+}
+@keyframes rb-sweep {
+  from { transform: translateX(-50%) rotate(calc(var(--beam-base, 0deg) - 16deg)); }
+  to { transform: translateX(-50%) rotate(calc(var(--beam-base, 0deg) + 16deg)); }
+}
+
+/* 선물상자 — 가로 중앙, 세로 58%(색종이 원점과 같은 좌표). */
+.rb-box {
+  height: 150px;
+  left: 50%;
+  position: absolute;
+  top: 58%;
+  transform: translate(-50%, -50%);
+  width: 180px;
+  z-index: 2;
+}
+.phase-shake .rb-box { animation: rb-shake 0.55s ease-in-out infinite; }
+@keyframes rb-shake {
+  0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+  20% { transform: translate(-50%, -50%) rotate(-5deg) translateY(-3px); }
+  40% { transform: translate(-50%, -50%) rotate(4deg); }
+  60% { transform: translate(-50%, -50%) rotate(-4deg) translateY(-2px); }
+  80% { transform: translate(-50%, -50%) rotate(5deg); }
+}
+/* 결과 장면에서는 상자가 아래로 가라앉아 카드에 자리를 내준다. */
+.phase-lights .rb-box { opacity: 0.35; transform: translate(-50%, 40%) scale(0.8); transition: transform 0.9s ease, opacity 0.9s ease; }
+
+.rb-body {
+  background: linear-gradient(180deg, var(--rb-red) 0%, var(--rb-red-deep) 100%);
+  border-radius: 10px;
+  bottom: 0;
+  box-shadow: var(--rb-shadow-box);
+  height: 118px;
+  left: 0;
+  position: absolute;
+  right: 0;
+}
+/* 세로 리본 */
+.rb-body::before {
+  background: linear-gradient(90deg, var(--rb-gold), var(--rb-gold-deep), var(--rb-gold));
+  bottom: 0;
+  content: '';
+  left: 50%;
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 26px;
+}
+
+.rb-lid {
+  background: linear-gradient(180deg, var(--rb-lid) 0%, var(--rb-lid-deep) 100%);
+  border-radius: 8px;
+  box-shadow: var(--rb-shadow-lid);
+  height: 40px;
+  left: -8px;
+  position: absolute;
+  right: -8px;
+  top: 0;
+  transform-origin: 20% 100%;
+  z-index: 2;
+}
+.rb-lid::before {
+  background: linear-gradient(90deg, var(--rb-gold), var(--rb-gold-deep), var(--rb-gold));
+  bottom: 0;
+  content: '';
+  left: 50%;
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 26px;
+}
+/* 리본 매듭 — 두 고리 */
+.rb-bow {
+  height: 26px;
+  left: 50%;
+  position: absolute;
+  top: -22px;
+  transform: translateX(-50%);
+  width: 60px;
+}
+.rb-bow::before,
+.rb-bow::after {
+  background: var(--rb-gold-deep);
+  border: 3px solid var(--rb-gold);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  content: '';
+  height: 24px;
+  position: absolute;
+  top: 2px;
+  width: 28px;
+}
+.rb-bow::before { left: 0; transform: rotate(-20deg); }
+.rb-bow::after { right: 0; transform: rotate(20deg); }
+
+/* 뚜껑이 튀어 날아간다. open 부터 — 이후 장면에서도 날아간 채로 남는다. */
+.phase-open .rb-lid,
+.phase-drum .rb-lid,
+.phase-lights .rb-lid {
+  animation: rb-lid-off 0.9s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+@keyframes rb-lid-off {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  30% { transform: translateY(-70px) rotate(-18deg); opacity: 1; }
+  100% { transform: translateY(-260px) translateX(90px) rotate(55deg); opacity: 0; }
+}
+
+/* 뚜껑이 열리는 순간 상자 속에서 빛이 터진다. */
+.rb-flash {
+  background: var(--rb-flash);
+  border-radius: 50%;
+  height: 260px;
+  left: 50%;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 20px;
+  transform: translate(-50%, -50%) scale(0.3);
+  width: 260px;
+  z-index: 1;
+}
+.phase-open .rb-flash,
+.phase-drum .rb-flash {
+  animation: rb-flash 1.1s ease-out forwards;
+}
+@keyframes rb-flash {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  25% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
+}
+
+/* ----- 북 카드(drum) — 상자에서 솟아 두구두구 ----- */
+.rb-drum-card {
+  align-items: center;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--rb-shadow-card);
+  display: grid;
+  gap: var(--space-2);
+  justify-items: center;
+  left: 50%;
+  opacity: 0;
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  position: absolute;
+  top: 58%;
+  transform: translate(-50%, -30%) scale(0.2);
+  width: min(70vw, 250px);
+  z-index: 4;
+}
+.phase-drum .rb-drum-card { animation: rb-rise 0.8s cubic-bezier(0.2, 0.9, 0.3, 1.1) forwards; }
+@keyframes rb-rise {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(0.2); }
+  100% { opacity: 1; transform: translate(-50%, -112%) scale(1); }
+}
+/* 결과가 나오면 북은 번쩍임 속으로 사라진다. */
+.phase-lights .rb-drum-card { animation: rb-drum-out 0.35s ease-in forwards; }
+@keyframes rb-drum-out {
+  0% { opacity: 1; transform: translate(-50%, -112%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -112%) scale(1.25); }
+}
+
+/* 스네어 드럼. 몸통(빨강) 위에 가죽(은색) 타원, 북채 둘은 바깥 끝을 축으로 번갈아 내려친다. */
+.rb-snare {
+  height: 118px;
+  position: relative;
+  width: 160px;
+}
+.rb-snare-body {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 22px, var(--rb-gold) 22px 26px, transparent 26px 30px),
+    linear-gradient(90deg, var(--rb-red-deep), var(--rb-red) 35%, var(--rb-red) 65%, var(--rb-red-deep));
+  border-radius: 0 0 50% 50% / 0 0 18px 18px;
+  bottom: 8px;
+  box-shadow: 0 10px 14px var(--rb-glass);
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 44px;
+}
+/* 아래 테두리(후프) */
+.rb-snare-body::after {
+  background: var(--rb-silver-deep);
+  border-radius: 50%;
+  bottom: -5px;
+  content: '';
+  height: 14px;
+  left: -2px;
+  position: absolute;
+  right: -2px;
+}
+.rb-snare-top {
+  background: radial-gradient(ellipse at 45% 40%, var(--rb-silver), var(--rb-silver-deep));
+  border: 5px solid var(--rb-silver-deep);
+  border-radius: 50%;
+  box-sizing: border-box;
+  height: 48px;
+  left: -2px;
+  position: absolute;
+  right: -2px;
+  top: 22px;
+}
+.rb-stick {
+  background: linear-gradient(90deg, var(--rb-stick), var(--rb-stick-tip));
+  border-radius: 4px;
+  height: 7px;
+  position: absolute;
+  top: 8px;
+  width: 92px;
+  z-index: 2;
+}
+/* 왼 북채: 축이 왼쪽 바깥 끝, 끝이 가죽 위. 오른 북채는 거울. */
+.rb-stick.left {
+  left: -34px;
+  transform: rotate(-28deg);
+  transform-origin: 0 50%;
+}
+.rb-stick.right {
+  background: linear-gradient(270deg, var(--rb-stick), var(--rb-stick-tip));
+  right: -34px;
+  transform: rotate(28deg);
+  transform-origin: 100% 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* 북채는 0.14초마다 번갈아. 둘의 위상을 반 박자 어긋나게 두면 두구두구가 된다. */
+  .phase-drum .rb-stick.left { animation: rb-hit-left 0.14s ease-in infinite alternate; }
+  .phase-drum .rb-stick.right { animation: rb-hit-right 0.14s ease-in infinite alternate; animation-delay: 0.14s; }
+  /* 칠 때마다 북이 살짝 눌린다. 북채와 같은 박자(0.28초 한 사이클). */
+  .phase-drum .rb-snare { animation: rb-thump 0.28s ease-in-out infinite; }
+  .phase-drum .rb-drum-text { animation: rb-pulse 0.56s ease-in-out infinite; }
+}
+@keyframes rb-hit-left {
+  from { transform: rotate(-28deg); }
+  to { transform: rotate(4deg); }
+}
+@keyframes rb-hit-right {
+  from { transform: rotate(28deg); }
+  to { transform: rotate(-4deg); }
+}
+@keyframes rb-thump {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.96) translateY(2px); }
+}
+@keyframes rb-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.rb-drum-text {
+  color: var(--color-muted);
+  font-size: var(--text-body);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin: 0;
+}
+
+/* ----- 낙찰자 인형들 — 북이 울리면 가장자리에서 춤춘다 -----
+   참고 영상의 검은 정장·흰 장갑 인형. 머리는 Avatar(사진/이니셜), 나머지는 CSS.
+   자리(--x·--y)·크기(--s)·박자(--d·--delay)는 컴포넌트가 인형마다 다르게 준다.
+   '자연스러움'은 네 가지에서 나온다: 몸·팔·머리·다리가 각자 다른 궤적으로 움직이고,
+   한 사이클 안에서도 좌우가 대칭이 아니며, 인형마다 박자가 다르고, ease-in-out 으로 멈칫한다. */
+.rb-dancers { inset: 0; pointer-events: none; position: absolute; z-index: 2; }
+.rb-dancer {
+  height: 160px;
+  left: var(--x, 50%);
+  opacity: 0;
+  position: absolute;
+  top: var(--y, 80%);
+  transform: translate(-50%, -50%) scale(var(--s, 1));
+  transition: opacity 0.6s ease;
+  width: 96px;
+}
+.phase-drum .rb-dancer,
+.phase-lights .rb-dancer { opacity: 1; }
+/* 결과 장면에선 카드가 주인공. 인형은 계속 추되 조금 가라앉는다. */
+.phase-lights .rb-dancer { opacity: 0.8; }
+.rb-dancer-inner {
+  display: grid;
+  justify-items: center;
+  transform-origin: 50% 88%;
+}
+.rb-dancer .rb-crown {
+  font-size: 22px;
+  line-height: 1;
+  margin-bottom: -10px;
+  position: static;
+  transform: rotate(-12deg);
+  z-index: 2;
+}
+.rb-dancer-head { position: relative; z-index: 1; transform-origin: 50% 90%; }
+.rb-dancer .tiny-avatar.rb-dancer-face {
+  border: 3px solid var(--rb-ink);
+  border-radius: 50%;
+  box-shadow: var(--rb-shadow-lid);
+  font-size: var(--text-heading);
+  height: 64px;
+  width: 64px;
+}
+.rb-dancer-body { height: 104px; margin-top: -8px; position: relative; width: 96px; }
+/* 정장 몸통 + 흰 셔츠(가운데 역삼각) + 빨간 넥타이 */
+.rb-suit {
+  background: linear-gradient(180deg, var(--rb-suit-light) 0%, var(--rb-suit) 100%);
+  border-radius: 16px 16px 10px 10px;
+  height: 60px;
+  left: 50%;
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 54px;
+}
+.rb-suit::before {
+  background: var(--rb-ink);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  content: '';
+  height: 26px;
+  left: 50%;
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 22px;
+}
+.rb-suit::after {
+  background: var(--rb-red-deep);
+  clip-path: polygon(30% 0, 70% 0, 100% 100%, 0 100%);
+  content: '';
+  height: 26px;
+  left: 50%;
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  width: 10px;
+}
+/* 팔: 정장 소매 + 끝에 흰 장갑(::after). 어깨를 축으로 위로 들어 흔든다. */
+.rb-arm {
+  background: var(--rb-suit);
+  border-radius: 7px;
+  height: 13px;
+  position: absolute;
+  top: 10px;
+  width: 44px;
+}
+.rb-arm::after {
+  background: var(--rb-ink);
+  border-radius: 50%;
+  box-shadow: 0 2px 4px var(--rb-glass);
+  content: '';
+  height: 18px;
+  position: absolute;
+  top: -3px;
+  width: 18px;
+}
+.rb-arm.left { right: calc(50% + 20px); transform: rotate(45deg); transform-origin: 100% 50%; }
+.rb-arm.left::after { left: -6px; }
+.rb-arm.right { left: calc(50% + 20px); transform: rotate(-45deg); transform-origin: 0 50%; }
+.rb-arm.right::after { right: -6px; }
+/* 다리: 정장 바지 + 검은 구두 */
+.rb-leg {
+  background: linear-gradient(180deg, var(--rb-suit) 0 70%, var(--rb-sky-3) 70%);
+  border-radius: 6px 6px 8px 8px;
+  height: 44px;
+  position: absolute;
+  top: 56px;
+  transform-origin: 50% 0;
+  width: 15px;
+}
+.rb-leg.left { left: calc(50% - 18px); }
+.rb-leg.right { left: calc(50% + 3px); }
+
+.rb-dancer-caption {
+  bottom: calc(2vh + env(safe-area-inset-bottom, 0px));
+  color: var(--rb-gold);
+  font-size: var(--text-meta);
+  font-weight: 800;
+  left: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  text-align: center;
+  transition: opacity 0.6s ease;
+  z-index: 2;
+}
+.phase-drum .rb-dancer-caption,
+.phase-lights .rb-dancer-caption { opacity: 1; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .phase-drum .rb-dancer-inner,
+  .phase-lights .rb-dancer-inner { animation: rb-dance-body var(--d, 1s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
+  .phase-drum .rb-dancer-head,
+  .phase-lights .rb-dancer-head { animation: rb-dance-head var(--d, 1s) ease-in-out infinite; animation-delay: calc(var(--delay, 0s) - 0.08s); }
+  .phase-drum .rb-arm.left,
+  .phase-lights .rb-arm.left { animation: rb-dance-arm-left var(--d, 1s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
+  .phase-drum .rb-arm.right,
+  .phase-lights .rb-arm.right { animation: rb-dance-arm-right var(--d, 1s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
+  .phase-drum .rb-leg.left,
+  .phase-lights .rb-leg.left { animation: rb-dance-leg-left var(--d, 1s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
+  .phase-drum .rb-leg.right,
+  .phase-lights .rb-leg.right { animation: rb-dance-leg-right var(--d, 1s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
+}
+/* 몸: 두 번 튀되 높이가 다르고, 기울기는 왼쪽으로 더 간다(대칭이면 메트로놈처럼 보인다). */
+@keyframes rb-dance-body {
+  0% { transform: translateY(0) rotate(-7deg); }
+  22% { transform: translateY(-14px) rotate(-3deg); }
+  45% { transform: translateY(0) rotate(4deg); }
+  58% { transform: translateY(-7px) rotate(7deg); }
+  72% { transform: translateY(-2px) rotate(5deg); }
+  100% { transform: translateY(0) rotate(-7deg); }
+}
+/* 머리: 몸과 반대로 까딱여 목이 있는 것처럼 */
+@keyframes rb-dance-head {
+  0% { transform: rotate(9deg) translateY(0); }
+  30% { transform: rotate(-4deg) translateY(-2px); }
+  55% { transform: rotate(-10deg) translateY(0); }
+  80% { transform: rotate(3deg) translateY(-3px); }
+  100% { transform: rotate(9deg) translateY(0); }
+}
+/* 팔: 번쩍 든 채 흔든다. 왼팔이 올라갈 때 오른팔은 반 박자 늦게 */
+@keyframes rb-dance-arm-left {
+  0% { transform: rotate(45deg); }
+  25% { transform: rotate(74deg); }
+  50% { transform: rotate(34deg); }
+  70% { transform: rotate(68deg); }
+  100% { transform: rotate(45deg); }
+}
+@keyframes rb-dance-arm-right {
+  0% { transform: rotate(-58deg); }
+  20% { transform: rotate(-30deg); }
+  48% { transform: rotate(-76deg); }
+  78% { transform: rotate(-38deg); }
+  100% { transform: rotate(-58deg); }
+}
+/* 다리: 튈 때 한쪽씩 접힌다 */
+@keyframes rb-dance-leg-left {
+  0%, 100% { transform: rotate(0deg); }
+  22% { transform: rotate(-26deg) translateY(-6px); }
+  45% { transform: rotate(0deg); }
+}
+@keyframes rb-dance-leg-right {
+  0%, 45% { transform: rotate(0deg); }
+  58% { transform: rotate(24deg) translateY(-4px); }
+  72% { transform: rotate(6deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* 결과 직전 화면 전체 번쩍임. lights 가 시작되는 순간 한 번. */
+.rb-flash-big {
+  background: var(--rb-flash-big);
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 5;
+}
+.phase-lights .rb-flash-big { animation: rb-flash-big 0.8s ease-out forwards; }
+@keyframes rb-flash-big {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/*
+  내용물 카드. 번쩍임 뒤 상자 자리에서 솟아오르며 세로축으로 세 바퀴 돌고(옆면이 보일 만큼)
+  화면 한가운데 정면으로 멈춘다 — 참고 영상의 공개 장면. 회전은 래퍼(.rb-card-spin)가 맡고
+  앞면(.rb-card)·뒷면(.rb-card-back)은 backface-visibility 로 서로를 가린다.
+*/
+.rb-card-spin {
+  left: 50%;
+  opacity: 0;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, 10%) scale(0.35) rotateY(0deg);
+  transform-style: preserve-3d;
+  width: min(86vw, 360px);
+  z-index: 4;
+}
+.phase-lights .rb-card-spin {
+  animation: rb-spin-in 1.8s cubic-bezier(0.15, 0.75, 0.25, 1) forwards;
+  animation-delay: 0.15s;
+}
+@keyframes rb-spin-in {
+  0% { opacity: 0; transform: translate(-50%, 10%) scale(0.35) rotateY(0deg); }
+  12% { opacity: 1; }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotateY(1080deg); }
+}
+.rb-card {
+  backface-visibility: hidden;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--rb-shadow-card);
+  color: var(--color-ink);
+  max-height: 86vh;
+  overflow: auto;
+  padding: var(--space-4);
+  position: relative;
+  text-align: center;
+}
+/* 뒷면 — 금색 포장지. 돌아가는 동안 반 바퀴마다 보인다. */
+.rb-card-back {
+  align-items: center;
+  backface-visibility: hidden;
+  background:
+    repeating-linear-gradient(45deg, transparent 0 18px, var(--rb-glass) 18px 20px),
+    linear-gradient(160deg, var(--rb-gold), var(--rb-gold-deep));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--rb-shadow-card);
+  display: flex;
+  font-size: 64px;
+  inset: 0;
+  justify-content: center;
+  position: absolute;
+  transform: rotateY(180deg);
+}
+
+.rb-card-kicker {
+  color: var(--color-muted);
+  font-size: var(--text-meta);
+  margin: 0 0 var(--space-3);
+}
+.rb-card-poster { margin: 0 auto; max-width: 240px; }
+.rb-card-title {
+  font-size: var(--text-h2, 22px);
+  line-height: var(--leading-tight);
+  margin: var(--space-3) 0 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.rb-card-desc {
+  color: var(--color-muted);
+  font-size: var(--text-body);
+  margin: var(--space-2) 0 0;
+  overflow-wrap: anywhere;
+}
+
+/* 닫기(결과) · 건너뛰기(연출 중). PhotoViewer 의 닫기 단추와 같은 자리. */
+.rb-close {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-ink);
+  cursor: pointer;
+  display: flex;
+  height: 36px;
+  justify-content: center;
+  position: absolute;
+  right: var(--space-4);
+  top: var(--space-4);
+  width: 36px;
+  z-index: 6;
+}
+.rb-skip {
+  background: var(--rb-glass);
+  border: 1px solid var(--rb-glass-border);
+  border-radius: var(--radius-full);
+  color: var(--rb-ink);
+  cursor: pointer;
+  font-size: var(--text-meta);
+  padding: 6px 14px;
+  position: absolute;
+  right: var(--space-4);
+  top: var(--space-4);
+  z-index: 6;
+}
+.rb-close:focus-visible,
+.rb-skip:focus-visible { outline: 2px solid var(--rb-ink); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rb-box, .rb-lid, .rb-flash, .rb-flash-big, .rb-drum-card, .rb-card-spin,
+  .rb-dancer-inner, .rb-dancer-head, .rb-arm, .rb-leg { animation: none !important; }
+  .rb-dancer, .rb-dancer-caption { transition: none; }
+  .phase-lights .rb-card-spin { opacity: 1; transform: translate(-50%, -50%) scale(1) rotateY(0deg); }
+  .phase-lights .rb-lid { opacity: 0; }
+  .rb-drum-card { display: none; }
+}
