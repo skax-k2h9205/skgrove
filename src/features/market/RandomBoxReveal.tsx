@@ -9,8 +9,8 @@ import { ItemPoster } from './ItemPoster';
   장면은 넷이고 순서대로 흐른다(참고 영상의 호흡을 그대로 옮겼다).
     shake  상자가 흔들린다. "지금 열린다"는 예고 — 이게 없으면 결과를 조회하는 느낌이 된다.
     open   뚜껑이 튀어 오르고 색종이가 터진다.
-    rise   상자 안에서 내용물 카드가 솟는다.
-    lights 무지개 조명이 교차하고 카드가 가운데로 와서 멈춘다. 여기부터 '결과'다.
+    drum   상자 안에서 북 카드가 솟고, 북채 둘이 번갈아 친다(두구두구). 결과 직전의 뜸.
+    lights 번쩍하며 북이 사라지고, 무지개 조명 아래 내용물 카드가 가운데서 튀어나온다. 여기부터 '결과'다.
 
   색종이는 Canvas 2D 로 그린다. 조각 180개를 DOM 으로 두면 저사양 폰에서 끊기고,
   three 를 끌어오기엔 장면 하나가 너무 가볍다(뽑기 무대와 달리 입체 카메라가 필요 없다).
@@ -23,13 +23,13 @@ import { ItemPoster } from './ItemPoster';
   이 무대를 띄운다. 그래야 연출 도중 창을 닫아도 열린 사실은 남는다.
 */
 
-type Phase = 'shake' | 'open' | 'rise' | 'lights';
+type Phase = 'shake' | 'open' | 'drum' | 'lights';
 
-// 장면 전환 시각(ms). 합쳐서 4.6초 — 영상(약 7초)보다 조금 빠르다.
-// 무대에서 여러 상자를 연달아 열면 7초씩은 길다.
+// 장면 전환 시각(ms). 합쳐서 약 5초 — 영상(약 7초)보다 조금 빠르다.
+// 무대에서 여러 상자를 연달아 열면 7초씩은 길다. 두구두구는 2.8초면 충분히 조마조마하다.
 const OPEN_AT = 1300;
-const RISE_AT = 2100;
-const LIGHTS_AT = 3000;
+const DRUM_AT = 2000;
+const LIGHTS_AT = 4800;
 
 // 색종이 색. 영상의 조명 빔과 같은 계열로 맞춘다.
 const CONFETTI_COLORS = ['#ff4d6d', '#ffb703', '#8ac926', '#1982c4', '#6a4c93', '#ff924c', '#ffffff'];
@@ -92,7 +92,7 @@ export function RandomBoxReveal({ item, onClose }: RandomBoxRevealProps) {
     if (reduced) return undefined;
     const timers = [
       window.setTimeout(() => setPhase('open'), OPEN_AT),
-      window.setTimeout(() => setPhase('rise'), RISE_AT),
+      window.setTimeout(() => setPhase('drum'), DRUM_AT),
       window.setTimeout(() => setPhase('lights'), LIGHTS_AT),
     ];
     return () => timers.forEach((timer) => window.clearTimeout(timer));
@@ -202,7 +202,21 @@ export function RandomBoxReveal({ item, onClose }: RandomBoxRevealProps) {
         <div className="rb-body" />
       </div>
 
-      {/* 내용물 카드 — 상자에서 솟아 가운데로 온다. 결과 장면에서만 읽힌다. */}
+      {/* 북 카드 — 상자에서 솟아 두구두구. 결과가 나오면 번쩍이며 사라진다. 장식이라 읽어 주지 않는다. */}
+      <div aria-hidden className="rb-drum-card">
+        <div className="rb-snare">
+          <span className="rb-stick left" />
+          <span className="rb-stick right" />
+          <span className="rb-snare-body" />
+          <span className="rb-snare-top" />
+        </div>
+        <p className="rb-drum-text">두구두구두구…</p>
+      </div>
+
+      {/* 결과 직전의 번쩍임 — 화면 전체. 북에서 결과로 넘어가는 경계를 눈이 놓치지 않게. */}
+      <div aria-hidden className="rb-flash-big" />
+
+      {/* 내용물 카드 — 번쩍임 뒤 가운데서 튀어나온다. 결과 장면에서만 읽힌다. */}
       <div className="rb-card" aria-hidden={!done}>
         <p className="rb-card-kicker">🎁 {item.seller}님의 랜덤박스 속에는…</p>
         <div className="rb-card-poster">
