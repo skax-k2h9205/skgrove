@@ -120,6 +120,22 @@
   --rb-shadow-card: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 6px rgba(255, 255, 255, 0.08);
   --rb-flash: radial-gradient(circle, rgba(255, 255, 255, 0.95), rgba(255, 209, 102, 0.6) 40%, transparent 70%);
   --rb-flash-big: radial-gradient(circle at 50% 55%, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0.85) 30%, rgba(255, 255, 255, 0) 75%);
+  /* 시세판(MarketTicker) — 주식 HTS 풍 어두운 판. 오른 값은 한국 주식창 문법대로 빨강.
+     경매는 내려가지 않아 파랑이 없다. 전부 여기 두어 본문의 hex·rgba 개수를 늘리지 않는다. */
+  --tk-bg: #0b0e14;
+  --tk-panel: #121722;
+  --tk-panel-2: #182030;
+  --tk-line: #232c3d;
+  --tk-ink: #e8edf5;
+  --tk-muted: #8793a8;
+  --tk-up: #ff4d57;
+  --tk-up-soft: rgba(255, 77, 87, 0.16);
+  --tk-flash: rgba(255, 77, 87, 0.38);
+  --tk-live: #3ddc84;
+  --tk-chip: #1f3a5a;
+  --tk-chip-ink: #9fd0ff;
+  --tk-mono: 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+
   /* 낙찰자 인형의 정장(참고 영상의 검은 양복). 장갑·셔츠는 --rb-ink, 넥타이는 --rb-red-deep. */
   --rb-suit: #1c1d2b;
   --rb-suit-light: #34364a;
@@ -15412,4 +15428,246 @@ button.notif-row {
   .phase-lights .rb-card-spin { opacity: 1; transform: translate(-50%, -50%) scale(1) rotateY(0deg); }
   .phase-lights .rb-lid { opacity: 0; }
   .rb-drum-card { display: none; }
+}
+
+
+/* ===== 이음장터 — 시세판(MarketTicker) ===== */
+/* 어두운 판 하나가 화면을 꽉 쓴다. 무대 PC 에서 전체 화면으로 띄우는 게 본령이라
+   폰에서는 열이 줄고(720px 아래) 체결 내역이 종목판 아래로 내려간다. */
+.tk-stage {
+  background: var(--tk-bg);
+  border-radius: var(--radius-lg);
+  color: var(--tk-ink);
+  /* 열 개수는 뷰포트가 아니라 이 판의 실제 폭으로 정한다 — 사이드바가 있으면 뷰포트보다 좁다. */
+  container-type: inline-size;
+  display: grid;
+  gap: var(--space-3);
+  min-height: 70vh;
+  padding: var(--space-4);
+}
+.tk-stage:fullscreen {
+  border-radius: 0;
+  overflow: auto;
+  padding: var(--space-6);
+}
+.tk-stage .btn-ghost { color: var(--tk-muted); }
+.tk-stage .btn-ghost:hover { color: var(--tk-ink); }
+
+.tk-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.tk-title {
+  flex: 1 1 auto;
+  font-size: var(--text-title);
+  margin: 0;
+  min-width: 0;
+}
+.tk-live {
+  align-items: center;
+  color: var(--tk-live);
+  display: flex;
+  font-size: var(--text-meta);
+  font-weight: 800;
+  gap: var(--space-2);
+  letter-spacing: 0.08em;
+}
+.tk-live time { color: var(--tk-ink); font-family: var(--tk-mono); font-weight: 600; letter-spacing: 0; }
+.tk-live small { color: var(--tk-muted); font-weight: 500; letter-spacing: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .tk-live svg { animation: tk-blink 1.4s ease-in-out infinite; }
+}
+@keyframes tk-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+/* 숫자는 전부 고정폭·탭 정렬 — 자릿수가 바뀌어도 줄이 흔들리지 않는다. */
+.tk-num {
+  font-family: var(--tk-mono);
+  font-variant-numeric: tabular-nums;
+}
+.up { color: var(--tk-up); }
+
+/* 지수 */
+.tk-index {
+  background: var(--tk-panel);
+  border: 1px solid var(--tk-line);
+  border-radius: var(--radius-lg);
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 1fr auto;
+  padding: var(--space-4);
+}
+.tk-index-main { display: grid; gap: 2px; min-width: 0; }
+.tk-label { color: var(--tk-muted); font-size: var(--text-micro); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.tk-index-main .tk-num { font-size: clamp(28px, 5vw, 44px); font-weight: 800; line-height: 1.1; }
+.tk-change { font-size: var(--text-body-lg); font-weight: 700; }
+.tk-sub { color: var(--tk-muted); font-size: var(--text-meta); }
+.tk-index-side {
+  display: grid;
+  gap: var(--space-2) var(--space-5);
+  grid-template-columns: repeat(2, auto);
+  margin: 0;
+}
+.tk-index-side div { display: grid; gap: 2px; min-width: 0; }
+.tk-index-side dt { color: var(--tk-muted); font-size: var(--text-micro); }
+.tk-index-side dd { font-family: var(--tk-mono); font-size: var(--text-body-lg); font-weight: 700; margin: 0; }
+.tk-index-side dd.tk-top { font-family: inherit; font-size: var(--text-meta); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 체결 테이프 — 두 벌을 이어 붙여 끊김 없이 흐른다. 줄이기 설정이면 멈춰 선다. */
+.tk-tape {
+  background: var(--tk-panel-2);
+  border: 1px solid var(--tk-line);
+  border-radius: var(--radius);
+  font-size: var(--text-meta);
+  overflow: hidden;
+  padding: var(--space-2) 0;
+  white-space: nowrap;
+}
+.tk-tape-empty { color: var(--tk-muted); padding: 0 var(--space-3); }
+.tk-tape-track { display: flex; width: max-content; }
+.tk-tape-list { display: flex; gap: var(--space-6); list-style: none; margin: 0; padding: 0 var(--space-6) 0 0; }
+.tk-tape-list li { align-items: baseline; display: flex; gap: var(--space-2); }
+.tk-tape-name { color: var(--tk-ink); font-weight: 700; }
+.tk-tape-list strong { font-family: var(--tk-mono); }
+.tk-tape-who, .tk-tape-list time { color: var(--tk-muted); }
+@media (prefers-reduced-motion: no-preference) {
+  .tk-tape-track { animation: tk-scroll 40s linear infinite; }
+  .tk-tape:hover .tk-tape-track { animation-play-state: paused; }
+}
+@keyframes tk-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* 본문: 종목판 + 체결 내역 */
+.tk-body {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr) 260px;
+}
+.tk-board {
+  background: var(--tk-panel);
+  border: 1px solid var(--tk-line);
+  border-radius: var(--radius-lg);
+  display: grid;
+  overflow: hidden;
+}
+.tk-row {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--tk-line);
+  color: var(--tk-ink);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: var(--space-3);
+  grid-template-columns: 28px minmax(0, 1fr) 100px 120px 120px 44px 80px 96px;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  width: 100%;
+}
+.tk-row:last-child { border-bottom: 0; }
+.tk-row:hover { background: var(--tk-panel-2); }
+.tk-row:focus-visible { outline: 2px solid var(--tk-chip-ink); outline-offset: -2px; }
+.tk-row-head {
+  color: var(--tk-muted);
+  cursor: default;
+  font-size: var(--text-micro);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding-block: var(--space-2);
+}
+.tk-row-head:hover { background: none; }
+/* 마감된 줄은 가라앉는다 — 종가. */
+.tk-row.closed { color: var(--tk-muted); }
+.tk-row.closed .tk-name strong { color: var(--tk-ink); }
+.tk-rank { color: var(--tk-muted); font-family: var(--tk-mono); }
+.tk-name { display: grid; gap: 2px; min-width: 0; }
+.tk-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-name small { color: var(--tk-muted); font-size: var(--text-micro); }
+.tk-col-price { font-size: var(--text-body-lg); font-weight: 800; text-align: right; }
+.tk-row.up .tk-col-price { color: var(--tk-up); }
+.tk-col-change { display: grid; font-family: var(--tk-mono); font-variant-numeric: tabular-nums; gap: 1px; text-align: right; }
+.tk-col-change b { font-weight: 700; }
+.tk-col-change small { color: var(--tk-muted); font-size: var(--text-micro); }
+.tk-row.up .tk-col-change { color: var(--tk-up); }
+.tk-col-bids { font-family: var(--tk-mono); text-align: right; }
+.tk-col-lead { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-col-time { text-align: right; }
+.tk-chip {
+  background: var(--tk-chip);
+  border-radius: var(--radius-full);
+  color: var(--tk-chip-ink);
+  font-size: var(--text-micro);
+  font-style: normal;
+  font-weight: 700;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.tk-chip.closed { background: var(--tk-line); color: var(--tk-muted); }
+
+/* 값이 오른 줄의 번쩍임. 1.2초 뒤 클래스가 빠지며 원래 색으로. */
+@media (prefers-reduced-motion: no-preference) {
+  .tk-row.flash { animation: tk-flash 1.2s ease-out; }
+}
+@keyframes tk-flash {
+  0% { background: var(--tk-flash); }
+  100% { background: transparent; }
+}
+
+/* 스파크라인 — 계단형. 오른 적 있으면 빨강, 아직이면 회색 평선. */
+.tk-spark { display: block; height: 28px; width: 96px; }
+.tk-spark path { stroke: var(--tk-muted); }
+.tk-spark circle { fill: var(--tk-muted); }
+.tk-spark.up path { stroke: var(--tk-up); }
+.tk-spark.up circle { fill: var(--tk-up); }
+.tk-spark-locked { background: var(--tk-line); border-radius: 2px; display: block; height: 2px; margin: 13px 0; width: 96px; }
+
+/* 체결 내역 */
+.tk-feed {
+  background: var(--tk-panel);
+  border: 1px solid var(--tk-line);
+  border-radius: var(--radius-lg);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+}
+.tk-feed h3 { color: var(--tk-muted); font-size: var(--text-micro); letter-spacing: 0.08em; margin: 0 0 var(--space-2); text-transform: uppercase; }
+.tk-feed ol { display: grid; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
+.tk-feed li { align-items: baseline; display: grid; font-size: var(--text-meta); gap: 2px var(--space-2); grid-template-columns: auto minmax(0, 1fr) auto; }
+.tk-feed time { color: var(--tk-muted); font-family: var(--tk-mono); font-size: var(--text-micro); }
+.tk-feed-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-feed-who { color: var(--tk-muted); font-size: var(--text-micro); grid-column: 2 / -1; }
+.tk-empty { color: var(--tk-muted); font-size: var(--text-meta); margin: 0; padding: var(--space-4); }
+
+/* 판이 좁아질수록 열을 덜어낸다. 순서: 체결 내역이 아래로 → 선두·입찰 숨김 → 흐름·마감까지 숨김.
+   현재가·변동은 끝까지 남는다 — 이 화면의 질문은 "얼마까지 올랐나" 하나다. */
+@container (max-width: 960px) {
+  .tk-body { grid-template-columns: 1fr; }
+  .tk-feed ol { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+}
+@container (max-width: 820px) {
+  .tk-row { grid-template-columns: 24px minmax(0, 1fr) 84px 104px 104px 88px; }
+  .tk-col-bids, .tk-col-lead { display: none; }
+  .tk-spark, .tk-spark-locked { width: 84px; }
+}
+/* 폰: 현재가 아래에 변동을 포갠다(모바일 주식앱의 문법). 이름 칸이 넓어져 제목이 읽힌다. */
+@container (max-width: 540px) {
+  .tk-index { grid-template-columns: 1fr; }
+  .tk-index-side { grid-template-columns: repeat(4, auto); justify-content: space-between; }
+  .tk-index-side dd.tk-top { max-width: 120px; }
+  .tk-row {
+    gap: 0 var(--space-2);
+    grid-template-areas: 'rank name price' 'rank name change';
+    grid-template-columns: 22px minmax(0, 1fr) 112px;
+    padding: var(--space-3);
+  }
+  .tk-row-head { grid-template-areas: 'rank name price'; }
+  .tk-row-head .tk-col-change { display: none; }
+  .tk-rank { grid-area: rank; }
+  .tk-name { grid-area: name; }
+  .tk-col-price { font-size: var(--text-body); grid-area: price; }
+  .tk-col-change { font-size: var(--text-micro); grid-area: change; }
+  .tk-col-change b { font-weight: 600; }
+  .tk-col-change small { display: inline; margin-left: 4px; }
+  .tk-col-spark, .tk-col-time { display: none; }
+  .tk-feed ol { grid-template-columns: 1fr; }
 }
