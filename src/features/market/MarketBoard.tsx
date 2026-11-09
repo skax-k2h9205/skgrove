@@ -595,13 +595,13 @@ export function MarketBoard({
     <section className={xmas ? 'screen market-xmas' : 'screen'}>
       {xmas && (
         <div aria-hidden="true" className="xmas-snow">
-          {Array.from({ length: 14 }).map((_, i) => (
+          {Array.from({ length: 24 }).map((_, i) => (
             <i
               key={i}
               style={{
-                left: `${(i * 7 + 4) % 97}%`,
-                animationDuration: `${6 + ((i * 1.3) % 5)}s`,
-                animationDelay: `${(i * 0.7) % 4}s`,
+                left: `${(i * 4.17 + 2) % 98}%`,
+                animationDuration: `${6 + ((i * 1.3) % 6)}s`,
+                animationDelay: `${(i * 0.53) % 6}s`,
               }}
             >
               ❄
@@ -639,7 +639,7 @@ export function MarketBoard({
       {/* 크리스마스 꼬마전구 띠(이 탭 한정). */}
       {xmas && (
         <div aria-hidden="true" className="xmas-lights">
-          {Array.from({ length: 11 }).map((_, i) => (
+          {Array.from({ length: 15 }).map((_, i) => (
             <i key={i} />
           ))}
         </div>
