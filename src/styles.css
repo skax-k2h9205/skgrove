@@ -191,6 +191,7 @@
   --xmas-snow: #ffffff; /* 탭 위 흰 글씨 */
   --xmas-sky: #e8f1fb; /* 히어로 장면 하늘 */
   --xmas-cream: #fff6ea; /* 히어로 장면 눈밭 아래 */
+  --xmas-flake: #8fb8e6; /* 페이지 전체에 내리는 눈 — 밝은 배경에서도 보이는 소프트 블루 */
 }
 
 * {
@@ -14553,6 +14554,39 @@ button.notif-row {
   color: var(--xmas-snow);
 }
 
+/* 페이지 전체에 내리는 눈 — 캐릭터 배너 밖 화면에도 소복소복(클릭은 통과). */
+.market-xmas {
+  overflow: hidden;
+  position: relative;
+}
+
+.market-xmas > *:not(.xmas-pagesnow) {
+  position: relative;
+  z-index: 1;
+}
+
+.xmas-pagesnow {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  z-index: 5;
+}
+
+.xmas-pagesnow span {
+  animation: xmas-pagefall linear infinite;
+  color: var(--xmas-flake);
+  position: absolute;
+  top: -16px;
+}
+
+@keyframes xmas-pagefall {
+  0% { opacity: 0; transform: translateY(-16px) translateX(0); }
+  10% { opacity: 0.8; }
+  85% { opacity: 0.8; }
+  100% { opacity: 0.3; transform: translateY(1600px) translateX(26px); }
+}
+
 /* 산타·루돌프·트리 히어로 배너 */
 .xmas-hero {
   background: linear-gradient(180deg, var(--xmas-sky), var(--xmas-cream) 62%);
@@ -14597,7 +14631,7 @@ button.notif-row {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .xh-santa, .xh-rudolph, .xh-star, .xh-nose, .xh-flake { animation: none; }
+  .xh-santa, .xh-rudolph, .xh-star, .xh-nose, .xh-flake, .xmas-pagesnow span { animation: none; }
 }
 
 /* ===== 장터 QR 시트(물건별 바로가기) ===== */
