@@ -13,7 +13,7 @@ import { ItemPoster } from './ItemPoster';
     drum   상자 안에서 북 카드가 솟고, 북채 둘이 번갈아 친다(두구두구). 결과 직전의 뜸.
            이때 화면 양옆 가장자리에서 검은 정장·흰 장갑 인형들이 손을 들고 춤춘다 —
            참고 영상의 그 인형들이다. 얼굴은 전부 낙찰자의 프로필 사진(한 사람이지만
-           영상처럼 여럿이 둘러서게 복제한다). 외부 에셋 없이 CSS 로 그린다.
+           영상처럼 여럿이 둘러서게 복제한다). 세 가지 턱시도 포즈에 프로필 사진을 겹친다.
     lights 번쩍하며 북이 사라지고, 무지개 조명 아래 내용물 카드가 가운데서 튀어나온다. 여기부터 '결과'다.
 
   색종이는 Canvas 2D 로 그린다. 조각 180개를 DOM 으로 두면 저사양 폰에서 끊기고,
@@ -85,17 +85,17 @@ type RandomBoxRevealProps = {
 };
 
 /*
-  인형 배치 — 참고 영상의 자리를 그대로 옮겼다. 양옆 가장자리에 서고 일부는 화면 밖으로
-  반쯤 잘린다(그래야 "둘러싸고 있다"가 된다). 가운데(북·결과 카드)는 비워 둔다.
-  x·y 는 무대 기준 %, s 는 크기, d 는 한 사이클 길이(초) — 서로 달라야 군무가 아니라 제각각 춘다.
+  인형 배치 — 결과 카드 칸(그리드 1/1)을 기준으로 위아래에 두 명씩, 양옆에 한 명씩 선다.
+  칸 밖으로 --rb-gap(:root, 인형 크기의 비율)만큼 나가므로 화면이 좁아져도 카드와 겹치지 않는다.
+  x·y 는 그 칸 기준 %, s 는 크기, d 는 한 사이클 길이(초) — 서로 달라야 군무가 아니라 제각각 춘다.
 */
 const DANCERS = [
-  { x: '5%', y: '42%', s: 0.85, d: 1.15, delay: 0 },
-  { x: '9%', y: '82%', s: 1, d: 1.0, delay: -0.35 },
-  { x: '24%', y: '94%', s: 0.7, d: 0.92, delay: -0.7 },
-  { x: '76%', y: '95%', s: 0.7, d: 1.08, delay: -0.2 },
-  { x: '90%', y: '82%', s: 1, d: 1.22, delay: -0.55 },
-  { x: '96%', y: '46%', s: 0.85, d: 1.05, delay: -0.9 },
+  { x: '18%', y: 'calc(0% - var(--rb-gap))', s: 0.85, d: 1.15, delay: 0 },
+  { x: 'calc(0% - var(--rb-gap))', y: '50%', s: 1, d: 1.0, delay: -0.35 },
+  { x: '18%', y: 'calc(100% + var(--rb-gap))', s: 0.7, d: 0.92, delay: -0.7 },
+  { x: '82%', y: 'calc(100% + var(--rb-gap))', s: 0.7, d: 1.08, delay: -0.2 },
+  { x: 'calc(100% + var(--rb-gap))', y: '50%', s: 1, d: 1.22, delay: -0.55 },
+  { x: '82%', y: 'calc(0% - var(--rb-gap))', s: 0.85, d: 1.05, delay: -0.9 },
 ];
 
 export function RandomBoxReveal({ item, winner, onClose }: RandomBoxRevealProps) {
@@ -222,7 +222,7 @@ export function RandomBoxReveal({ item, winner, onClose }: RandomBoxRevealProps)
         <div className="rb-body" />
       </div>
 
-      {/* 낙찰자 인형들 — 북이 울리면 가장자리에서 춤춘다. 얼굴은 프로필 사진(없으면 이니셜 칩). */}
+      {/* 낙찰자 인형들 — 북이 울리면 상품을 둘러싸고 춤춘다. 얼굴은 프로필 사진(없으면 이니셜 칩). */}
       {winner && (
         <>
           <div aria-hidden className="rb-dancers">
@@ -241,17 +241,10 @@ export function RandomBoxReveal({ item, winner, onClose }: RandomBoxRevealProps)
                 }
               >
                 <div className="rb-dancer-inner">
-                  <span className="rb-crown">👑</span>
                   <div className="rb-dancer-head">
                     <Avatar className="rb-dancer-face" name={winner} />
                   </div>
-                  <div className="rb-dancer-body">
-                    <span className="rb-arm left" />
-                    <span className="rb-arm right" />
-                    <span className="rb-suit" />
-                    <span className="rb-leg left" />
-                    <span className="rb-leg right" />
-                  </div>
+                  <div className="rb-dancer-body" />
                 </div>
               </div>
             ))}
