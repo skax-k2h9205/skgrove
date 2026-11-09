@@ -747,23 +747,7 @@ export function MarketBoard({
         <MarketCountdown closeAt={scopeEvent?.fixedCloseAt} openAt={scopeOpenAt} />
       )}
 
-      {/* 공개 전 안내 — 지금은 물건을 미리 모으는 기간. 남의 물건은 공개 시각까지 '???'로 가려진다. */}
-      {preOpen && (
-        <section className="panel market-preopen">
-          <div className="preopen-head">
-            <Lock size={16} />
-            {scopeLabel} 공개 전
-          </div>
-          <p className="preopen-text">
-            지금은 물건을 미리 모으는 기간이에요. {scopeOpenAt && <strong>{formatStamp(scopeOpenAt)}</strong>}에
-            모두 공개되고 입찰이 시작돼요. 그때까지 다른 사람 물건은 사진·내용이 <strong>???</strong>로 가려집니다.
-            (내가 올린 물건은 나에게만 보여요.)
-          </p>
-          <p className="preopen-count">지금까지 {scopedItems.length}개 모임</p>
-        </section>
-      )}
-
-      {/* 공개 시각 조정 — 리더 전용. 라이브 중 공개가 늦춰지거나 당겨질 때 바꾼다. */}
+{/* 공개 시각 조정 — 리더 전용. 라이브 중 공개가 늦춰지거나 당겨질 때 바꾼다. */}
       {onSetEventOpenAt && scopeEvent && scopeOpenAt && (
         <section className="panel market-openedit">
           <label className="field-label" htmlFor="market-open-at">
