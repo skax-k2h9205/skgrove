@@ -636,16 +636,13 @@ export function MarketBoard({
         </div>
       )}
 
-      {/* 크리스마스 꼬마전구 띠 + 인사 배너(이 탭 한정). */}
+      {/* 크리스마스 꼬마전구 띠(이 탭 한정). */}
       {xmas && (
-        <>
-          <div aria-hidden="true" className="xmas-lights">
-            {Array.from({ length: 11 }).map((_, i) => (
-              <i key={i} />
-            ))}
-          </div>
-          <div className="xmas-garland">🎄 Merry Christmas · {scopeLabel} 🎁</div>
-        </>
+        <div aria-hidden="true" className="xmas-lights">
+          {Array.from({ length: 11 }).map((_, i) => (
+            <i key={i} />
+          ))}
+        </div>
       )}
 
       {/* 공개 전 안내 — 지금은 물건을 미리 모으는 기간. 남의 물건은 공개 시각까지 '???'로 가려진다. */}

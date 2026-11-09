@@ -14515,21 +14515,6 @@ button.notif-row {
 .xmas-lights i:nth-child(3n + 2) { background: var(--xmas-gold); color: var(--xmas-gold); }
 .xmas-lights i:nth-child(3n) { background: var(--xmas-green); color: var(--xmas-green); }
 
-/* 인사 배너 */
-.xmas-garland {
-  align-items: center;
-  background: linear-gradient(90deg, var(--xmas-red-soft), var(--xmas-green-soft));
-  border: 1px solid var(--xmas-green-soft);
-  border-radius: var(--radius);
-  color: var(--xmas-green-ink);
-  display: flex;
-  font-weight: 800;
-  gap: 8px;
-  justify-content: center;
-  padding: 10px 14px;
-  text-align: center;
-}
-
 /* 선택된 캔미팅 탭 — 축제 레드 */
 .market-xmas .market-scope-tabs .selected {
   background: var(--xmas-red);
