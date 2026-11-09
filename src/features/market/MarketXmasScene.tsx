@@ -1,3 +1,6 @@
+import { useEffect, useRef, useState } from 'react';
+import type { AnimationItem } from 'lottie-web';
+
 /*
   캔미팅 탭 상단 크리스마스 히어로 장면 — 트리·선물·눈사람·산타·루돌프를 직접 그린 일러스트.
   모든 캐릭터는 같은 눈밭 바닥선(y≈205)에 발을 맞춰 세우고, 발밑에 부드러운 그림자를 깔아
@@ -27,10 +30,59 @@ const SPARKLES = [
   { x: 560, y: 36, s: 0.7, twinkle: false },
 ];
 
+/* public/xmas-scene.json 이 있으면 전문 Lottie 에셋을 재생하고, 없으면(또는 로드 실패) 아래 손그림으로
+   폴백한다. 파일만 떨어뜨리면 코드 수정 없이 즉시 적용된다. (사내/상업 라이선스 확인 필수)
+   lottie-web 은 이 컴포넌트가 마운트될 때만 동적 import 되어 메인 번들을 키우지 않는다. */
+const LOTTIE_PATH = '/xmas-scene.json';
+
 export function MarketXmasScene() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [mode, setMode] = useState<'loading' | 'lottie' | 'fallback'>('loading');
+
+  useEffect(() => {
+    let cancelled = false;
+    let anim: AnimationItem | undefined;
+    const reduce =
+      typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    void (async () => {
+      try {
+        const lottie = (await import('lottie-web')).default;
+        if (cancelled || !ref.current) return;
+        anim = lottie.loadAnimation({
+          container: ref.current,
+          renderer: 'svg',
+          loop: true,
+          autoplay: !reduce,
+          path: LOTTIE_PATH,
+        });
+        anim.addEventListener('DOMLoaded', () => {
+          if (!cancelled) setMode('lottie');
+        });
+        anim.addEventListener('data_failed', () => {
+          if (!cancelled) setMode('fallback');
+        });
+      } catch {
+        if (!cancelled) setMode('fallback');
+      }
+    })();
+    return () => {
+      cancelled = true;
+      anim?.destroy();
+    };
+  }, []);
+
   return (
     <div className="xmas-hero" aria-hidden="true">
-      <svg viewBox="0 0 680 260" role="img" aria-label="산타, 루돌프, 눈사람, 크리스마스 트리가 있는 눈 내리는 장면">
+      {/* 전문 Lottie 가 로드되면 여기에, 아니면 아래 손그림이 보인다. */}
+      <div className="xmas-lottie" hidden={mode !== 'lottie'} ref={ref} />
+      {mode !== 'lottie' && <XmasSceneSvg />}
+    </div>
+  );
+}
+
+function XmasSceneSvg() {
+  return (
+    <svg viewBox="0 0 680 260" role="img" aria-label="산타, 루돌프, 눈사람, 크리스마스 트리가 있는 눈 내리는 장면">
         {/* 달 + 은은한 빛무리 */}
         <circle cx="612" cy="50" r="32" fill="#fdf6d8" opacity="0.45" />
         <circle cx="612" cy="50" r="22" fill="#fbefc0" />
@@ -174,6 +226,5 @@ export function MarketXmasScene() {
           ))}
         </g>
       </svg>
-    </div>
   );
 }

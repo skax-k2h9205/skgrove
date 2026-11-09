@@ -14602,6 +14602,17 @@ button.notif-row {
   width: 100%;
 }
 
+/* 전문 Lottie 에셋 컨테이너(public/xmas-scene.json 있을 때). 없으면 위 손그림 svg 가 뜬다. */
+.xmas-lottie {
+  width: 100%;
+}
+
+.xmas-lottie svg {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
 /* 장면 애니메이션 — 산타/루돌프 들썩, 별 깜빡, 코 반짝, 눈 내림. (동작 줄이기 시 정지) */
 .xh-santa { animation: xh-bob 3.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 .xh-rudolph { animation: xh-bob 3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
