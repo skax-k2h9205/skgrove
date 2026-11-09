@@ -14458,6 +14458,46 @@ button.notif-row {
   size: A4;
 }
 
+/* ===== 나눔왕 시상 안내 패널 ===== */
+.market-award {
+  background: var(--tint-primary);
+  border-color: var(--color-primary-soft);
+}
+
+.award-head {
+  align-items: center;
+  color: var(--tint-primary-ink);
+  display: flex;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.award-text {
+  color: var(--color-ink);
+  margin: 6px 0 0;
+}
+
+.award-text strong {
+  color: var(--tint-primary-ink);
+}
+
+.award-sub {
+  color: var(--color-muted);
+  font-size: var(--text-meta);
+  margin: 6px 0 0;
+}
+
+.rank-award {
+  background: var(--color-primary);
+  border-radius: 999px;
+  color: var(--color-cta-ink);
+  font-size: 10px;
+  font-weight: 800;
+  margin-right: 5px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
 /* ===== 크리스마스 테마 — 캔미팅 벼룩시장 탭 한정(스노우폴) ===== */
 /* .market-xmas 가 붙은 장터 화면에만 적용. 상시 장터·다른 화면은 그대로다. */
 .market-xmas {
