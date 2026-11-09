@@ -8,6 +8,7 @@ import {
   Gavel,
   Gift,
   Hourglass,
+  Lock,
   MapPin,
   Package,
   Pencil,
@@ -45,7 +46,25 @@ import {
 import type { CurrentUser, MarketBid, MarketComment, MarketItem, MarketStatus } from '../../types';
 import { ItemPoster } from './ItemPoster';
 import { MarketForm, type MarketDraft } from './MarketForm';
-import { MARKET_EVENTS, marketEvent } from './marketEvents';
+import {
+  MARKET_EVENTS,
+  isPreOpen,
+  marketEvent,
+  marketOpenAt,
+  type MarketOpenOverrides,
+} from './marketEvents';
+
+/** 'YYYY-MM-DDTHH:mm' 를 '11월 30일(월) 오후 12:00' 로. 공개 시각 안내용. */
+function formatStamp(stamp: string) {
+  const [datePart, timePart] = stamp.split('T');
+  const [, month, day] = datePart.split('-');
+  const [hh, mm] = timePart.split(':');
+  const hour = Number(hh);
+  const ampm = hour < 12 ? '오전' : '오후';
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  const dow = ['일', '월', '화', '수', '목', '금', '토'][new Date(stamp).getDay()] ?? '';
+  return `${Number(month)}월 ${Number(day)}일(${dow}) ${ampm} ${hour12}:${mm}`;
+}
 
 type MarketBoardProps = {
   items: MarketItem[];
@@ -60,6 +79,10 @@ type MarketBoardProps = {
   now: string;
   /** 등록 직후 배경에서 썸네일을 그리는 중인 물건. 격자에 '그리는 중' 을 띄운다(모임과 동일). */
   imagePendingIds: string[];
+  /** 행사 공개 시각 오버라이드(태그→'YYYY-MM-DDTHH:mm'). 공개 전엔 남의 물건을 '???'로 가린다. */
+  openOverrides: MarketOpenOverrides;
+  /** 리더면 공개 시각을 바꿀 수 있다(라이브 중 조정). 권한 없으면 undefined. */
+  onSetEventOpenAt?: (tag: string, openAt: string) => void;
   onCreate: (draft: MarketDraft) => void;
   onUpdate: (item: MarketItem, draft: MarketDraft) => void;
   onBid: (item: MarketItem, amount: number) => void;
@@ -112,6 +135,8 @@ export function MarketBoard({
   currentUser,
   now,
   imagePendingIds,
+  openOverrides,
+  onSetEventOpenAt,
   onCreate,
   onUpdate,
   onBid,
@@ -148,6 +173,13 @@ export function MarketBoard({
 
   // 현재 탭(상시/행사)에 속한 물건만. 명예의 전당·격자 모두 이 범위 안에서 센다.
   const scopedItems = items.filter((item) => (item.eventTag ?? '') === scope);
+
+  // 이 탭의 공개 시각과 '공개 전' 여부. 공개 전엔 남의 물건이 '???'로 가려진다.
+  const scopeOpenAt = marketOpenAt(scope, openOverrides);
+  const preOpen = scopeOpenAt ? now < scopeOpenAt : false;
+  // 특정 물건이 지금 이 사용자에게 가려지는가 — 공개 전 + 남의 물건.
+  const isLocked = (item: MarketItem) =>
+    isPreOpen(item, now, openOverrides) && item.seller !== currentUser.name;
 
   // 상단 탭: 상시 + (등록 가능하거나 물건이 하나라도 있는) 행사들. 행사가 없으면 탭 자체를 숨긴다.
   const eventTabs = MARKET_EVENTS.filter(
@@ -243,6 +275,26 @@ export function MarketBoard({
             setView('detail');
           }}
         />
+      </section>
+    );
+  }
+
+  // 공개 전 남의 물건은 상세로 들어와도 가린다(격자·홈피드에서 막지만 방어적으로 한 번 더).
+  if (view === 'detail' && selected && isLocked(selected)) {
+    return (
+      <section className="screen">
+        <button className="btn-ghost back-link" onClick={backFromDetail} type="button">
+          <ArrowLeft size={16} />
+          {openedFromFeed ? '홈으로' : '목록으로'}
+        </button>
+        <div className="market-locked-detail">
+          <Lock size={28} />
+          <h2>아직 공개 전이에요</h2>
+          <p>
+            {scopeOpenAt ? `${formatStamp(scopeOpenAt)}에 공개돼요.` : '곧 공개돼요.'} 그때 사진과 내용이 함께
+            열립니다.
+          </p>
+        </div>
       </section>
     );
   }
@@ -516,8 +568,8 @@ export function MarketBoard({
   const hasRanking = boards.some((board) => board.rows.length > 0);
   const scopeEvent = marketEvent(scope);
   const scopeLabel = scopeEvent?.label;
-  // 모금 현황은 기부 행사 탭에서만. 상시 판매금은 개인 몫이라 모금이 아니다.
-  const fund = scopeEvent?.fundraiser ? fundraiseSummary(scopedItems, bids, now) : null;
+  // 모금 현황은 기부 행사 탭에서만. 공개 전엔 거래가 없어 0원이라 숨긴다.
+  const fund = scopeEvent?.fundraiser && !preOpen ? fundraiseSummary(scopedItems, bids, now) : null;
 
   return (
     <section className="screen">
@@ -546,6 +598,38 @@ export function MarketBoard({
             </button>
           ))}
         </div>
+      )}
+
+      {/* 공개 전 안내 — 지금은 물건을 미리 모으는 기간. 남의 물건은 공개 시각까지 '???'로 가려진다. */}
+      {preOpen && (
+        <section className="panel market-preopen">
+          <div className="preopen-head">
+            <Lock size={16} />
+            {scopeLabel} 공개 전
+          </div>
+          <p className="preopen-text">
+            지금은 물건을 미리 모으는 기간이에요. {scopeOpenAt && <strong>{formatStamp(scopeOpenAt)}</strong>}에
+            모두 공개되고 입찰이 시작돼요. 그때까지 다른 사람 물건은 사진·내용이 <strong>???</strong>로 가려집니다.
+            (내가 올린 물건은 나에게만 보여요.)
+          </p>
+          <p className="preopen-count">지금까지 {scopedItems.length}개 모임</p>
+        </section>
+      )}
+
+      {/* 공개 시각 조정 — 리더 전용. 라이브 중 공개가 늦춰지거나 당겨질 때 바꾼다. */}
+      {onSetEventOpenAt && scopeEvent && scopeOpenAt && (
+        <section className="panel market-openedit">
+          <label className="field-label" htmlFor="market-open-at">
+            공개 시각 조정 <em>리더</em>
+          </label>
+          <input
+            id="market-open-at"
+            type="datetime-local"
+            value={scopeOpenAt}
+            onChange={(event) => event.target.value && onSetEventOpenAt(scope, event.target.value)}
+          />
+          <p className="field-note">바꾸면 모든 참여자 화면의 공개 시각이 함께 움직여요(새로고침·재방문 시 반영).</p>
+        </section>
       )}
 
       {/* 모금 현황 — 기부 행사 탭 상단. 거래완료(낙찰 확정)된 경매 금액의 합. */}
@@ -641,11 +725,27 @@ export function MarketBoard({
         */
         <div className="poster-grid ig-shop">
           {visible.map((item) => {
+            // 공개 전 남의 물건 — 사진·제목·유형을 '???'로 가린다(겉보기 티저, 클릭 불가).
+            if (isLocked(item)) {
+              return (
+                <figure className="ig-shop-cell locked" key={item.id}>
+                  <div className="poster-cell poster-locked" aria-label="공개 전 물건">
+                    <Gift size={30} strokeWidth={1.5} />
+                    <span>???</span>
+                  </div>
+                  <figcaption className="ig-shop-meta">
+                    <strong>???</strong>
+                    <span>🎁 공개 전</span>
+                  </figcaption>
+                </figure>
+              );
+            }
             const status = deriveStatus(item, bids, now);
             const badge = gridBadge(item, status);
             const open = isOpen(item, bids, now);
             const count = bidCount(item, bids);
             const left = timeLeft(item, now);
+            const minePreOpen = preOpen && item.seller === currentUser.name;
             return (
               <figure className={open ? 'ig-shop-cell' : 'ig-shop-cell closed'} key={item.id}>
                 <button className="poster-cell" onClick={() => openDetail(item.id)} type="button">
@@ -666,8 +766,9 @@ export function MarketBoard({
                 <figcaption className="ig-shop-meta">
                   <strong>{item.title}</strong>
                   <span>
-                    {item.kind === 'auction' ? `입찰 ${count}` : '바로 나눔'}
-                    {open && left ? ` · ${left}` : ''}
+                    {minePreOpen
+                      ? '🔒 나만 보임 · 공개 전'
+                      : `${item.kind === 'auction' ? `입찰 ${count}` : '바로 나눔'}${open && left ? ` · ${left}` : ''}`}
                   </span>
                 </figcaption>
               </figure>

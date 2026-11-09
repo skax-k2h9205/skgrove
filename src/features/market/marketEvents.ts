@@ -25,6 +25,10 @@ export type MarketEvent = {
   /** 마감을 이 시각으로 고정한다(사용자가 못 바꿈). 'YYYY-MM-DDTHH:mm' 로컬.
    *  당일 일괄 마감하는 행사용 — 폼에서 마감 선택 UI를 숨기고 이 값을 그대로 쓴다. */
   fixedCloseAt?: string;
+  /** 공개(오픈) 시각 'YYYY-MM-DDTHH:mm'. 이 시각 전에는 '공개 전' — 남의 물건이
+   *  사진·제목·가격·설명 없이 '???'로 가려지고(겉보기 티저), 홈 피드에도 안 뜬다.
+   *  운영 중 바꿀 수 있다: app_config 오버라이드가 이 기본값을 이긴다([[configStore]]). */
+  openAt?: string;
 };
 
 export const MARKET_EVENTS: MarketEvent[] = [
@@ -34,8 +38,24 @@ export const MARKET_EVENTS: MarketEvent[] = [
     active: true,
     fundraiser: true,
     fixedCloseAt: '2026-11-30T12:50',
+    openAt: '2026-11-30T12:00',
   },
 ];
+
+/** 공개 시각 오버라이드 맵(태그 → 'YYYY-MM-DDTHH:mm'). 팀 공용 설정에 저장한다. */
+export type MarketOpenOverrides = Record<string, string>;
+
+/** 이 행사의 실효 공개 시각. 운영 중 바꾼 오버라이드가 코드 기본값을 이긴다. 없으면 undefined(항상 공개). */
+export function marketOpenAt(tag: string | undefined, overrides?: MarketOpenOverrides): string | undefined {
+  if (!tag) return undefined;
+  return overrides?.[tag] ?? marketEvent(tag)?.openAt;
+}
+
+/** 아직 공개 전인가 — 행사 물건이고, 공개 시각이 있고, 지금이 그 전. 상시 물건은 항상 false. */
+export function isPreOpen(item: { eventTag?: string }, now: string, overrides?: MarketOpenOverrides): boolean {
+  const openAt = marketOpenAt(item.eventTag, overrides);
+  return Boolean(openAt && now < openAt);
+}
 
 /** 태그로 행사 정의를 찾는다. 상시(빈 태그)거나 모르는 태그면 undefined. */
 export function marketEvent(tag?: string): MarketEvent | undefined {
