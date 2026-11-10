@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { PanelHeader } from '../../components/PanelHeader';
 import { buildHomeFeed, type HomeFeedKind } from '../../homeFeed';
+import { isSectionBlocked } from '../../menuRules';
 import type {
   ActionItem,
   Agenda,
@@ -54,6 +55,8 @@ type DashboardProps = {
   // 인스타처럼 본 스토리는 뒤로 밀고 링을 회색으로. App 이 localStorage 로 유지한다.
   viewedStoryIds: string[];
   onIdentityChange: (identity: Identity) => void;
+  /** 팀에서 숨긴 메뉴. 그 메뉴로 가는 스토리·피드 타일을 같이 뺀다 — 눌러도 못 가는 타일은 고장으로 읽힌다. */
+  hiddenMenus: Section[];
 };
 
 export function Dashboard({
@@ -72,13 +75,14 @@ export function Dashboard({
   onOpenFeedItem,
   viewedStoryIds,
   onIdentityChange,
+  hiddenMenus,
 }: DashboardProps) {
   const viewedSet = new Set(viewedStoryIds);
   /*
     스토리 줄에는 번개(flash)로 등록된 것만, 최신 등록순(맨 앞이 최신)으로 올린다.
     취소된 것은 뺀다.
   */
-  const flashStories = gatherings
+  const flashStories = (isSectionBlocked('gatherings', hiddenMenus) ? [] : gatherings)
     .filter((item) => !item.canceled && item.kind === 'flash')
     .sort((a, b) => {
       // 안 본 스토리 먼저(인스타). 같은 그룹 안에서는 최신 등록순.
@@ -100,7 +104,7 @@ export function Dashboard({
     gatherings,
     memories,
     marketItems,
-  });
+  }).filter((item) => !isSectionBlocked(item.section, hiddenMenus));
 
   // 홈에서 방식을 고른 뜻이 접수 화면까지 이어져야 한다.
   // 이전에는 두 버튼이 똑같이 화면만 옮겨서, 고른 방식이 버려지고 다시 물었다.
@@ -159,15 +163,19 @@ export function Dashboard({
         스토리 트레이 = 마감이 있는 것. 첫 칸은 인스타의 '내 스토리'와 같은 자리라
         만들기(= 의견 접수)를 둔다. 히어로를 없앤 대신 여기가 시작점이 된다.
       */}
+      {/* 말하기도 번개도 없으면(둘 다 숨겨졌거나 번개가 없을 때) 빈 줄을 남기지 않는다. */}
+      {(!isSectionBlocked('intake', hiddenMenus) || flashStories.length > 0) && (
       <div className="ig-tray">
-        <button className="ig-story" onClick={() => startIntake('익명')} type="button">
-          <span className="ig-ring new">
-            <span className="ig-thumb">
-              <Plus size={22} strokeWidth={2.4} />
+        {!isSectionBlocked('intake', hiddenMenus) && (
+          <button className="ig-story" onClick={() => startIntake('익명')} type="button">
+            <span className="ig-ring new">
+              <span className="ig-thumb">
+                <Plus size={22} strokeWidth={2.4} />
+              </span>
             </span>
-          </span>
-          <small>말하기</small>
-        </button>
+            <small>말하기</small>
+          </button>
+        )}
         {flashStories.map((item) => (
           <button className="ig-story" key={item.id} onClick={() => onOpenFeedItem('gatherings', item.id)} type="button">
             <span className={viewedSet.has(item.id) ? 'ig-ring viewed' : 'ig-ring'}>
@@ -180,6 +188,7 @@ export function Dashboard({
           </button>
         ))}
       </div>
+      )}
 
       <div className="ig-col">
         {/*

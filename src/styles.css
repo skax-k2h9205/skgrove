@@ -363,6 +363,59 @@ button {
   text-transform: uppercase;
 }
 
+/* 사이드바 접기 단추. 워드마크 오른쪽 끝에 둔다 — 접는 대상(사이드바) 안에 있어야 찾는다. */
+.nav-collapse-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--color-muted);
+  cursor: pointer;
+  display: flex;
+  flex: none;
+  height: 36px;
+  justify-content: center;
+  margin-left: auto;
+  width: 36px;
+}
+.nav-collapse-toggle:hover { background: var(--color-sunken); color: var(--color-ink); }
+.nav-collapse-toggle:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+/*
+  사용자가 접은 사이드바 — 좁은 창(1100px 이하)에서 자동으로 되는 아이콘 레일과 같은 모양이다.
+  :where() 로 특이도를 0 으로 눌러 둔 이유: 이 규칙들이 아래 미디어쿼리(1100·720)보다 앞에
+  있고 특이도가 같아야, 폰의 하단 탭 규칙('.nav-item span { display: block }' 등)이 순서로
+  이긴다. 그냥 '.app.nav-collapsed .nav-item span' 으로 쓰면 접어 둔 채 창을 줄였을 때
+  하단 탭의 라벨까지 사라진다.
+*/
+.app:where(.nav-collapsed) {
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+:where(.nav-collapsed) .brand-text,
+:where(.nav-collapsed) .nav-item span,
+:where(.nav-collapsed) .nav-group-title,
+:where(.nav-collapsed) .nav-lock,
+:where(.nav-collapsed) .owner-box {
+  display: none;
+}
+:where(.nav-collapsed) .nav-item {
+  justify-content: center;
+  padding: 0;
+}
+:where(.nav-collapsed) .nav-group + .nav-group {
+  border-top: 1px solid var(--color-border);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+}
+/* 접히면 로고 아래에 펼치기 단추가 온다. */
+:where(.nav-collapsed) .brand {
+  flex-direction: column;
+  gap: var(--space-2);
+}
+:where(.nav-collapsed) .nav-collapse-toggle {
+  margin-left: 0;
+}
+
 .owner-box {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -856,6 +909,45 @@ h1 {
   display: grid;
   gap: 8px;
 }
+
+/* 메뉴 표시 설정 — 사이드바와 같은 묶음·순서로 늘어놓아, 켜고 끄는 것이 어디에 닿는지 바로 보이게 한다. */
+.menu-visibility {
+  display: grid;
+  gap: var(--space-5);
+}
+.menu-visibility-group {
+  display: grid;
+  gap: 2px;
+}
+.menu-visibility-group h3 {
+  color: var(--color-muted);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  margin: 0 0 var(--space-1);
+}
+.menu-visibility-row {
+  align-items: center;
+  border-bottom: 1px solid var(--color-border);
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  min-height: 44px;
+}
+.menu-visibility-row:last-child { border-bottom: 0; }
+.menu-visibility-row svg { color: var(--color-muted); }
+.menu-visibility-row strong { font-size: var(--text-body); font-weight: 600; }
+.menu-visibility-row.off strong { color: var(--color-muted); text-decoration: line-through; }
+.menu-visibility-row .fixed { color: var(--color-muted); font-size: var(--text-meta); }
+.menu-visibility-summary {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+.menu-visibility-summary span { color: var(--color-muted); font-size: var(--text-meta); }
 
 .system-route-row {
   align-items: center;
@@ -6223,7 +6315,9 @@ textarea {
 
   /* 사이드바가 아이콘만 남을 때 워드마크 글자를 감춘다. .sidebar 범위를
      안 주면 로그인 카드 안의 로고까지 같이 사라진다(실제로 사라졌다). */
-  .sidebar .brand div:last-child,
+  /* 이 폭에서는 이미 레일이라 접기 단추가 할 일이 없다. 같이 감춘다. */
+  .sidebar .brand-text,
+  .nav-collapse-toggle,
   .nav-item span,
   .nav-group-title,
   .nav-lock,
