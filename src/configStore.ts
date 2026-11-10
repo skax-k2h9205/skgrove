@@ -24,6 +24,9 @@ export const TEA_LAST_ANNOUNCE_KEY = 'skgrove:tealastannounce';
 // 행사 벼룩시장 공개(오픈) 시각 오버라이드(태그 → 'YYYY-MM-DDTHH:mm'). 리더가 라이브 중 바꾸면
 // 모든 참여자 화면의 공개 시각이 같이 움직여야 하므로 공용 설정에 둔다([[marketEvents]]).
 export const MARKET_OPEN_KEY = 'skgrove:marketopenat';
+// 팀 전체에서 숨긴 메뉴(Section id 배열). 커넥셔너가 시스템 관리에서 바꾸면 모든 팀원의
+// 사이드바가 같이 바뀌어야 하므로 공용 설정에 둔다([[menuRules]]).
+export const MENU_HIDDEN_KEY = 'skgrove:hiddenmenus';
 
 // DB 없거나 값이 없으면 fallback. 로컬 캐시는 항상 갱신해 다음 오프라인 로드에 대비한다.
 export async function loadConfig<T>(key: string, fallback: T): Promise<T> {

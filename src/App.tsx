@@ -125,7 +125,8 @@ import {
   saveNotifySettings,
   type NotifySettings,
 } from './notifySettingsStore';
-import { MARKET_OPEN_KEY, loadConfig, saveConfig } from './configStore';
+import { MARKET_OPEN_KEY, MENU_HIDDEN_KEY, loadConfig, saveConfig } from './configStore';
+import { isSectionBlocked, normalizeHiddenMenus } from './menuRules';
 import { isPreOpen, type MarketOpenOverrides } from './features/market/marketEvents';
 import { SystemManagement } from './features/system/SystemManagement';
 import {
@@ -315,6 +316,8 @@ export function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>(supabase ? [] : initialNotifications);
   // 알림 발송 설정(팀 공용). 시스템 관리 화면에서 커넥셔너가 조정. DB에서 로드 전엔 기본값.
   const [notifySettings, setNotifySettings] = useState<NotifySettings>(DEFAULT_NOTIFY_SETTINGS);
+  // 팀 전체에서 숨긴 메뉴(커넥셔너가 시스템 관리에서 조정). DB에서 로드 전엔 전부 보임.
+  const [hiddenMenus, setHiddenMenus] = useState<Section[]>([]);
   const [humorPosts, setHumorPosts] = useState<HumorPost[]>(supabase ? [] : initialHumorPosts);
   const [humorComments, setHumorComments] = useState<HumorComment[]>(supabase ? [] : initialHumorComments);
   // 홈 통합 피드에 팀추억 사진을 올리기 위해 App 레벨로 끌어올린다(팀추억 페이지도 자체 로드).
@@ -450,6 +453,9 @@ export function App() {
     loadNotifySettings().then((loaded) => {
       if (isMounted) setNotifySettings(loaded);
     });
+    loadConfig<unknown>(MENU_HIDDEN_KEY, []).then((loaded) => {
+      if (isMounted) setHiddenMenus(normalizeHiddenMenus(loaded));
+    });
     loadIssues().then((loaded) => {
       if (isMounted) setIssues(loaded);
     });
@@ -524,6 +530,8 @@ export function App() {
       void loadHumorComments().then(setHumorComments);
       // 다른 리더가 바꾼 공개 시각을 이어받는다(행사 당일 라이브 조정 반영).
       void loadConfig<MarketOpenOverrides>(MARKET_OPEN_KEY, {}).then(setMarketOpenOverrides);
+      // 커넥셔너가 바꾼 메뉴 숨김도 탭으로 돌아올 때 이어받는다.
+      void loadConfig<unknown>(MENU_HIDDEN_KEY, []).then((loaded) => setHiddenMenus(normalizeHiddenMenus(loaded)));
     };
     document.addEventListener('visibilitychange', refresh);
     return () => document.removeEventListener('visibilitychange', refresh);
@@ -633,6 +641,14 @@ export function App() {
   const persistNotifySettings = (next: NotifySettings) => {
     setNotifySettings(next);
     void saveNotifySettings(next);
+  };
+
+  // 메뉴 숨김 저장(커넥셔너 전용). 화면에서도 막지만 저장 직전에 한 번 더 확인하고 값을 다듬는다.
+  const persistHiddenMenus = (next: Section[]) => {
+    if (!currentUser || !isConnectioner(currentUser)) return;
+    const cleaned = normalizeHiddenMenus(next);
+    setHiddenMenus(cleaned);
+    void saveConfig(MENU_HIDDEN_KEY, cleaned);
   };
 
   // draft들을 dedupe 후 id 부여해 추가하고, 각 건을 전송 어댑터로 흘려보낸다.
@@ -1810,8 +1826,19 @@ export function App() {
     if (section === 'system' && currentUser && !isConnectioner(currentUser)) return 'dashboard';
     // 플랫폼 관리는 플랫폼 오너만.
     if (section === 'platform' && currentUser && !isPlatformOwner(currentUser)) return 'dashboard';
+    // 팀에서 숨긴 메뉴는 주소·딥링크·뒤로가기로도 못 들어온다(menuRules).
+    if (isSectionBlocked(section, hiddenMenus)) return 'dashboard';
     return section;
   };
+
+  /*
+    보고 있던 화면이 숨겨지면 홈으로 보낸다. 숨김 설정은 로그인 뒤에 늦게 도착하고(원격 로드),
+    커넥셔너가 도중에 바꿀 수도 있어서, 진입 판정(resolveSection)만으로는 이미 열려 있는 화면을
+    못 닫는다.
+  */
+  useEffect(() => {
+    if (isSectionBlocked(active, hiddenMenus)) setActive('dashboard');
+  }, [active, hiddenMenus]);
 
   /*
     사용자가 화면을 옮긴다 — 히스토리에 한 칸 쌓아 뒤로가기로 지금 화면에 돌아올 수 있게 한다.
@@ -2148,6 +2175,7 @@ export function App() {
     <ProfilesContext.Provider value={profileMap}>
     <AppShell
       active={active}
+      hiddenMenus={hiddenMenus}
       currentUser={currentUser}
       currentPhotoUrl={accounts.find((account) => account.email.toLowerCase() === currentUser.email.toLowerCase())?.photoUrl}
       onSavePhoto={saveMyProfilePhoto}
@@ -2186,6 +2214,7 @@ export function App() {
           onOpenFeedItem={openFeedItem}
           viewedStoryIds={viewedStoryIds}
           onIdentityChange={setIdentity}
+          hiddenMenus={hiddenMenus}
         />
       )}
       {active === 'intake' && (
@@ -2411,7 +2440,12 @@ export function App() {
       {active === 'growth' && <GrowthCard currentUser={currentUser} accounts={accounts} />}
       {active === 'accounts' && isTeamLeader(currentUser) && <AccountManagement accounts={accounts} onAccountsChange={persistAccounts} onDelete={isAdmin(currentUser) ? removeAccount : undefined} currentEmail={currentUser.email} />}
       {active === 'system' && isConnectioner(currentUser) && (
-        <SystemManagement settings={notifySettings} onSettingsChange={persistNotifySettings} />
+        <SystemManagement
+          hiddenMenus={hiddenMenus}
+          onHiddenMenusChange={persistHiddenMenus}
+          onSettingsChange={persistNotifySettings}
+          settings={notifySettings}
+        />
       )}
       {active === 'platform' && isPlatformOwner(currentUser) && (
         <PlatformConsole tenants={tenants} onCreate={handleCreateTenant} />

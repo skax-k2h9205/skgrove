@@ -1,12 +1,23 @@
-import { Bell, Hash, Settings } from 'lucide-react';
+import { Bell, Hash, LayoutList, Settings } from 'lucide-react';
 import { PanelHeader } from '../../components/PanelHeader';
+import { canHideMenu, isMenuHidden, setMenuHidden } from '../../menuRules';
+import { navGroups } from '../../navigation';
 import type { NotifyRoute, NotifySettings } from '../../notifySettingsStore';
-import type { NotificationKind } from '../../types';
+import type { NotificationKind, Section } from '../../types';
 
 type SystemManagementProps = {
   settings: NotifySettings;
   onSettingsChange: (settings: NotifySettings) => void;
+  /** 팀 전체에서 숨긴 메뉴. */
+  hiddenMenus: Section[];
+  onHiddenMenusChange: (hidden: Section[]) => void;
 };
+
+/*
+  메뉴 표시 설정에 늘어놓을 묶음. 사이드바와 같은 묶음·순서를 쓰되 플랫폼 묶음은 뺀다 —
+  플랫폼 관리는 팀 설정이 아니라 플랫폼 오너의 화면이라 여기서 다룰 대상이 아니다.
+*/
+const MENU_GROUPS = navGroups.filter((group) => group.title !== '플랫폼');
 
 const KIND_ORDER: NotificationKind[] = [
   'issue',
@@ -55,7 +66,12 @@ const ROUTE_LABELS: Record<NotifyRoute, string> = {
 };
 
 // 커넥셔너 전용 시스템 관리 화면. 알림 발송 설정을 바꾸면 저장 즉시 팀 전체에 적용된다.
-export function SystemManagement({ settings, onSettingsChange }: SystemManagementProps) {
+export function SystemManagement({
+  settings,
+  onSettingsChange,
+  hiddenMenus,
+  onHiddenMenusChange,
+}: SystemManagementProps) {
   const patch = (partial: Partial<NotifySettings>) => onSettingsChange({ ...settings, ...partial });
 
   return (
@@ -144,6 +160,62 @@ export function SystemManagement({ settings, onSettingsChange }: SystemManagemen
                   </option>
                 ))}
               </select>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/*
+        메뉴 표시 — 팀에서 안 쓰는 메뉴를 끈다. 사이드바·하단 탭·헤더 단추·홈 피드에서 빠지고
+        주소로도 못 들어온다. 데이터는 지우지 않는다. 규칙은 menuRules 한 곳이 쥔다.
+      */}
+      <section className="panel">
+        <PanelHeader icon={LayoutList} title="메뉴 표시" />
+        <p className="system-note">
+          끈 메뉴는 <b>팀 전체</b>의 사이드바와 하단 탭에서 빠지고 주소로도 들어갈 수 없습니다. 데이터는 지워지지
+          않고, 다시 켜면 그대로 돌아옵니다. 리더 관리함처럼 역할로 막힌 메뉴는 켜 두어도 해당 역할에게만 보입니다.
+        </p>
+        <div className="menu-visibility-summary">
+          <span>
+            {hiddenMenus.length === 0 ? '지금은 모든 메뉴가 보입니다.' : `숨긴 메뉴 ${hiddenMenus.length}개`}
+          </span>
+          {hiddenMenus.length > 0 && (
+            <button className="btn-ghost" onClick={() => onHiddenMenusChange([])} type="button">
+              모두 보이기
+            </button>
+          )}
+        </div>
+        <div className="menu-visibility">
+          {MENU_GROUPS.map((group) => (
+            <div className="menu-visibility-group" key={group.title}>
+              <h3>{group.title}</h3>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const hideable = canHideMenu(item.id);
+                const hidden = isMenuHidden(item.id, hiddenMenus);
+                return (
+                  <div className={hidden ? 'menu-visibility-row off' : 'menu-visibility-row'} key={item.id}>
+                    <Icon size={18} />
+                    <strong>{item.label}</strong>
+                    {hideable ? (
+                      <label className={hidden ? 'connectioner-toggle' : 'connectioner-toggle on'}>
+                        <input
+                          aria-label={`${item.label} 메뉴 보이기`}
+                          checked={!hidden}
+                          onChange={(event) =>
+                            onHiddenMenusChange(setMenuHidden(hiddenMenus, item.id, !event.target.checked))
+                          }
+                          type="checkbox"
+                        />
+                        {hidden ? '숨김' : '보임'}
+                      </label>
+                    ) : (
+                      // 홈은 돌아갈 곳, 시스템 관리는 다시 켤 화면이라 끌 수 없다.
+                      <span className="fixed">항상 보임</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>

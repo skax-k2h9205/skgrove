@@ -1,7 +1,17 @@
 import { useState, type ReactNode } from 'react';
-import { Bell, BookOpen, Camera, HeartHandshake, LogOut, MessageSquarePlus } from 'lucide-react';
+import {
+  Bell,
+  BookOpen,
+  Camera,
+  HeartHandshake,
+  LogOut,
+  MessageSquarePlus,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from 'lucide-react';
 import { hasLeaderRole, isConnectioner, isPlatformOwner, isTeamLeader } from '../auth';
-import { navGroups, sections } from '../navigation';
+import { isMenuHidden, visibleNavGroups } from '../menuRules';
+import { sections } from '../navigation';
 import type { CurrentUser, Section } from '../types';
 import { Avatar } from './Avatar';
 
@@ -29,8 +39,24 @@ function canSee(
   return true;
 }
 
+/*
+  사이드바 접기는 사람마다·기기마다 다른 취향이라 팀 공용 설정이 아니라 이 브라우저에만 둔다.
+  (메뉴 숨김은 반대로 팀 전체 설정이다 — menuRules.)
+*/
+const COLLAPSE_KEY = 'skgrove:sidebarCollapsed';
+
+function readCollapsed() {
+  try {
+    return window.localStorage.getItem(COLLAPSE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 type AppShellProps = {
   active: Section;
+  /** 팀 전체에서 숨긴 메뉴. 사이드바·하단 탭과 헤더 단추에서 함께 빠진다. */
+  hiddenMenus: Section[];
   children: ReactNode;
   currentUser: CurrentUser;
   currentPhotoUrl?: string;
@@ -42,6 +68,7 @@ type AppShellProps = {
 
 export function AppShell({
   active,
+  hiddenMenus,
   children,
   currentUser,
   currentPhotoUrl,
@@ -62,6 +89,24 @@ export function AppShell({
   const [photoOpen, setPhotoOpen] = useState(false);
   const [photoInput, setPhotoInput] = useState('');
 
+  // 사이드바 접기. 접으면 아이콘만 남는다(좁은 창에서 자동으로 되는 것과 같은 모양).
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+      } catch {
+        // 저장이 안 돼도 이번 화면에서는 접힌다.
+      }
+      return next;
+    });
+  };
+
+  const groups = visibleNavGroups(hiddenMenus, (id) =>
+    canSee(id, userCanUseLeaderMenu, userCanUseAccountsMenu, userCanUseConnectionerMenu, userCanUsePlatformMenu),
+  );
+
   const openPhotoEditor = () => {
     setPhotoInput(currentPhotoUrl ?? '');
     setPhotoOpen(true);
@@ -73,31 +118,33 @@ export function AppShell({
   };
 
   return (
-    <div className="app">
+    <div className={collapsed ? 'app nav-collapsed' : 'app'}>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
             <HeartHandshake size={24} />
           </div>
-          <div>
+          <div className="brand-text">
             <strong>SKonnection</strong>
             <span>팀을 잇는 곳</span>
           </div>
+          {/* 넓은 화면에서만 보인다. 좁으면 이미 아이콘 레일이고, 폰에서는 하단 탭이다(CSS). */}
+          <button
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? '메뉴 펼치기' : '메뉴 접기'}
+            className="nav-collapse-toggle"
+            onClick={toggleCollapsed}
+            title={collapsed ? '메뉴 펼치기' : '메뉴 접기'}
+            type="button"
+          >
+            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
         </div>
 
         <nav className="nav">
-          {navGroups.map((group) => {
-            const visible = group.items.filter((section) =>
-              canSee(
-                section.id,
-                userCanUseLeaderMenu,
-                userCanUseAccountsMenu,
-                userCanUseConnectionerMenu,
-                userCanUsePlatformMenu,
-              ),
-            );
-            // 항목이 모두 걸러진 그룹은 제목만 남는다. 그룹째 렌더하지 않는다.
-            if (visible.length === 0) return null;
+          {/* 역할로 못 보는 메뉴와 팀에서 숨긴 메뉴를 함께 거른다. 다 빠진 그룹은 오지 않는다. */}
+          {groups.map((group) => {
+            const visible = group.items;
             return (
             <div className="nav-group" key={group.title}>
               <p className="nav-group-title">{group.title}</p>
@@ -174,14 +221,17 @@ export function AppShell({
                 </div>
               )}
             </div>
-            <button
-              className={active === 'notifications' ? 'icon-button has-badge active' : 'icon-button has-badge'}
-              title="알림 / 메시지"
-              onClick={() => onSectionChange('notifications')}
-            >
-              <Bell size={19} />
-              {unreadCount > 0 && <span className="notif-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
-            </button>
+            {/* 헤더 단추도 메뉴의 또 다른 입구다. 숨긴 메뉴면 같이 뺀다 — 눌러도 못 들어가는 단추는 고장으로 읽힌다. */}
+            {!isMenuHidden('notifications', hiddenMenus) && (
+              <button
+                className={active === 'notifications' ? 'icon-button has-badge active' : 'icon-button has-badge'}
+                title="알림 / 메시지"
+                onClick={() => onSectionChange('notifications')}
+              >
+                <Bell size={19} />
+                {unreadCount > 0 && <span className="notif-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+              </button>
+            )}
             {/* 좁은 폭에서는 라벨을 감추고 아이콘만 남긴다(CSS). 감춰도 뜻이
                 전달되게 title 과 aria-label 을 함께 둔다. */}
             <button
@@ -192,15 +242,17 @@ export function AppShell({
             >
               <BookOpen size={19} />
             </button>
-            <button
-              className="primary-button intake-cta"
-              onClick={() => onSectionChange('intake')}
-              aria-label="의견 접수"
-              title="의견 접수"
-            >
-              <MessageSquarePlus size={18} />
-              <span>의견 접수</span>
-            </button>
+            {!isMenuHidden('intake', hiddenMenus) && (
+              <button
+                className="primary-button intake-cta"
+                onClick={() => onSectionChange('intake')}
+                aria-label="의견 접수"
+                title="의견 접수"
+              >
+                <MessageSquarePlus size={18} />
+                <span>의견 접수</span>
+              </button>
+            )}
             <button className="icon-button" onClick={onLogout} title="로그아웃">
               <LogOut size={19} />
             </button>
