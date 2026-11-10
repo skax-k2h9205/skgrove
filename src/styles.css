@@ -14688,6 +14688,8 @@ button.notif-row {
 
 /* 산타·루돌프·트리 히어로 배너 */
 .xmas-hero {
+  aspect-ratio: 2 / 1;
+  position: relative;
   background: linear-gradient(180deg, var(--xmas-sky), var(--xmas-cream) 62%);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -14695,30 +14697,56 @@ button.notif-row {
   overflow: hidden;
 }
 
-.xmas-hero svg {
-  display: block;
-  height: auto;
+.xmas-fallback {
+  position: absolute;
+  bottom: 0;
   width: 100%;
 }
 
-/* 전문 Lottie 에셋 컨테이너(public/xmas-scene.json 있을 때). 없으면 위 손그림 svg 가 뜬다.
-   정사각 장면이라도 와이드 배너 안에 가운데로 들어가고, 양옆은 하늘→크림 배경(눈밭)이 채운다. */
-.xmas-lottie {
-  aspect-ratio: 2 / 1;
+.xmas-lottie,
+.xmas-lottie svg,
+.xmas-sleigh {
   width: 100%;
-}
-
-.xmas-lottie svg {
-  display: block;
   height: 100%;
-  width: 100%;
 }
 
-/* 장면 애니메이션 — 산타/루돌프 들썩, 별 깜빡, 코 반짝, 눈 내림. (동작 줄이기 시 정지) */
+.xmas-sleigh {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.xh-flight { transform: translate(160px, 32px); }
+.xh-stride { transform-origin: 32px 47px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .xh-flight { animation: xh-sleigh-fly 8s linear -3.84s infinite; }
+  .xh-altitude { animation: xh-sleigh-float 8s ease-in-out -3.84s infinite; }
+  .xh-stride { animation: xh-sleigh-gallop .625s ease-in-out infinite alternate; }
+  .xh-lamp { animation: xh-sleigh-twinkle 2s ease-in-out infinite; }
+}
+
+@keyframes xh-sleigh-fly {
+  from { transform: translate(-378px, 32px); }
+  to { transform: translate(742px, 32px); }
+}
+@keyframes xh-sleigh-float {
+  0%, 50%, 100% { transform: translateY(0); }
+  25% { transform: translateY(11px); }
+  75% { transform: translateY(-11px); }
+}
+@keyframes xh-sleigh-gallop {
+  from { transform: rotate(-10deg); }
+  to { transform: rotate(10deg); }
+}
+@keyframes xh-sleigh-twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .56; }
+}
+
 .xh-santa { animation: xh-bob 3.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-.xh-rudolph { animation: xh-bob 3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.xh-snowman { animation: xh-bob 3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 .xh-star { animation: xh-twinkle 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-.xh-nose { animation: xh-glow 1.8s ease-in-out infinite; }
 .xh-flake { animation: xh-fall linear infinite; transform-box: fill-box; }
 
 @keyframes xh-bob {
@@ -14731,11 +14759,6 @@ button.notif-row {
   50% { opacity: 0.55; transform: scale(0.82); }
 }
 
-@keyframes xh-glow {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
-}
-
 @keyframes xh-fall {
   0% { transform: translateY(0); opacity: 0; }
   12% { opacity: 1; }
@@ -14743,7 +14766,7 @@ button.notif-row {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .xh-santa, .xh-rudolph, .xh-star, .xh-nose, .xh-flake, .xmas-pagesnow span { animation: none; }
+  .xh-santa, .xh-snowman, .xh-star, .xh-flake, .xmas-pagesnow span { animation: none; }
 }
 
 /* ===== 장터 QR 시트(물건별 바로가기) ===== */
