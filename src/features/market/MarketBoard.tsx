@@ -749,11 +749,11 @@ export function MarketBoard({
         <MarketCountdown closeAt={scopeEvent?.fixedCloseAt} openAt={scopeOpenAt} />
       )}
 
-{/* 공개 시각 조정 — 리더 전용. 라이브 중 공개가 늦춰지거나 당겨질 때 바꾼다. */}
+{/* 공개 시각 조정 — 커넥셔너(전권)·관리자 전용. 라이브 중 공개가 늦춰지거나 당겨질 때 바꾼다. */}
       {onSetEventOpenAt && scopeEvent && scopeOpenAt && (
         <section className="panel market-openedit">
           <label className="field-label" htmlFor="market-open-at">
-            공개 시각 조정 <em>리더</em>
+            공개 시각 조정 <em>커넥셔너</em>
           </label>
           <input
             id="market-open-at"

@@ -2336,7 +2336,11 @@ export function App() {
           now={nowStamp()}
           imagePendingIds={imagePendingIds}
           openOverrides={marketOpenOverrides}
-          onSetEventOpenAt={isAdmin(currentUser) ? setMarketEventOpenAt : undefined}
+          onSetEventOpenAt={
+            currentUser && (isConnectioner(currentUser) || isAdmin(currentUser))
+              ? setMarketEventOpenAt
+              : undefined
+          }
           onBid={(item, amount) => void placeMarketBid(item, amount)}
           onCancelItem={cancelMarketItem}
           onCreate={(draft) => void createMarketItem(draft)}
