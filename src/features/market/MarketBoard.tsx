@@ -357,10 +357,10 @@ export function MarketBoard({
         </button>
         <div className="market-locked-detail">
           <Lock size={28} />
-          <h2>아직 공개 전이에요</h2>
+          <h2>{selected.seller}님이 뭔가 내놨어요</h2>
           <p>
-            {scopeOpenAt ? `${formatStamp(scopeOpenAt)}에 공개돼요.` : '곧 공개돼요.'} 그때 사진과 내용이 함께
-            열립니다.
+            아직 공개 전이에요. {scopeOpenAt ? `${formatStamp(scopeOpenAt)}에 공개돼요.` : '곧 공개돼요.'} 그때 사진과
+            내용이 함께 열립니다.
           </p>
         </div>
       </section>
@@ -896,7 +896,7 @@ export function MarketBoard({
                   </div>
                   <figcaption className="ig-shop-meta">
                     <strong>???</strong>
-                    <span>🎁 공개 전</span>
+                    <span>{item.seller}님 · 🎁 공개 전</span>
                   </figcaption>
                 </figure>
               );
