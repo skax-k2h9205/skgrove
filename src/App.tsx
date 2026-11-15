@@ -127,7 +127,7 @@ import {
 } from './notifySettingsStore';
 import { MARKET_OPEN_KEY, MENU_HIDDEN_KEY, loadConfig, saveConfig } from './configStore';
 import { isSectionBlocked, normalizeHiddenMenus } from './menuRules';
-import { isPreOpen, type MarketOpenOverrides } from './features/market/marketEvents';
+import { isPreOpen, isRaffleGiveaway, type MarketOpenOverrides } from './features/market/marketEvents';
 import { SystemManagement } from './features/system/SystemManagement';
 import {
   loadHumorComments,
@@ -163,6 +163,7 @@ import {
 } from './marketRules';
 import {
   cacheMarketBids,
+  deleteMarketBid,
   deleteMarketBidsForItem,
   deleteMarketItemRecord,
   insertMarketBid,
@@ -715,15 +716,17 @@ export function App() {
     화면이 열릴 때 기회적으로 확인한다. dedupeKey 가 중복 발송을 막으므로
     여러 사람이 접속해도 각자 한 번씩만 받는다.
 
-    나눔은 누른 그 순간 주인이 정해지므로 여기서 다시 보지 않는다(중복 방지는
-    dedupeKey 가 하지만, 애초에 이 경로를 탈 이유가 없다).
+    선착순 나눔은 누른 그 순간 주인이 정해지므로 여기서 다시 보지 않는다. 추첨 나눔은
+    경매처럼 마감 시각에 저절로 당첨자가 정해지므로 여기서 함께 확인한다(중복은 dedupeKey 가 막는다).
   */
   useEffect(() => {
     if (!notificationsReady) return;
     const stamp = nowStamp();
     const drafts: NotificationDraft[] = [];
     marketItems.forEach((item) => {
-      if (item.kind !== 'auction') return;
+      // 경매와 추첨 나눔만 — 둘 다 "마감 시각이 지나면 저절로" 당첨자가 정해져 아무도 쏴주지
+      // 않는다. 선착순 나눔은 누른 즉시 placeMarketBid 가 쏘므로 여기서 다시 보지 않는다.
+      if (item.kind !== 'auction' && !isRaffleGiveaway(item)) return;
       if (deriveMarketStatus(item, marketBids, stamp) !== '거래완료') return;
       const won = leadingBid(item, marketBids);
       if (won) drafts.push(...marketWonDrafts(item, won.name, today()));
@@ -1673,6 +1676,9 @@ export function App() {
     // 화면이 오래 열려 있었을 수 있다. 저장 직전에 규칙으로 한 번 더 막는다.
     if (bidBlockedReason(item, marketBids, now, currentUser.name)) return;
     if (item.kind === 'auction' && amount < minNextBid(item, marketBids)) return;
+    // 나눔은 1인 1신청. 추첨 나눔은 마감 전 중복 신청을 bidBlockedReason 이 막지 않으므로(취소는
+    // 허용해야 하니까) 여기서 중복 insert 를 거른다. 선착순 나눔은 이미 위에서 막혔다.
+    if (item.kind === 'giveaway' && marketBids.some((b) => b.itemId === item.id && b.name === currentUser.name)) return;
 
     const bid: MarketBid = {
       id: `BID-${Date.now().toString(36).toUpperCase()}`,
@@ -1703,10 +1709,30 @@ export function App() {
       if (before && before.name !== currentUser.name) {
         notify(marketOutbidDrafts(item, [before], today()));
       }
-    } else {
-      // 나눔은 그 자리에서 주인이 정해진다. 마감을 기다릴 이유가 없다.
+    } else if (!isRaffleGiveaway(item)) {
+      // 선착순 나눔은 그 자리에서 주인이 정해진다. 마감을 기다릴 이유가 없다.
+      // (추첨 나눔은 마감 후에야 당첨자가 정해지므로 지금 알리지 않는다 — 마감 뒤 알림 효과가 쏜다.)
       notify(marketWonDrafts(item, currentUser.name, today()));
     }
+  };
+
+  /*
+    추첨 나눔 신청 취소. 마감 전, 내가 넣은 신청을 무른다. 경매 입찰은 취소 불가,
+    선착순 나눔은 받는 즉시 끝나 취소 개념이 없으므로, 추첨 나눔에서만 쓴다.
+    DB 삭제가 성공해야 화면에서도 지운다.
+  */
+  const withdrawMarketBid = async (item: MarketItem) => {
+    if (!currentUser) return;
+    if (!isRaffleGiveaway(item)) return;
+    // 마감 뒤에는 무를 수 없다(이미 추첨 대상이 고정됐다).
+    if (deriveMarketStatus(item, marketBids, nowStamp()) !== '거래중') return;
+    const mine = marketBids.find((bid) => bid.itemId === item.id && bid.name === currentUser.name);
+    if (!mine) return;
+    const ok = await deleteMarketBid(mine.id);
+    if (!ok) return;
+    const nextBids = marketBids.filter((bid) => bid.id !== mine.id);
+    setMarketBids(nextBids);
+    cacheMarketBids(nextBids);
   };
 
   const persistMarketComments = (next: MarketComment[]) => {
@@ -2371,6 +2397,7 @@ export function App() {
               : undefined
           }
           onBid={(item, amount) => void placeMarketBid(item, amount)}
+          onWithdrawBid={(item) => void withdrawMarketBid(item)}
           onCancelItem={cancelMarketItem}
           onCreate={(draft) => void createMarketItem(draft)}
           onUpdate={(item, draft) => void updateMarketItem(item, draft)}

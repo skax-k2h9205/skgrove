@@ -1,4 +1,5 @@
 import type { MarketBid, MarketItem, MarketStatus } from './types';
+import { isRaffleGiveaway } from './features/market/marketEvents';
 
 /*
   이음장터의 규칙. 화면과 저장소 어디에도 이 계산을 복사하지 않는다.
@@ -26,15 +27,73 @@ export function bidsFor(itemId: string, all: MarketBid[]) {
   return sortBids(all.filter((bid) => bid.itemId === itemId));
 }
 
+/* ===== 추첨 나눔 =====
+   캔미팅 같은 행사의 나눔은 '선착순'이 아니라 마감 후 '무작위 1명 추첨'이다(marketEvents.giveawayRaffle).
+
+   선착순과 같은 설계 원칙을 지킨다 — **당첨자를 저장하지 않는다.** 서버에 "당첨" 플래그를
+   박아 두면 마감 시각에 그걸 뽑아 줄 사람이 필요한데, 아무도 접속 안 하는 시간이 반드시 있다.
+   대신 신청 목록에서 **결정적으로(seeded)** 계산한다 — 모든 클라이언트가 같은 신청 목록을 보면
+   같은 당첨자를 얻는다. 추첨기(Math.random)는 쓸 수 없다(기기마다 달라진다).
+
+   1인 1표. 같은 사람이 여러 번 눌러도(중복 레코드가 있어도) 한 표로 묶는다. */
+
+/** 외부 의존성 없는 결정적 해시(djb2). 같은 문자열이면 어떤 기기에서도 같은 부호 없는 32비트 정수. */
+function djb2(input: string): number {
+  let hash = 5381;
+  for (let index = 0; index < input.length; index += 1) {
+    // hash * 33 + charCode. '| 0' 로 32비트 정수에 가둬 기기·엔진 차이를 없앤다.
+    hash = (((hash << 5) + hash) + input.charCodeAt(index)) | 0;
+  }
+  return hash >>> 0; // 부호 없는 32비트
+}
+
+/** 이 물건의 신청자(1인 1표). 같은 이름의 중복 신청은 가장 이른 것 하나로 묶는다. */
+export function raffleEntrants(item: MarketItem, bids: MarketBid[]): MarketBid[] {
+  const seen = new Set<string>();
+  const entrants: MarketBid[] = [];
+  for (const bid of bidsFor(item.id, bids)) {
+    if (seen.has(bid.name)) continue;
+    seen.add(bid.name);
+    entrants.push(bid);
+  }
+  return entrants;
+}
+
 /*
-  이 물건을 가져갈 사람. 경매는 최고가, 나눔은 선착순.
+  당첨자를 결정적으로 고른다(시각과 무관한 순수 계산). seed 는 물건 id 와 신청자 이름들을
+  이어 붙인 값의 해시라, 신청자 구성이 그대로면 몇 번을 돌려도 같은 사람이 나온다.
+  신청자가 한 명 더 들어오면 seed 가 바뀌어 당첨자도 바뀔 수 있는데, 이는 마감 전까지의
+  일이고 마감 뒤 목록은 고정되므로 결과도 고정된다.
+*/
+function rafflePick(item: MarketItem, bids: MarketBid[]): MarketBid | null {
+  const entrants = raffleEntrants(item, bids);
+  if (entrants.length === 0) return null;
+  // 구분자(\u0000)로 이어 붙여 '이관'+'국' 과 '이'+'관국' 이 같은 seed 가 되는 충돌을 막는다.
+  const seed = djb2(`${item.id}\u0000${entrants.map((bid) => bid.name).join('\u0000')}`);
+  return entrants[seed % entrants.length];
+}
+
+/*
+  추첨 당첨자(공개용). 마감 전에는 아직 아무도 아니다 — 돌려보기 전에 당첨자를 보이면
+  추첨의 뜻이 없다. 마감 뒤 신청자 0명이면 유찰(null), 1명 이상이면 결정적으로 뽑힌 한 명.
+*/
+export function raffleWinner(item: MarketItem, bids: MarketBid[], now: string): MarketBid | null {
+  if (now < effectiveCloseAt(item)) return null;
+  return rafflePick(item, bids);
+}
+
+/*
+  이 물건을 가져갈 사람. 경매는 최고가, 나눔은 선착순 — 단 '추첨 나눔'이면 결정적으로 뽑힌 한 명.
   동액이면 **먼저 부른 사람**이 이긴다 — 나중 사람이 같은 값으로 가로채면
   먼저 부른 사람 입장에서는 규칙이 없는 것과 같다.
+
+  추첨 나눔의 '뽑힌 사람'은 시각과 무관한 결정적 값이다(rafflePick). 마감 전에 당첨자를
+  내보이지 않는 시각 제어는 deriveStatus·winner 가 하고, 여기서는 "누가 뽑히는가"만 본다.
 */
 export function leadingBid(item: MarketItem, bids: MarketBid[]): MarketBid | null {
   const ordered = bidsFor(item.id, bids);
   if (ordered.length === 0) return null;
-  if (item.kind === 'giveaway') return ordered[0];
+  if (item.kind === 'giveaway') return isRaffleGiveaway(item) ? rafflePick(item, bids) : ordered[0];
   return ordered.reduce((top, bid) => (bid.amount > top.amount ? bid : top), ordered[0]);
 }
 
@@ -93,10 +152,11 @@ export function extendedCloseFor(item: MarketItem, now: string): string | null {
 */
 export function deriveStatus(item: MarketItem, bids: MarketBid[], now: string): MarketStatus {
   if (item.canceled) return '취소';
-  // 나눔은 선착순이라 먼저 받은 사람이 나오는 순간 끝난다. 마감은 아무도 안 받았을 때
-  // 유찰로 넘기는 데만 쓴다 — 경매처럼 마감까지 기다리게 하면 이미 임자가 정해졌는데도
-  // '거래중'으로 남는다.
-  if (item.kind === 'giveaway' && leadingBid(item, bids)) return '거래완료';
+  // 선착순 나눔은 먼저 받은 사람이 나오는 순간 끝난다. 마감은 아무도 안 받았을 때 유찰로
+  // 넘기는 데만 쓴다 — 경매처럼 마감까지 기다리게 하면 이미 임자가 정해졌는데도 '거래중'으로 남는다.
+  // 단 '추첨 나눔'은 반대다: 신청이 들어와도 마감 전까지는 당첨자가 없으므로(경매처럼) 마감을
+  // 기다려야 한다. 그래서 선착순일 때만 이 이른-완료 분기를 탄다.
+  if (item.kind === 'giveaway' && !isRaffleGiveaway(item) && leadingBid(item, bids)) return '거래완료';
   if (now < effectiveCloseAt(item)) return '거래중';
   return leadingBid(item, bids) ? '거래완료' : '유찰';
 }
@@ -132,7 +192,15 @@ export function bidBlockedReason(
   if (status === '취소') return '판매자가 거래를 취소했어요.';
   if (item.seller === name) return '내가 올린 물건이에요.';
 
-  // 나눔은 누군가 받으면 끝난다. 받은 사람이 나인지 남인지 구분해서 알린다.
+  // 추첨 나눔: 선착순과 달리 "먼저 받은 사람"이 없다. 마감 전이면 누구나 신청할 수 있고
+  // (이미 신청했으면 화면이 버튼을 '취소'로 바꾼다 — 그건 막는 게 아니다), 마감 뒤에는
+  // 신청을 닫는다. '이미 다른 분이 가져갔어요'로 막지 않는다.
+  if (item.kind === 'giveaway' && isRaffleGiveaway(item)) {
+    if (status !== '거래중') return '추첨 신청이 마감됐어요.';
+    return null;
+  }
+
+  // 선착순 나눔은 누군가 받으면 끝난다. 받은 사람이 나인지 남인지 구분해서 알린다.
   // (예전엔 '남이 가져감' 검사가 내 신청까지 잡아, 정작 내가 받았는데도 "다른 분이
   //  가져갔어요"가 떴다. 본인 검사가 그 뒤라 영영 닿지 않았다.)
   if (item.kind === 'giveaway') {

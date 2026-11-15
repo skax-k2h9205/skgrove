@@ -14,6 +14,8 @@ import {
   priceChange,
   priceHistory,
   publicTitle,
+  raffleEntrants,
+  raffleWinner,
   recentBids,
   rankBigSpenders,
   rankBuyers,
@@ -365,6 +367,94 @@ describe('랜덤박스', () => {
     expect(canRevealMystery(box(), bids, AFTER, false)).toBe(false);
     expect(canRevealMystery(box({ revealedAt: '2026-08-07T09:10' }), bids, AFTER, true)).toBe(false);
     expect(canRevealMystery(auction(), bids, AFTER, true)).toBe(false); // 랜덤박스가 아니다
+  });
+});
+
+/*
+  추첨 나눔 — 캔미팅 행사(giveawayRaffle)의 0원 물건. 당첨자를 저장하지 않고 신청 목록에서
+  결정적으로 계산한다. 모든 클라이언트가 같은 신청 목록을 보면 같은 당첨자를 얻어야 한다.
+*/
+describe('추첨 나눔(raffleWinner)', () => {
+  // eventTag 가 추첨 행사(canmeeting-2026)를 가리키고 kind 가 나눔이어야 추첨이다.
+  const raffle = (patch: Partial<MarketItem> = {}): MarketItem =>
+    giveaway({ id: 'MKT-R', eventTag: 'canmeeting-2026', closeAt: '2026-08-05T11:00', ...patch });
+  const BEFORE = '2026-08-05T10:00'; // 마감 전
+  const AFTER = '2026-08-05T12:00'; // 마감(11:00) 뒤
+
+  const applicant = (name: string, at: string): MarketBid =>
+    bid({ id: `R-${name}`, itemId: 'MKT-R', name, amount: 0, createdAt: at });
+
+  const five: MarketBid[] = [
+    applicant('가나', '2026-08-05T09:00:00.000Z'),
+    applicant('다라', '2026-08-05T09:01:00.000Z'),
+    applicant('마바', '2026-08-05T09:02:00.000Z'),
+    applicant('사아', '2026-08-05T09:03:00.000Z'),
+    applicant('자차', '2026-08-05T09:04:00.000Z'),
+  ];
+
+  it('(a) 같은 신청 목록이면 몇 번을 돌려도 같은 당첨자다(결정성)', () => {
+    const a = raffleWinner(raffle(), five, AFTER);
+    const b = raffleWinner(raffle(), [...five].reverse(), AFTER); // 순서를 섞어도(정렬이 고정)
+    expect(a?.name).toBeDefined();
+    expect(a?.name).toBe(b?.name);
+    // 당첨자는 신청자 중 한 명이다.
+    expect(five.some((entry) => entry.name === a?.name)).toBe(true);
+  });
+
+  it('(b) 마감 전에는 당첨자가 없다(대기)', () => {
+    expect(raffleWinner(raffle(), five, BEFORE)).toBeNull();
+    // 마감 전 추첨 나눔은 신청이 있어도 거래중이다(선착순처럼 즉시 끝나지 않는다).
+    expect(deriveStatus(raffle(), five, BEFORE)).toBe('거래중');
+  });
+
+  it('(c) 아무도 신청하지 않고 마감되면 유찰(당첨자 없음)', () => {
+    expect(raffleWinner(raffle(), [], AFTER)).toBeNull();
+    expect(deriveStatus(raffle(), [], AFTER)).toBe('유찰');
+  });
+
+  it('(d) 같은 사람의 중복 신청은 한 표로 묶인다', () => {
+    const dupes: MarketBid[] = [
+      applicant('가나', '2026-08-05T09:00:00.000Z'),
+      applicant('가나', '2026-08-05T09:05:00.000Z'), // 같은 사람 또 신청
+      applicant('다라', '2026-08-05T09:02:00.000Z'),
+    ];
+    expect(raffleEntrants(raffle(), dupes).map((entry) => entry.name)).toEqual(['가나', '다라']);
+    // 두 명뿐이므로 당첨자는 반드시 가나 또는 다라.
+    const won = raffleWinner(raffle(), dupes, AFTER);
+    expect(['가나', '다라']).toContain(won?.name);
+  });
+
+  it('마감 뒤 신청 ≥1 이면 거래완료 + 당첨자가 정해진다', () => {
+    expect(deriveStatus(raffle(), five, AFTER)).toBe('거래완료');
+    const won = winner(raffle(), five, AFTER);
+    expect(won?.name).toBe(raffleWinner(raffle(), five, AFTER)?.name);
+  });
+
+  it('신청은 마감 전까지 누구나 — "이미 다른 분이 가져갔어요"로 막지 않는다', () => {
+    const taken = [applicant('가나', '2026-08-05T09:00:00.000Z')];
+    // 선착순이라면 남이 가져가 막혔겠지만, 추첨은 마감 전이면 계속 신청받는다.
+    expect(bidBlockedReason(raffle(), taken, BEFORE, '다라')).toBeNull();
+    // 마감 뒤에는 신청을 닫는다.
+    expect(bidBlockedReason(raffle(), taken, AFTER, '다라')).toBe('추첨 신청이 마감됐어요.');
+  });
+
+  it('(e) 여러 물건에 걸쳐 대략 균등하게 뽑힌다(한쪽 쏠림 없음)', () => {
+    const names = ['가나', '다라', '마바', '사아', '자차'];
+    const counts = new Map<string, number>(names.map((name) => [name, 0]));
+    const ROUNDS = 600;
+    for (let i = 0; i < ROUNDS; i += 1) {
+      const item = raffle({ id: `MKT-R-${i}` });
+      const bids = names.map((name, j) => applicant(name, `2026-08-05T09:0${j}:00.000Z`)).map((b) => ({ ...b, itemId: item.id }));
+      const won = raffleWinner(item, bids, AFTER);
+      counts.set(won!.name, (counts.get(won!.name) ?? 0) + 1);
+    }
+    const expected = ROUNDS / names.length; // 120
+    for (const name of names) {
+      const got = counts.get(name) ?? 0;
+      // 완전 균등은 아니지만 어느 한 명이 절반 이하~두 배 이상으로 쏠리지 않아야 한다.
+      expect(got).toBeGreaterThan(expected * 0.5);
+      expect(got).toBeLessThan(expected * 1.5);
+    }
   });
 });
 
