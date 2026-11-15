@@ -89,15 +89,24 @@ export function GiveawayRaffleReveal({ item, entrants, winner, onClose }: Giveaw
 
   const done = phase === 'done';
 
+  // 셔플 effect 의 안정적인 의존성. 부모(MarketBoard)는 매 렌더 `entrants.map(..)` 로 새 배열을
+  // 넘기므로 배열 자체를 의존성에 두면 부모가 한 번만 리렌더해도(실시간 이벤트 등) effect 가
+  // cleanup→재실행되어 셔플 타이머가 리셋된다. 이름들을 이어 붙인 '문자열'에만 의존해,
+  // 신청자 구성이 실제로 바뀔 때만 다시 돈다.
+  const entrantsKey = entrants.join('\u0000');
+
   /*
     셔플. 이름을 번갈아 띄우되 머무는 시간을 점점 늘려(감속) 당첨자에서 멈춘다.
     setInterval 이 아니라 setTimeout 재귀로 매번 간격을 키운다 — ease-out 곡선으로 늘려야
     "빠르게 돌다 스르르 멎는" 느낌이 난다. 경과 비율(progress)의 제곱이 간격을 정한다.
   */
   useEffect(() => {
-    if (reduced || !winner || entrants.length === 0) return undefined;
+    // 의존성과 같은 소스(entrantsKey)에서 이름 목록을 복원해 신원 불일치를 없앤다.
+    // 빈 문자열을 split 하면 [''](length 1)이 되므로 빈 배열로 따로 처리한다.
+    const names = entrantsKey ? entrantsKey.split('\u0000') : [];
+    if (reduced || !winner || names.length === 0) return undefined;
     const start = performance.now();
-    let index = Math.floor(Math.random() * entrants.length);
+    let index = Math.floor(Math.random() * names.length);
     let timer = 0;
 
     const tick = () => {
@@ -108,15 +117,15 @@ export function GiveawayRaffleReveal({ item, entrants, winner, onClose }: Giveaw
         setPhase('done');
         return;
       }
-      index = (index + 1) % entrants.length;
-      setFlashName(entrants[index]);
+      index = (index + 1) % names.length;
+      setFlashName(names[index]);
       // ease-out: 끝으로 갈수록 간격이 MAX_STEP 에 가까워진다.
       const step = MIN_STEP + (MAX_STEP - MIN_STEP) * (progress * progress);
       timer = window.setTimeout(tick, step);
     };
     timer = window.setTimeout(tick, MIN_STEP);
     return () => window.clearTimeout(timer);
-  }, [reduced, winner, entrants]);
+  }, [reduced, winner, entrantsKey]);
 
   // Esc 로 닫기 + 뒤 화면 스크롤 잠금(랜덤박스 무대와 같은 처리).
   useEffect(() => {
