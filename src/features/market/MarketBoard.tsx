@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Ban,
   Check,
+  Dices,
   Gavel,
   Gift,
   Hourglass,
@@ -41,6 +42,7 @@ import {
   minNextBid,
   myBid,
   publicTitle,
+  raffleEntrants,
   rankBigSpenders,
   rankBuyers,
   rankGivers,
@@ -57,9 +59,11 @@ import { MarketCountdown } from './MarketCountdown';
 import { MarketXmasScene } from './MarketXmasScene';
 import { QrSheet } from './QrSheet';
 import { RandomBoxReveal } from './RandomBoxReveal';
+import { GiveawayRaffleReveal } from './GiveawayRaffleReveal';
 import {
   MARKET_EVENTS,
   isPreOpen,
+  isRaffleGiveaway,
   marketEvent,
   marketOpenAt,
   type MarketOpenOverrides,
@@ -97,6 +101,8 @@ type MarketBoardProps = {
   onCreate: (draft: MarketDraft) => void;
   onUpdate: (item: MarketItem, draft: MarketDraft) => void;
   onBid: (item: MarketItem, amount: number) => void;
+  /** 추첨 나눔 신청 취소(마감 전, 본인 신청). 선착순 나눔·경매에는 쓰지 않는다. */
+  onWithdrawBid: (item: MarketItem) => void;
   onCancelItem: (item: MarketItem) => void;
   onMarkDone: (item: MarketItem) => void;
   /** 팀리더 권한. 남의 물건도 삭제할 수 있다. */
@@ -140,7 +146,8 @@ function gridBadge(item: MarketItem, status: MarketStatus): { text: string; tone
   if (status === '거래완료') return { text: '거래완료', tone: 'muted' };
   if (status === '유찰') return { text: '유찰', tone: 'muted' };
   if (status === '취소') return { text: '취소됨', tone: 'muted' };
-  return item.kind === 'giveaway' ? { text: '나눔', tone: 'clay' } : { text: '경매', tone: 'moss' };
+  if (item.kind === 'giveaway') return { text: isRaffleGiveaway(item) ? '추첨 나눔' : '나눔', tone: 'clay' };
+  return { text: '경매', tone: 'moss' };
 }
 
 export function MarketBoard({
@@ -159,6 +166,7 @@ export function MarketBoard({
   onCreate,
   onUpdate,
   onBid,
+  onWithdrawBid,
   onCancelItem,
   onMarkDone,
   canModerate,
@@ -196,6 +204,8 @@ export function MarketBoard({
   const [zoomed, setZoomed] = useState(false);
   // 랜덤박스 열기 연출을 띄우는 중인가. 처음 열 때와 '다시 보기' 둘 다 이걸 켠다.
   const [revealing, setRevealing] = useState(false);
+  // 추첨 나눔 결과 연출(두구두구→당첨자)을 띄우는 중인가. 당첨자는 규칙이 이미 정해 놓았다.
+  const [raffling, setRaffling] = useState(false);
 
   // 현재 탭(상시/행사)에 속한 물건만. 명예의 전당·격자 모두 이 범위 안에서 센다.
   const scopedItems = items.filter((item) => (item.eventTag ?? '') === scope);
@@ -244,6 +254,7 @@ export function MarketBoard({
   const openDetail = (id: string, fromFeed = false) => {
     setZoomed(false); // 앞 물건의 확대가 남아 있으면 안 된다
     setRevealing(false);
+    setRaffling(false);
     showDetail(id, fromFeed);
     /* 홈 피드에서 바로 연 상세는 쌓지 않는다. 그 경우 '뒤로'의 목적지가 홈인데,
        홈은 이미 한 칸 아래에 있어서 더 쌓으면 뒤로가기를 두 번 눌러야 한다. */
@@ -388,6 +399,12 @@ export function MarketBoard({
       setRevealing(true);
     };
 
+    // 추첨 나눔 — 선착순이 아니라 마감 후 무작위 1명. 신청자(1인 1표)·당첨자는 규칙이 계산한다.
+    const isRaffle = isRaffleGiveaway(selected);
+    const entrants = isRaffle ? raffleEntrants(selected, bids) : [];
+    // 신청/추첨 로스터에서 '뽑힌 사람'을 강조할 id. 추첨은 마감 전엔 아무도 강조하지 않는다(won=null).
+    const rosterTopId = isRaffle ? won?.id : top?.id;
+
     const placeBid = () => {
       if (selected.kind === 'giveaway') {
         onBid(selected, 0);
@@ -426,6 +443,15 @@ export function MarketBoard({
 
           {revealing && (
             <RandomBoxReveal item={selected} onClose={() => setRevealing(false)} winner={won?.name} />
+          )}
+
+          {raffling && (
+            <GiveawayRaffleReveal
+              entrants={entrants.map((entry) => entry.name)}
+              item={selected}
+              onClose={() => setRaffling(false)}
+              winner={won?.name}
+            />
           )}
 
           <div className="gathering-detail-body">
@@ -471,7 +497,11 @@ export function MarketBoard({
                 {selected.kind === 'giveaway' ? '나눔' : status === '거래중' ? '현재가' : '낙찰가'}
               </span>
               <strong className="market-price-amount">
-                {selected.kind === 'giveaway' ? '선착순' : formatPrice(currentPrice(selected, bids))}
+                {selected.kind === 'giveaway'
+                  ? isRaffle
+                    ? '🎲 추첨'
+                    : '선착순'
+                  : formatPrice(currentPrice(selected, bids))}
                 {selected.kind === 'auction' && selected.startPrice > 0 && (
                   <small> 시작가 {formatPrice(selected.startPrice)}</small>
                 )}
@@ -481,6 +511,26 @@ export function MarketBoard({
               </span>
             </div>
 
+            {/* 추첨 나눔 현황/결과 — 마감 전엔 신청 인원, 마감 뒤엔 '두구두구' 결과 보기. */}
+            {isRaffle && status === '거래중' && (
+              <p className="field-note market-raffle-note">
+                <Dices size={14} /> {entrants.length}명이 신청했어요 · 마감 후 무작위로 한 분을 추첨해요.
+              </p>
+            )}
+            {isRaffle && status === '거래완료' && (
+              <button
+                className="primary-button market-reveal-button"
+                onClick={() => setRaffling(true)}
+                type="button"
+              >
+                <Dices size={18} />
+                추첨 결과 보기
+              </button>
+            )}
+            {isRaffle && status === '유찰' && (
+              <p className="field-note">아무도 신청하지 않아 유찰됐어요.</p>
+            )}
+
             <dl className="gathering-facts">
               <div>
                 <dt>
@@ -488,11 +538,13 @@ export function MarketBoard({
                   방식
                 </dt>
                 <dd>
-                  {selected.kind === 'giveaway' ? '나눔' : selected.mystery ? '랜덤박스 경매' : '경매'}
+                  {selected.kind === 'giveaway' ? (isRaffle ? '나눔(추첨)' : '나눔') : selected.mystery ? '랜덤박스 경매' : '경매'}
                   <em>
                     {' · '}
                     {selected.kind === 'giveaway'
-                      ? '먼저 누른 분이 가져감'
+                      ? isRaffle
+                        ? '마감 후 무작위 1명 추첨'
+                        : '먼저 누른 분이 가져감'
                       : selected.mystery
                         ? '최고가 낙찰 · 내용물은 낙찰 뒤 공개'
                         : '최고가 낙찰'}
@@ -529,6 +581,19 @@ export function MarketBoard({
             <div className="gathering-actions">
               {blocked ? (
                 <span className="seat-badge closed">{blocked}</span>
+              ) : selected.kind === 'giveaway' && isRaffle ? (
+                // 추첨 나눔: 마감 전엔 신청/취소가 자유롭다. 이미 신청했으면 '취소'로 바꾼다.
+                mine ? (
+                  <button className="btn-ghost" onClick={() => onWithdrawBid(selected)} type="button">
+                    <Check size={16} />
+                    신청됨 · 취소
+                  </button>
+                ) : (
+                  <button className="primary-button" onClick={placeBid} type="button">
+                    <Gift size={16} />
+                    나눔 신청하기
+                  </button>
+                )
               ) : selected.kind === 'giveaway' ? (
                 <button className="primary-button" onClick={placeBid} type="button">
                   <Gift size={16} />
@@ -639,12 +704,14 @@ export function MarketBoard({
             <div className="roster">
               <p className="roster-title">
                 {selected.kind === 'giveaway' ? '신청' : '입찰'} {bidCount(selected, bids)}건
-                {won && <span> · 가져간 분 {won.name}</span>}
+                {won && <span> · {isRaffle ? '당첨' : '가져간 분'} {won.name}</span>}
               </p>
               {itemBids.length === 0 ? (
                 <p className="field-note">
                   {selected.kind === 'giveaway'
-                    ? '아직 아무도 신청하지 않았어요. 먼저 누르면 가져갑니다.'
+                    ? isRaffle
+                      ? '아직 아무도 신청하지 않았어요. 신청하면 마감 후 추첨 대상이 됩니다.'
+                      : '아직 아무도 신청하지 않았어요. 먼저 누르면 가져갑니다.'
                     : '아직 아무도 부르지 않았어요. 시작가부터 부를 수 있습니다.'}
                 </p>
               ) : (
@@ -653,7 +720,7 @@ export function MarketBoard({
                     ? itemBids
                     : [...itemBids].sort((a, b) => b.amount - a.amount || a.createdAt.localeCompare(b.createdAt))
                   ).map((entry, index) => (
-                    <li className={entry.id === top?.id ? '' : 'waiting'} key={entry.id}>
+                    <li className={entry.id === rosterTopId ? '' : 'waiting'} key={entry.id}>
                       <span className="roster-no">{index + 1}</span>
                       {entry.name}
                       {selected.kind === 'auction' && <em className="market-bid-amount">{formatPrice(entry.amount)}</em>}
@@ -929,7 +996,13 @@ export function MarketBoard({
                   <span>
                     {minePreOpen
                       ? '🔒 나만 보임 · 공개 전'
-                      : `${item.kind === 'auction' ? `입찰 ${count}` : '바로 나눔'}${open && left ? ` · ${left}` : ''}`}
+                      : `${
+                          item.kind === 'auction'
+                            ? `입찰 ${count}`
+                            : isRaffleGiveaway(item)
+                              ? `추첨 대기 ${count}명`
+                              : '바로 나눔'
+                        }${open && left ? ` · ${left}` : ''}`}
                   </span>
                 </figcaption>
               </figure>

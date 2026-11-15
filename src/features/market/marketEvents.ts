@@ -1,3 +1,5 @@
+import type { MarketItem } from '../../types';
+
 // 이음장터 '행사 벼룩시장' 정의.
 //
 // 평소 이음장터는 상시 장터 하나다. 캔미팅 같은 특정 행사 때만 그날의 물건을
@@ -35,6 +37,10 @@ export type MarketEvent = {
   /** true 면 '나눔왕'(성사된 나눔이 가장 많은 사람)을 시상하는 행사 — 그 안내 패널을 띄우고
    *  명예의 전당 나눔왕에 시상 표시를 단다. (경매 판매금은 판매자 본인 소유, 팀 모금 아님) */
   giverAward?: boolean;
+  /** true 면 이 이벤트의 나눔은 선착순이 아니라 마감 후 무작위 1명 추첨이다.
+   *  (상시 장터·다른 이벤트의 나눔은 그대로 선착순 — 먼저 누른 사람이 가져감)
+   *  당첨자는 저장하지 않고 신청 목록에서 결정적으로 계산한다([[marketRules]].raffleWinner). */
+  giveawayRaffle?: boolean;
 };
 
 export const MARKET_EVENTS: MarketEvent[] = [
@@ -47,6 +53,7 @@ export const MARKET_EVENTS: MarketEvent[] = [
     openAt: '2026-11-30T12:00',
     xmas: true,
     giverAward: true, // 나눔왕(성사된 나눔 최다) 시상
+    giveawayRaffle: true, // 나눔은 선착순이 아니라 마감(12:50) 후 무작위 1명 추첨
   },
 ];
 
@@ -74,4 +81,13 @@ export function marketEvent(tag?: string): MarketEvent | undefined {
 /** 지금 등록 가능한(active) 행사들. 등록 폼의 '행사' 선택지에 쓴다. */
 export function activeMarketEvents(): MarketEvent[] {
   return MARKET_EVENTS.filter((event) => event.active);
+}
+
+/*
+  이 물건이 '추첨 나눔'인가 — 나눔(0원)이면서, 그 물건이 속한 행사가 giveawayRaffle 를 켠 경우.
+  "선착순 vs 추첨"의 판단을 여기 한 곳에 모은다. 규칙(marketRules)과 화면(MarketBoard)이
+  같은 답을 봐야 하므로 둘 다 이 함수를 거친다. 상시 장터·추첨 아닌 행사의 나눔은 false → 선착순.
+*/
+export function isRaffleGiveaway(item: Pick<MarketItem, 'kind' | 'eventTag'>): boolean {
+  return item.kind === 'giveaway' && Boolean(marketEvent(item.eventTag)?.giveawayRaffle);
 }

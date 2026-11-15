@@ -212,6 +212,21 @@ export async function insertMarketBid(bid: MarketBid): Promise<boolean> {
   return true;
 }
 
+/*
+  입찰(신청) 한 건만 지운다. 추첨 나눔에서 마감 전 '신청 취소'에 쓴다 — 경매 입찰은
+  취소할 수 없고, 선착순 나눔은 받는 즉시 끝나 취소 개념이 없다. insert 와 같은 규약으로
+  DB 삭제가 실패하면 화면에서도 지우지 않는다("취소됐다는데 목록엔 남은" 상태 방지).
+*/
+export async function deleteMarketBid(id: string): Promise<boolean> {
+  if (!supabase) return true;
+  const { error } = await supabase.from(BIDS_TABLE).delete().eq('id', id);
+  if (error) {
+    console.warn('Supabase market bid delete failed.', error);
+    return false;
+  }
+  return true;
+}
+
 // ── 게시글 댓글 (유머 댓글과 동일 규약) ──
 function commentFromRow(row: CommentRow): MarketComment {
   return {
