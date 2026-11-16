@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 
 /*
   행사 공개/마감 카운트다운(슬림 한 줄). 배너를 늘리지 않으려 작은 pill 로 둔다.
-  - 공개 전: "공개까지 N일 HH:MM:SS"
-  - 공개~마감: "마감까지 HH:MM:SS" (마감 10분 전부터는 긴급 색)
+  - 오픈 전: "오픈까지 N일 HH:MM:SS" (물건은 이미 보이고, 입찰·신청만 오픈 후 열린다)
+  - 오픈~마감: "마감까지 HH:MM:SS" (마감 10분 전부터는 긴급 색)
   - 마감 후: "마감되었어요"
   openAt/closeAt 은 'YYYY-MM-DDTHH:mm' 로컬 — 초 단위로 직접 틱한다(App 의 now 는 초단위가 아니라서).
 */
@@ -31,12 +31,12 @@ export function MarketCountdown({ openAt, closeAt }: { openAt?: string; closeAt?
   const open = parse(openAt);
   const close = parse(closeAt);
 
-  // 공개 전 → 공개까지. 공개~마감 → 마감까지. 그 뒤 → 마감됨.
+  // 오픈 전 → 오픈까지. 오픈~마감 → 마감까지. 그 뒤 → 마감됨.
   if (!Number.isNaN(open) && nowMs < open) {
     return (
       <div className="market-countdown">
         <span className="cd-ico" aria-hidden="true">🎁</span>
-        <span className="cd-label">공개까지</span>
+        <span className="cd-label">오픈까지</span>
         <span className="cd-time">{fmt(open - nowMs)}</span>
       </div>
     );

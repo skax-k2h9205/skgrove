@@ -1,5 +1,5 @@
 import type { MarketBid, MarketItem, MarketStatus } from './types';
-import { isRaffleGiveaway } from './features/market/marketEvents';
+import { isPreOpen, isRaffleGiveaway, marketOpenAt, type MarketOpenOverrides } from './features/market/marketEvents';
 
 /*
   이음장터의 규칙. 화면과 저장소 어디에도 이 계산을 복사하지 않는다.
@@ -187,10 +187,21 @@ export function bidBlockedReason(
   bids: MarketBid[],
   now: string,
   name: string,
+  openOverrides?: MarketOpenOverrides,
 ): string | null {
   const status = deriveStatus(item, bids, now);
   if (status === '취소') return '판매자가 거래를 취소했어요.';
   if (item.seller === name) return '내가 올린 물건이에요.';
+
+  // 오픈 전 — 물건은 등록 즉시 보이지만 입찰·신청은 오픈 시각부터 연다.
+  // (예전엔 오픈 전 남의 물건을 통째로 가렸다. 지금은 '보이되 액션만 잠근다'.)
+  if (isPreOpen(item, now, openOverrides)) {
+    const openAt = marketOpenAt(item.eventTag, openOverrides);
+    const when = openAt ? `${openAt.slice(5, 10).replace('-', '/')} ${openAt.slice(11, 16)}` : '오픈';
+    return item.kind === 'giveaway'
+      ? `아직 오픈 전이에요 · ${when}부터 신청할 수 있어요.`
+      : `아직 오픈 전이에요 · ${when}부터 입찰할 수 있어요.`;
+  }
 
   // 추첨 나눔: 선착순과 달리 "먼저 받은 사람"이 없다. 마감 전이면 누구나 신청할 수 있고
   // (이미 신청했으면 화면이 버튼을 '취소'로 바꾼다 — 그건 막는 게 아니다), 마감 뒤에는

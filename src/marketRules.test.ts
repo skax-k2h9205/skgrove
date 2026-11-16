@@ -377,9 +377,11 @@ describe('랜덤박스', () => {
 describe('추첨 나눔(raffleWinner)', () => {
   // eventTag 가 추첨 행사(canmeeting-2026)를 가리키고 kind 가 나눔이어야 추첨이다.
   const raffle = (patch: Partial<MarketItem> = {}): MarketItem =>
-    giveaway({ id: 'MKT-R', eventTag: 'canmeeting-2026', closeAt: '2026-08-05T11:00', ...patch });
-  const BEFORE = '2026-08-05T10:00'; // 마감 전
-  const AFTER = '2026-08-05T12:00'; // 마감(11:00) 뒤
+    giveaway({ id: 'MKT-R', eventTag: 'canmeeting-2026', closeAt: '2026-11-30T12:50', ...patch });
+  // 캔미팅 오픈 12:00 ~ 마감 12:50. 액션(신청)은 오픈~마감 창에서만 열린다.
+  const PREOPEN = '2026-11-30T11:00'; // 오픈(12:00) 전 — 보이되 신청 불가
+  const BEFORE = '2026-11-30T12:30'; // 오픈 후·마감 전 — 신청 가능
+  const AFTER = '2026-11-30T13:00'; // 마감(12:50) 뒤
 
   const applicant = (name: string, at: string): MarketBid =>
     bid({ id: `R-${name}`, itemId: 'MKT-R', name, amount: 0, createdAt: at });
@@ -436,6 +438,19 @@ describe('추첨 나눔(raffleWinner)', () => {
     expect(bidBlockedReason(raffle(), taken, BEFORE, '다라')).toBeNull();
     // 마감 뒤에는 신청을 닫는다.
     expect(bidBlockedReason(raffle(), taken, AFTER, '다라')).toBe('추첨 신청이 마감됐어요.');
+  });
+
+  it('오픈 전에는 보이되 신청·입찰이 막힌다 — 오픈 시각부터 연다', () => {
+    // 나눔(추첨): 오픈 전엔 신청 불가, 오픈~마감 창에선 가능.
+    expect(bidBlockedReason(raffle(), [], PREOPEN, '다라')).toBe(
+      '아직 오픈 전이에요 · 11/30 12:00부터 신청할 수 있어요.',
+    );
+    expect(bidBlockedReason(raffle(), [], BEFORE, '다라')).toBeNull();
+    // 경매도 같은 게이트 — 문구만 '입찰'.
+    const auc = auction({ id: 'MKT-A', eventTag: 'canmeeting-2026', closeAt: '2026-11-30T12:50' });
+    expect(bidBlockedReason(auc, [], PREOPEN, '다라')).toBe(
+      '아직 오픈 전이에요 · 11/30 12:00부터 입찰할 수 있어요.',
+    );
   });
 
   it('(e) 여러 물건에 걸쳐 대략 균등하게 뽑힌다(한쪽 쏠림 없음)', () => {

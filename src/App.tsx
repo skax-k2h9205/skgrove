@@ -127,7 +127,7 @@ import {
 } from './notifySettingsStore';
 import { MARKET_OPEN_KEY, MENU_HIDDEN_KEY, loadConfig, saveConfig } from './configStore';
 import { isSectionBlocked, normalizeHiddenMenus } from './menuRules';
-import { isPreOpen, isRaffleGiveaway, type MarketOpenOverrides } from './features/market/marketEvents';
+import { isRaffleGiveaway, type MarketOpenOverrides } from './features/market/marketEvents';
 import { SystemManagement } from './features/system/SystemManagement';
 import {
   loadHumorComments,
@@ -1674,7 +1674,7 @@ export function App() {
     if (!currentUser) return;
     const now = nowStamp();
     // 화면이 오래 열려 있었을 수 있다. 저장 직전에 규칙으로 한 번 더 막는다.
-    if (bidBlockedReason(item, marketBids, now, currentUser.name)) return;
+    if (bidBlockedReason(item, marketBids, now, currentUser.name, marketOpenOverrides)) return;
     if (item.kind === 'auction' && amount < minNextBid(item, marketBids)) return;
     // 나눔은 1인 1신청. 추첨 나눔은 마감 전 중복 신청을 bidBlockedReason 이 막지 않으므로(취소는
     // 허용해야 하니까) 여기서 중복 insert 를 거른다. 선착순 나눔은 이미 위에서 막혔다.
@@ -2233,7 +2233,7 @@ export function App() {
           gatherings={gatherings}
           signups={gatheringSignups}
           memories={memories}
-          marketItems={marketItems.filter((item) => !isPreOpen(item, nowStamp(), marketOpenOverrides))}
+          marketItems={marketItems}
           today={today()}
           now={nowStamp()}
           onSectionChange={changeSection}
