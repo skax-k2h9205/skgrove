@@ -9,7 +9,6 @@ import {
   Gavel,
   Gift,
   Hourglass,
-  Lock,
   MapPin,
   Package,
   PackageOpen,
@@ -62,7 +61,6 @@ import { RandomBoxReveal } from './RandomBoxReveal';
 import { GiveawayRaffleReveal } from './GiveawayRaffleReveal';
 import {
   MARKET_EVENTS,
-  isPreOpen,
   isRaffleGiveaway,
   marketEvent,
   marketOpenAt,
@@ -234,12 +232,12 @@ export function MarketBoard({
   // 현재 탭(상시/행사)에 속한 물건만. 명예의 전당·격자 모두 이 범위 안에서 센다.
   const scopedItems = items.filter((item) => (item.eventTag ?? '') === scope);
 
-  // 이 탭의 공개 시각과 '공개 전' 여부. 공개 전엔 남의 물건이 '???'로 가려진다.
+  // 이 탭의 오픈 시각과 '오픈 전' 여부. 오픈 전에도 물건은 등록 즉시 다 보인다 —
+  // 가리지 않고, 입찰·신청(액션)만 오픈 시각부터 연다(bidBlockedReason).
   const scopeOpenAt = marketOpenAt(scope, openOverrides);
   const preOpen = scopeOpenAt ? now < scopeOpenAt : false;
-  // 특정 물건이 지금 이 사용자에게 가려지는가 — 공개 전 + 남의 물건.
-  const isLocked = (item: MarketItem) =>
-    isPreOpen(item, now, openOverrides) && item.seller !== currentUser.name;
+  // 더 이상 물건을 가리지 않는다. 시세판(티커)이 받는 prop 만 유지하려 항상 false 를 넘긴다.
+  const isLocked = (_item: MarketItem) => false;
 
   // 물건별 딥링크 — 스캔하면 (로그인 후) 이 물건 상세로 바로 온다. App 의 '#market=<id>' 해시가 받는다.
   const marketLink = (item: MarketItem) =>
@@ -382,26 +380,6 @@ export function MarketBoard({
     );
   }
 
-  // 공개 전 남의 물건은 상세로 들어와도 가린다(격자·홈피드에서 막지만 방어적으로 한 번 더).
-  if (view === 'detail' && selected && isLocked(selected)) {
-    return (
-      <section className="screen">
-        <button className="btn-ghost back-link" onClick={backFromDetail} type="button">
-          <ArrowLeft size={16} />
-          {openedFromFeed ? '홈으로' : '목록으로'}
-        </button>
-        <div className="market-locked-detail">
-          <Lock size={28} />
-          <h2>{selected.seller}님이 뭔가 내놨어요</h2>
-          <p>
-            아직 공개 전이에요. {scopeOpenAt ? `${formatStamp(scopeOpenAt)}에 공개돼요.` : '곧 공개돼요.'} 그때 사진과
-            내용이 함께 열립니다.
-          </p>
-        </div>
-      </section>
-    );
-  }
-
   if (view === 'detail' && selected) {
     const status = deriveStatus(selected, bids, now);
     const itemBids = bidsFor(selected.id, bids);
@@ -418,7 +396,7 @@ export function MarketBoard({
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
     const isSeller = selected.seller === currentUser.name;
     const isWinner = shownWon?.name === currentUser.name;
-    const blocked = bidBlockedReason(selected, bids, now, currentUser.name);
+    const blocked = bidBlockedReason(selected, bids, now, currentUser.name, openOverrides);
     const nextMin = minNextBid(selected, bids);
     const mine = myBid(selected, bids, currentUser.name);
     // 랜덤박스: 열기 전엔 제목·설명·사진을 숨긴다. 연 뒤엔 일반 물건과 같되 '다시 보기'가 남는다.
@@ -983,27 +961,11 @@ export function MarketBoard({
         */
         <div className="poster-grid ig-shop">
           {visible.map((item) => {
-            // 공개 전 남의 물건 — 사진·제목·유형을 '???'로 가린다(겉보기 티저, 클릭 불가).
-            if (isLocked(item)) {
-              return (
-                <figure className="ig-shop-cell locked" key={item.id}>
-                  <div className="poster-cell poster-locked" aria-label="공개 전 물건">
-                    <Gift size={30} strokeWidth={1.5} />
-                    <span>???</span>
-                  </div>
-                  <figcaption className="ig-shop-meta">
-                    <strong>???</strong>
-                    <span>{item.seller}님 · 🎁 공개 전</span>
-                  </figcaption>
-                </figure>
-              );
-            }
             const status = deriveStatus(item, bids, now);
             const badge = gridBadge(item, status);
             const open = isOpen(item, bids, now);
             const count = bidCount(item, bids);
             const left = timeLeft(item, now);
-            const minePreOpen = preOpen && item.seller === currentUser.name;
             return (
               <figure className={open ? 'ig-shop-cell' : 'ig-shop-cell closed'} key={item.id}>
                 <button className="poster-cell" onClick={() => openDetail(item.id)} type="button">
@@ -1024,15 +986,13 @@ export function MarketBoard({
                 <figcaption className="ig-shop-meta">
                   <strong>{publicTitle(item)}</strong>
                   <span>
-                    {minePreOpen
-                      ? '🔒 나만 보임 · 공개 전'
-                      : `${
-                          item.kind === 'auction'
-                            ? `입찰 ${count}`
-                            : isRaffleGiveaway(item)
-                              ? `추첨 대기 ${count}명`
-                              : '바로 나눔'
-                        }${open && left ? ` · ${left}` : ''}`}
+                    {`${
+                      item.kind === 'auction'
+                        ? `입찰 ${count}`
+                        : isRaffleGiveaway(item)
+                          ? `추첨 대기 ${count}명`
+                          : '바로 나눔'
+                    }${open && left ? ` · ${left}` : ''}`}
                   </span>
                 </figcaption>
               </figure>
