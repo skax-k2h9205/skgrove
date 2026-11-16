@@ -206,6 +206,30 @@ export function MarketBoard({
   const [revealing, setRevealing] = useState(false);
   // 추첨 나눔 결과 연출(두구두구→당첨자)을 띄우는 중인가. 당첨자는 규칙이 이미 정해 놓았다.
   const [raffling, setRaffling] = useState(false);
+  // '추첨 결과 보기'로 공개를 마친 물건들(뷰어 기준). 규칙상 당첨자는 마감 즉시 계산되지만,
+  // 버튼으로 두구두구를 보기 전엔 로스터에 당첨자를 드러내지 않는다 — 안 그러면 연출이 김샌다.
+  // 뷰어별 로컬 상태라 localStorage 에 남겨 새로고침 뒤에도 '이미 본' 것으로 유지한다.
+  const [revealedRaffles, setRevealedRaffles] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('skon.raffleRevealed');
+      return new Set<string>(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      return new Set<string>();
+    }
+  });
+  const markRaffleRevealed = (id: string) => {
+    setRevealedRaffles((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      try {
+        localStorage.setItem('skon.raffleRevealed', JSON.stringify([...next]));
+      } catch {
+        /* 로컬 저장 실패해도 연출/공개엔 지장 없다 */
+      }
+      return next;
+    });
+  };
 
   // 현재 탭(상시/행사)에 속한 물건만. 명예의 전당·격자 모두 이 범위 안에서 센다.
   const scopedItems = items.filter((item) => (item.eventTag ?? '') === scope);
@@ -383,11 +407,17 @@ export function MarketBoard({
     const itemBids = bidsFor(selected.id, bids);
     const top = leadingBid(selected, bids);
     const won = winner(selected, bids, now);
+    // 추첨 나눔 — 선착순이 아니라 마감 후 무작위 1명. 당첨자(won)는 마감 즉시 계산되지만,
+    // 뷰어가 '추첨 결과 보기'로 두구두구를 보기 전까진 로스터·정산에 당첨자를 드러내지 않는다.
+    const isRaffle = isRaffleGiveaway(selected);
+    const entrants = isRaffle ? raffleEntrants(selected, bids) : [];
+    const raffleRevealed = !isRaffle || revealedRaffles.has(selected.id);
+    const shownWon = raffleRevealed ? won : null;
     const itemComments = comments
       .filter((comment) => comment.itemId === selected.id)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
     const isSeller = selected.seller === currentUser.name;
-    const isWinner = won?.name === currentUser.name;
+    const isWinner = shownWon?.name === currentUser.name;
     const blocked = bidBlockedReason(selected, bids, now, currentUser.name);
     const nextMin = minNextBid(selected, bids);
     const mine = myBid(selected, bids, currentUser.name);
@@ -399,11 +429,8 @@ export function MarketBoard({
       setRevealing(true);
     };
 
-    // 추첨 나눔 — 선착순이 아니라 마감 후 무작위 1명. 신청자(1인 1표)·당첨자는 규칙이 계산한다.
-    const isRaffle = isRaffleGiveaway(selected);
-    const entrants = isRaffle ? raffleEntrants(selected, bids) : [];
-    // 신청/추첨 로스터에서 '뽑힌 사람'을 강조할 id. 추첨은 마감 전엔 아무도 강조하지 않는다(won=null).
-    const rosterTopId = isRaffle ? won?.id : top?.id;
+    // 신청/추첨 로스터에서 '뽑힌 사람'을 강조할 id. 추첨은 공개 전엔 아무도 강조하지 않는다(shownWon=null).
+    const rosterTopId = isRaffle ? shownWon?.id : top?.id;
 
     const placeBid = () => {
       if (selected.kind === 'giveaway') {
@@ -449,7 +476,10 @@ export function MarketBoard({
             <GiveawayRaffleReveal
               entrants={entrants.map((entry) => entry.name)}
               item={selected}
-              onClose={() => setRaffling(false)}
+              onClose={() => {
+                setRaffling(false);
+                markRaffleRevealed(selected.id);
+              }}
               winner={won?.name}
             />
           )}
@@ -524,7 +554,7 @@ export function MarketBoard({
                 type="button"
               >
                 <Dices size={18} />
-                추첨 결과 보기
+                {raffleRevealed ? '추첨 결과 다시 보기' : '추첨 결과 보기'}
               </button>
             )}
             {isRaffle && status === '유찰' && (
@@ -704,7 +734,7 @@ export function MarketBoard({
             <div className="roster">
               <p className="roster-title">
                 {selected.kind === 'giveaway' ? '신청' : '입찰'} {bidCount(selected, bids)}건
-                {won && <span> · {isRaffle ? '당첨' : '가져간 분'} {won.name}</span>}
+                {shownWon && <span> · {isRaffle ? '당첨' : '가져간 분'} {shownWon.name}</span>}
               </p>
               {itemBids.length === 0 ? (
                 <p className="field-note">
