@@ -8,6 +8,7 @@ import {
   Dices,
   Gavel,
   Gift,
+  Heart,
   Hourglass,
   MapPin,
   Package,
@@ -50,7 +51,7 @@ import {
   timeLeft,
   winner,
 } from '../../marketRules';
-import type { CurrentUser, MarketBid, MarketComment, MarketItem, MarketStatus } from '../../types';
+import type { CurrentUser, MarketBid, MarketComment, MarketFavorite, MarketItem, MarketStatus } from '../../types';
 import { ItemPoster } from './ItemPoster';
 import { MarketForm, type MarketDraft } from './MarketForm';
 import { MarketTicker, MarketTickerPanel } from './MarketTicker';
@@ -88,6 +89,10 @@ type MarketBoardProps = {
   onDeleteComment: (id: string) => void;
   onToggleCommentLike: (id: string) => void;
   currentUser: CurrentUser;
+  /** 관심(찜) 전체 — (물건, 사람) 한 줄씩. 모두가 함께 보는 공유 데이터라 "N명 관심"을 센다. */
+  favorites: MarketFavorite[];
+  /** 관심(하트) 토글. 물건 id 로 (이 물건, 나) 한 줄을 넣고 뺀다. */
+  onToggleFavorite: (itemId: string) => void;
   /** 'YYYY-MM-DDTHH:mm' 로컬 시각. 상태 파생의 기준이라 App 이 한 곳에서 만든다. */
   now: string;
   /** 등록 직후 배경에서 썸네일을 그리는 중인 물건. 격자에 '그리는 중' 을 띄운다(모임과 동일). */
@@ -127,9 +132,9 @@ type MarketBoardProps = {
 };
 
 type BoardView = 'feed' | 'create' | 'edit' | 'detail' | 'qrsheet' | 'ticker';
-type Filter = '거래중' | '나눔' | '내가 올린 것' | '전체';
+type Filter = '거래중' | '나눔' | '관심' | '내가 올린 것' | '전체';
 
-const FILTERS: Filter[] = ['거래중', '나눔', '내가 올린 것', '전체'];
+const FILTERS: Filter[] = ['거래중', '나눔', '관심', '내가 올린 것', '전체'];
 
 /*
   격자 배지는 '유형'만 말한다 — 경매인지 나눔인지. 가격·남은시간·입찰 현황은
@@ -157,6 +162,8 @@ export function MarketBoard({
   onDeleteComment,
   onToggleCommentLike,
   currentUser,
+  favorites,
+  onToggleFavorite,
   now,
   imagePendingIds,
   openOverrides,
@@ -232,6 +239,10 @@ export function MarketBoard({
   // 현재 탭(상시/행사)에 속한 물건만. 명예의 전당·격자 모두 이 범위 안에서 센다.
   const scopedItems = items.filter((item) => (item.eventTag ?? '') === scope);
 
+  // 관심(찜) — 물건별 관심 수와 '내가 눌렀는지'. 격자·상세·관심 탭이 같은 답을 본다.
+  const favCount = (id: string) => favorites.reduce((n, fav) => (fav.itemId === id ? n + 1 : n), 0);
+  const iFavorited = (id: string) => favorites.some((fav) => fav.itemId === id && fav.name === currentUser.name);
+
   // 이 탭의 오픈 시각과 '오픈 전' 여부. 오픈 전에도 물건은 등록 즉시 다 보인다 —
   // 가리지 않고, 입찰·신청(액션)만 오픈 시각부터 연다(bidBlockedReason).
   const scopeOpenAt = marketOpenAt(scope, openOverrides);
@@ -253,6 +264,7 @@ export function MarketBoard({
       const status = deriveStatus(item, bids, now);
       if (filter === '거래중') return status === '거래중';
       if (filter === '나눔') return item.kind === 'giveaway';
+      if (filter === '관심') return iFavorited(item.id);
       if (filter === '내가 올린 것') return item.seller === currentUser.name;
       return true;
     }),
@@ -463,7 +475,20 @@ export function MarketBoard({
           )}
 
           <div className="gathering-detail-body">
-            <h2>{hidden ? `🎁 ${publicTitle(selected)}` : selected.title}</h2>
+            <div className="market-detail-head">
+              <h2>{hidden ? `🎁 ${publicTitle(selected)}` : selected.title}</h2>
+              {/* 관심(하트) — 상세에서도 바로 찜/해제. 옆에 'N명 관심' 수를 함께 보여준다. */}
+              <button
+                aria-label={iFavorited(selected.id) ? '관심 해제' : '관심'}
+                aria-pressed={iFavorited(selected.id)}
+                className={`market-fav detail${iFavorited(selected.id) ? ' on' : ''}${favCount(selected.id) > 0 ? ' has-count' : ''}`}
+                onClick={() => onToggleFavorite(selected.id)}
+                type="button"
+              >
+                <Heart size={20} />
+                {favCount(selected.id) > 0 && <span className="market-fav-count">{favCount(selected.id)}</span>}
+              </button>
+            </div>
             <p className="gathering-host">{selected.seller}님이 내놓았어요</p>
 
             {/* 랜덤박스 안내 — 열기 전: 언제 누가 여는지. 판매자 본인에게만 내용물을 덧붙인다(확인용). */}
@@ -946,12 +971,20 @@ export function MarketBoard({
       </div>
 
       {visible.length === 0 ? (
-        <EmptyState
-          action={{ label: '물건 내놓기', onClick: () => setView('create') }}
-          description="안 쓰는 물건이 누군가에게는 필요할 수 있어요. 나눔도 환영입니다."
-          icon={Package}
-          title={filter === '거래중' ? '지금 올라온 물건이 없어요' : '해당하는 물건이 없어요'}
-        />
+        filter === '관심' ? (
+          <EmptyState
+            description="마음에 드는 물건의 하트를 누르면 여기에 모여요. 찜한 물건은 나만 볼 수 있어요."
+            icon={Heart}
+            title="아직 찜한 물건이 없어요"
+          />
+        ) : (
+          <EmptyState
+            action={{ label: '물건 내놓기', onClick: () => setView('create') }}
+            description="안 쓰는 물건이 누군가에게는 필요할 수 있어요. 나눔도 환영입니다."
+            icon={Package}
+            title={filter === '거래중' ? '지금 올라온 물건이 없어요' : '해당하는 물건이 없어요'}
+          />
+        )
       ) : (
         /*
           인스타 쇼핑 격자. 사진 위 가격 태그가 인스타 쇼핑의 상품 태그와
@@ -966,8 +999,23 @@ export function MarketBoard({
             const open = isOpen(item, bids, now);
             const count = bidCount(item, bids);
             const left = timeLeft(item, now);
+            const isFav = iFavorited(item.id);
+            const favs = favCount(item.id);
             return (
               <figure className={open ? 'ig-shop-cell' : 'ig-shop-cell closed'} key={item.id}>
+                {/* 관심(하트) — 격자에서 바로 찜한다. 셀 버튼 안에 중첩하면 안 되므로(button in button)
+                    figure 를 기준으로 겹쳐 올린 별도 버튼이다. 눌러도 상세로 들어가지 않는다.
+                    관심이 있으면 옆에 'N명 관심' 수를 함께 보여준다(수요 신호·재미 요소). */}
+                <button
+                  aria-label={isFav ? '관심 해제' : '관심'}
+                  aria-pressed={isFav}
+                  className={`market-fav${isFav ? ' on' : ''}${favs > 0 ? ' has-count' : ''}`}
+                  onClick={() => onToggleFavorite(item.id)}
+                  type="button"
+                >
+                  <Heart size={18} />
+                  {favs > 0 && <span className="market-fav-count">{favs}</span>}
+                </button>
                 <button className="poster-cell" onClick={() => openDetail(item.id)} type="button">
                   <ItemPoster badge={badge.text} badgeTone={badge.tone} item={item} />
                   {/*

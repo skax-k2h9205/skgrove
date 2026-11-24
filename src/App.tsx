@@ -167,8 +167,12 @@ import {
   deleteMarketBidsForItem,
   deleteMarketItemRecord,
   insertMarketBid,
+  cacheMarketFavorites,
+  deleteMarketFavorite,
+  insertMarketFavorite,
   loadMarketBids,
   loadMarketComments,
+  loadMarketFavorites,
   loadMarketItems,
   makeMarketCommentId,
   saveMarketComments,
@@ -200,6 +204,7 @@ import type {
   GatheringSignup,
   MarketBid,
   MarketComment,
+  MarketFavorite,
   MarketItem,
   HumorComment,
   HumorPost,
@@ -333,6 +338,8 @@ export function App() {
   const [marketItems, setMarketItems] = useState<MarketItem[]>([]);
   const [marketBids, setMarketBids] = useState<MarketBid[]>([]);
   const [marketComments, setMarketComments] = useState<MarketComment[]>([]);
+  // 관심(찜) — (물건, 사람) 한 줄씩. 모두가 함께 보는 공유 데이터라 "N명이 관심"을 센다.
+  const [marketFavorites, setMarketFavorites] = useState<MarketFavorite[]>([]);
   // 행사 벼룩시장 공개 시각 오버라이드(팀 공용). 리더가 라이브 중 바꿀 수 있다.
   const [marketOpenOverrides, setMarketOpenOverrides] = useState<MarketOpenOverrides>({});
   // 알림이 DB(있으면)에서 로드 완료됐는지. 마감 임박 체크는 이게 true여야 실행(중복 슬랙 방지).
@@ -504,6 +511,9 @@ export function App() {
     });
     loadMarketComments().then((loaded) => {
       if (isMounted) setMarketComments(loaded);
+    });
+    loadMarketFavorites().then((loaded) => {
+      if (isMounted) setMarketFavorites(loaded);
     });
     loadConfig<MarketOpenOverrides>(MARKET_OPEN_KEY, {}).then((loaded) => {
       if (isMounted) setMarketOpenOverrides(loaded);
@@ -1560,11 +1570,32 @@ export function App() {
     void saveMarketItems(next);
   };
 
-  // 장터 물건·입찰 다시 읽기. 시세판이 라이브로 돌 때 5초마다 부른다.
+  // 관심(찜) 토글 — 당근마켓식 공개 수요 신호. (물건, 나) 한 줄을 넣고 뺀다. 입찰과 같은
+  // 규약으로 한 줄씩 다뤄, 두 사람이 같은 순간에 눌러도 "N명 관심" 수가 깨지지 않는다.
+  const toggleMarketFavorite = (itemId: string) => {
+    if (!currentUser) return;
+    const me = currentUser.name;
+    const mine = marketFavorites.find((fav) => fav.itemId === itemId && fav.name === me);
+    if (mine) {
+      const next = marketFavorites.filter((fav) => !(fav.itemId === itemId && fav.name === me));
+      setMarketFavorites(next);
+      cacheMarketFavorites(next);
+      void deleteMarketFavorite(itemId, me);
+    } else {
+      const fav: MarketFavorite = { itemId, name: me, createdAt: new Date().toISOString() };
+      const next = [...marketFavorites, fav];
+      setMarketFavorites(next);
+      cacheMarketFavorites(next);
+      void insertMarketFavorite(fav);
+    }
+  };
+
+  // 장터 물건·입찰·관심 다시 읽기. 시세판이 라이브로 돌 때 5초마다 부른다.
   // 로컬 전용 모드에선 같은 localStorage 를 다시 읽을 뿐이라 해롭지 않다.
   const refreshMarket = () => {
     void loadMarketItems().then(setMarketItems);
     void loadMarketBids().then(setMarketBids);
+    void loadMarketFavorites().then(setMarketFavorites);
   };
 
   // 행사 공개 시각을 바꾼다(리더 전용). 팀 공용 설정에 저장해 모든 참여자 화면에 반영한다.
@@ -2388,6 +2419,8 @@ export function App() {
           onToggleCommentLike={toggleMarketCommentLike}
           currentUser={currentUser}
           items={marketItems}
+          favorites={marketFavorites}
+          onToggleFavorite={toggleMarketFavorite}
           now={nowStamp()}
           imagePendingIds={imagePendingIds}
           openOverrides={marketOpenOverrides}

@@ -697,6 +697,20 @@ alter table public.market_bids enable row level security;
 drop policy if exists "Allow prototype market bids all" on public.market_bids;
 create policy "Allow prototype market bids all" on public.market_bids for all using (true) with check (true);
 
+-- 관심(찜)도 별도 행이다. "N명이 관심" 수요 신호를 모두가 함께 보려면 공유 데이터여야 하고,
+-- 물건 안에 배열로 넣으면 입찰과 같은 이유로 두 사람이 동시에 누를 때 수가 깨진다.
+-- (물건, 사람) 한 줄씩 두고 기본키를 (item_id, name) 으로 잡아 더블탭(중복 삽입)이 멱등하게 한다.
+create table if not exists public.market_favorites (
+  item_id text not null,
+  name text not null,
+  tenant_id uuid,
+  created_at text not null default '',
+  primary key (item_id, name)
+);
+alter table public.market_favorites enable row level security;
+drop policy if exists "Allow prototype market favorites all" on public.market_favorites;
+create policy "Allow prototype market favorites all" on public.market_favorites for all using (true) with check (true);
+
 -- 물건 사진 버킷. 없으면 첨부가 저장되지 않고 새로고침 때 사진이 사라진다
 -- (업로드 실패 시 화면에는 임시 objectURL 로만 남기 때문이다).
 insert into storage.buckets (id, name, public)
