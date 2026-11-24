@@ -6,14 +6,16 @@
 // 경매에서 그 버그는 "분명 넣었는데 없다"가 되어 신뢰를 가장 크게 깬다.
 import { rememberRemote, syncRows } from './remoteTable';
 import { supabase } from './supabaseClient';
-import type { GatheringPoster, MarketBid, MarketComment, MarketItem, MarketKind } from './types';
+import type { GatheringPoster, MarketBid, MarketComment, MarketFavorite, MarketItem, MarketKind } from './types';
 import { getCurrentTenantId, tenantPath, withTenant } from './tenantContext';
 
 const ITEMS_KEY = 'skgrove:marketItems';
 const BIDS_KEY = 'skgrove:marketBids';
 const COMMENTS_KEY = 'skgrove:marketComments';
+const FAVORITES_KEY = 'skgrove:marketFavorites';
 const ITEMS_TABLE = 'market_items';
 const COMMENTS_TABLE = 'market_comments';
+const FAVORITES_TABLE = 'market_favorites';
 const COMMENT_WRITE_KEYS = ['id', 'item_id', 'author', 'body', 'created_at', 'liked_by', 'parent_id'];
 const ITEM_WRITE_KEYS = ['id', 'kind', 'title', 'description', 'start_price', 'min_step', 'close_at',
   'extended_to', 'place', 'image_url', 'poster', 'seller', 'created_at', 'canceled',
@@ -48,6 +50,12 @@ type BidRow = {
   item_id: string;
   name: string;
   amount?: number | null;
+  created_at?: string | null;
+};
+
+type FavoriteRow = {
+  item_id: string;
+  name: string;
   created_at?: string | null;
 };
 
@@ -222,6 +230,65 @@ export async function deleteMarketBid(id: string): Promise<boolean> {
   const { error } = await supabase.from(BIDS_TABLE).delete().eq('id', id);
   if (error) {
     console.warn('Supabase market bid delete failed.', error);
+    return false;
+  }
+  return true;
+}
+
+// ── 관심(찜) — 당근마켓식 공개 수요 신호 ──
+// "N명이 관심" 을 보여주려면 모두가 함께 보는 공유 데이터여야 한다. 입찰과 같은 이유로
+// 물건 안에 배열로 넣지 않고 (물건, 사람) 당 한 줄로 따로 둔다 — 두 사람이 같은 순간에
+// 눌러도 서로의 하트를 지우지 않는다. 기본키가 (item_id, name) 이라 중복 삽입은 멱등하다.
+export async function loadMarketFavorites(): Promise<MarketFavorite[]> {
+  if (supabase) {
+    const { data, error } = await withTenant(supabase.from(FAVORITES_TABLE).select('*'));
+    if (!error && data) {
+      const rows = (data as FavoriteRow[]).map((row) => ({
+        itemId: row.item_id,
+        name: row.name,
+        createdAt: row.created_at ?? '',
+      }));
+      writeLocal(FAVORITES_KEY, rows);
+      return rows;
+    }
+  }
+  return readLocal<MarketFavorite>(FAVORITES_KEY, []);
+}
+
+/** 로컬 미러. DB 를 단일 소스로 두되 오프라인에서도 관심 수가 보이게 한다. */
+export function cacheMarketFavorites(favorites: MarketFavorite[]) {
+  writeLocal(FAVORITES_KEY, favorites);
+}
+
+/*
+  관심 한 줄만 넣는다(멱등 upsert — 더블탭해도 (item_id,name) 기본키라 한 줄).
+  화면은 낙관적으로 먼저 켜고(하트는 가볍다), 실패 여부는 boolean 으로 돌려준다 —
+  다음 새로고침(refreshMarket)에서 DB 기준으로 수가 다시 맞춰진다.
+*/
+export async function insertMarketFavorite(favorite: MarketFavorite): Promise<boolean> {
+  if (!supabase) return true;
+  const { error } = await supabase.from(FAVORITES_TABLE).upsert(
+    {
+      item_id: favorite.itemId,
+      name: favorite.name,
+      created_at: favorite.createdAt,
+      tenant_id: getCurrentTenantId(),
+    },
+    { onConflict: 'item_id,name' },
+  );
+  if (error) {
+    console.warn('Supabase market favorite insert failed.', error);
+    return false;
+  }
+  return true;
+}
+
+/** 내 관심 한 줄만 지운다(이 물건, 나). insert 와 같은 규약 — 낙관적 갱신, 실패 시 false. */
+export async function deleteMarketFavorite(itemId: string, name: string): Promise<boolean> {
+  if (!supabase) return true;
+  const { error } = await supabase.from(FAVORITES_TABLE).delete().eq('item_id', itemId).eq('name', name);
+  if (error) {
+    console.warn('Supabase market favorite delete failed.', error);
     return false;
   }
   return true;

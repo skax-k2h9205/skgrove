@@ -10675,10 +10675,98 @@ button.notif-row {
   gap: 6px;
   margin: 0;
   min-width: 0;
+  /* 관심(하트)을 이 셀 기준으로 겹쳐 올리기 위한 기준점. 없으면 하트들이
+     더 바깥 조상 기준으로 쌓여 전부 첫 칸 위에 겹친다. */
+  position: relative;
 }
 
 .ig-shop-cell .poster-cell {
   position: relative;
+}
+
+/* 관심(하트) — 격자 셀 좌상단에 겹쳐 올린다(우상단은 유형 배지 자리라 피한다).
+   셀 버튼(.poster-cell) 바깥의 별도 버튼이라(버튼 중첩 금지) figure 를 기준 삼아
+   띄운다. 눌러도 상세로 들어가지 않고 찜만 토글하며, 'N명 관심' 수를 함께 보여준다. */
+.market-fav {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--scrim-strong);
+  color: var(--color-surface);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+/* 관심 수가 붙으면 하트 옆에 숫자가 들어갈 자리를 준다(아이콘만일 땐 원형 유지). */
+.market-fav.has-count {
+  padding: 0 11px 0 9px;
+}
+
+.market-fav-count {
+  font-size: var(--text-micro);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.market-fav svg {
+  fill: none;
+  transition: fill 0.12s ease;
+}
+
+.market-fav:hover {
+  transform: scale(1.08);
+}
+
+.market-fav.on {
+  color: var(--color-heart);
+}
+
+.market-fav.on svg {
+  fill: var(--color-heart);
+}
+
+/* 눌릴 때 톡 튀는 반응 — 찜한 느낌을 준다. */
+.market-fav.on:active {
+  transform: scale(0.9);
+}
+
+/* 상세 화면 하트 — 제목 오른쪽에 둔다. 어두운 셀 배경이 아니라 카드 위라
+   같은 하트라도 톤을 밝게 맞춘다(격자의 겹침 버튼과 달리 정적 배치). */
+.market-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.market-detail-head h2 {
+  margin: 0;
+  min-width: 0;
+}
+
+.market-fav.detail {
+  position: static;
+  flex: none;
+  min-width: 40px;
+  height: 40px;
+  background: var(--color-sunken);
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+}
+
+.market-fav.detail.has-count {
+  padding: 0 13px 0 11px;
 }
 
 /* 포스터가 자기 제목을 이미 그리는데 아래 캡션이 같은 제목을 또 쓴다.

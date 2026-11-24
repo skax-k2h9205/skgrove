@@ -75,6 +75,9 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
     : openEvents;
   // 이 행사가 마감을 고정했으면 사용자가 못 바꾼다 — 당일 일괄 마감 행사(예: 캔미팅).
   const lockedClose = current?.fixedCloseAt;
+  // 이 장터의 나눔이 '추첨제'인가 — 캔미팅처럼 마감 후 무작위 1명을 뽑는 행사.
+  // 상시 장터·추첨 아닌 행사는 선착순이라, 안내 문구를 장터에 맞게 바꾼다.
+  const raffleGiveaway = Boolean(current?.giveawayRaffle);
 
   const [title, setTitle] = useState(initial?.title ?? '');
   const [desc, setDesc] = useState(initial?.desc ?? '');
@@ -211,7 +214,11 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
         >
           <Gift size={22} />
           <strong>그냥 나눔</strong>
-          <span>먼저 누르는 분이 가져갑니다. 금액을 적지 않아도 됩니다.</span>
+          <span>
+            {raffleGiveaway
+              ? '마감 후 신청자 중 무작위 1명을 추첨해요. 금액은 적지 않아요.'
+              : '먼저 누르는 분이 가져갑니다. 금액을 적지 않아도 됩니다.'}
+          </span>
         </button>
       </div>
 
@@ -302,6 +309,7 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
             <p className="form-static-value">{fixedCloseLabel(lockedClose)} 일괄 마감</p>
             <p className="field-note">
               {current?.label} 물건은 행사 당일에 함께 마감돼요. 마감 시각은 고를 수 없습니다.
+              {raffleGiveaway && !isAuction ? ' 나눔은 마감 후 신청자 중 무작위 1명을 추첨해요.' : ''}
             </p>
           </>
         ) : (
@@ -325,7 +333,9 @@ export function MarketForm({ onSubmit, onCancel, initial, defaultEventTag }: Mar
             <p className="field-note">
               {isAuction
                 ? '마감 3분 안에 입찰이 들어오면 3분 미뤄집니다. 마지막 순간에 낚아채고 끝나는 일을 막습니다.'
-                : '마감 전에 먼저 누르는 분이 가져갑니다.'}
+                : raffleGiveaway
+                  ? '마감 후 신청자 중 무작위 1명을 추첨해요.'
+                  : '마감 전에 먼저 누르는 분이 가져갑니다.'}
             </p>
           </>
         )}

@@ -594,6 +594,15 @@ export type MarketBid = {
   createdAt: string; // ISO. 동액일 때와 선착순의 순서 근거
 };
 
+// 관심(찜) — 당근마켓식. 물건마다 "N명이 관심" 수요 신호를 보여주려면 사람마다 다른
+// 개인 찜이 아니라 모두가 함께 보는 공유 데이터여야 한다. 입찰과 같은 이유로 물건 안에
+// 배열로 넣지 않고 한 사람·한 물건당 한 줄로 따로 둔다 — 동시에 눌러도 수가 안 깨진다.
+export type MarketFavorite = {
+  itemId: string;
+  name: string; // 관심 누른 사람 실명
+  createdAt: string; // ISO
+};
+
 // 이음장터 게시글 댓글 (유머 댓글과 동일 구조, postId→itemId).
 export type MarketComment = {
   id: string;
