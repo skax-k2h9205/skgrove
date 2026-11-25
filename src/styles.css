@@ -12279,6 +12279,9 @@ button.notif-row {
   line-height: var(--leading-relaxed);
   overflow-wrap: anywhere;
   padding: var(--space-3);
+  /* 입력한 줄바꿈·빈 줄·공백(줄맞춤)을 조회 화면에서도 그대로 보존한다. 없으면 textarea 의
+     \n 이 HTML 에서 공백으로 합쳐져 "예쁘게 쓴 설명이 한 문단으로" 뭉개진다. */
+  white-space: pre-wrap;
   word-break: keep-all;
 }
 
