@@ -178,6 +178,17 @@ export function canEditMarketItem(item: MarketItem, bids: MarketBid[], now: stri
 }
 
 /*
+  본인이 올린 물건을 '완전 삭제'할 수 있는가. 입찰·나눔신청이 한 건이라도 붙으면 안 된다 —
+  건 사람은 그 가격·마감·물건을 믿고 액션한 것이라, 주인이 말없이 지우면 '입찰 취소 불가'
+  원칙과 어긋난다(수정 가드와 같은 이유). 상태(거래중/내림)는 보지 않는다 — 잘못 올렸거나
+  내려둔 물건도, 아무도 손대지 않았다면 치울 수 있어야 한다. 팀리더는 이 규칙과 무관하게 지운다.
+*/
+export function canDeleteOwnMarketItem(item: MarketItem, bids: MarketBid[], userName: string) {
+  if (item.seller !== userName) return false;
+  return bidCount(item, bids) === 0;
+}
+
+/*
   이 사람이 지금 입찰할 수 있는가. 막는 이유를 문자열로 돌려준다 —
   버튼을 흐리게만 두면 사용자는 고장으로 읽는다(팀 카피 원칙).
   null 이면 입찰 가능.

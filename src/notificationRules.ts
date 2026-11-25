@@ -322,21 +322,3 @@ export function marketWonDrafts(item: MarketItem, buyerName: string, now: string
     },
   ];
 }
-
-/** 판매자가 거래를 내렸다. 부른 사람들은 그 돈을 묶어두고 기다렸을 수 있다. */
-export function marketCanceledDrafts(item: MarketItem, names: string[], now: string): NotificationDraft[] {
-  return names
-    .filter((name) => name !== item.seller)
-    .map((name): NotificationDraft => ({
-      kind: 'market',
-      recipientName: name,
-      fromName: '시스템',
-      title: `거래가 내려갔어요 · ${publicTitle(item)}`,
-      body: `${item.seller}님이 거래를 취소했어요.`,
-      section: 'market',
-      sourceId: item.id,
-      dedupeKey: dedupeKey('market', `${item.id}#canceled`, name),
-      createdAt: now,
-      read: false,
-    }));
-}

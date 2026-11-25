@@ -109,7 +109,6 @@ import {
   ownerAccount,
   gatheringCanceledDrafts,
   gatheringPromotedDraft,
-  marketCanceledDrafts,
   marketCommentDraft,
   marketOutbidDrafts,
   marketWonDrafts,
@@ -154,6 +153,7 @@ import { coffeeCandidates, splitRoster } from './gatheringRules';
 import { resolveSkillLoser } from './features/gatherings/games/coffeeGames';
 import {
   bidBlockedReason,
+  canDeleteOwnMarketItem,
   canEditMarketItem,
   canRevealMystery,
   deriveStatus as deriveMarketStatus,
@@ -169,6 +169,7 @@ import {
   insertMarketBid,
   cacheMarketFavorites,
   deleteMarketFavorite,
+  deleteMarketFavoritesForItem,
   insertMarketFavorite,
   loadMarketBids,
   loadMarketComments,
@@ -1638,37 +1639,31 @@ export function App() {
       buyerDone: false,
     };
 
-    // 사진이 있으면 그걸 쓰고, 없을 때만 포스터를 만든다. 둘 다 실패해도 등록은 되어야 한다.
-    let enriched = base;
-    if (imageFile) {
-      const { imageUrl } = await uploadMarketImage(id, imageFile);
-      enriched = imageUrl ? { ...base, imageUrl } : base;
-    } else {
-      enriched = { ...base, poster: localItemPoster(base) };
-    }
-
-    persistMarketItems([enriched, ...marketItems]);
-
     /*
-      그림은 등록을 마친 뒤 배경에서 그린다 — 모임과 같은 방식. 10초 넘는 일을 등록
-      버튼에 매달지 않는다. 그동안 카드는 방금 만든 로컬 포스터(틴트+아이콘)를 보여주고,
-      그림이 다 되면 그 카드에만 imageUrl 이 붙어 사진으로 바뀐다. 실패하면 포스터 유지.
+      등록은 기다리지 않는다 — 카드를 바로 목록 맨 앞에 띄우고, 사진·그림은 배경에서
+      채운다. 예전엔 사진이 있으면 업로드(await)가 끝나야 목록에 들어가서, 사진 올린
+      물건만 "등록했는데 한참 뒤에야 보인다" 했다. 이제 두 경우 모두 즉시 보인다:
+      먼저 로컬 포스터(틴트+아이콘)와 모래시계로 카드를 세우고,
+      사진이 있으면 업로드가 끝나는 대로, 없으면 크레파스 AI 그림이 다 되는 대로
+      그 카드에만 imageUrl 이 붙어 사진으로 바뀐다. 실패해도 로컬 포스터가 남는다.
     */
-    if (!imageFile) {
-      setImagePendingIds((prev) => [...prev, id]);
-      void (async () => {
-        try {
-          const generated = await requestMarketImage(enriched);
-          if (!generated) return;
-          const { imageUrl } = await uploadMarketImage(id, generated);
-          if (imageUrl) patchMarketItem(id, { imageUrl });
-        } finally {
-          // 성공이든 실패든 표시는 걷는다 — 모임과 같은 판단. 실패했는데 모래시계가
-          // 남으면 영영 그리는 중인 것처럼 보인다.
-          setImagePendingIds((prev) => prev.filter((pendingId) => pendingId !== id));
-        }
-      })();
-    }
+    const enriched: MarketItem = { ...base, poster: localItemPoster(base) };
+    persistMarketItems([enriched, ...marketItems]);
+    setImagePendingIds((prev) => [...prev, id]);
+
+    void (async () => {
+      try {
+        // 사진을 올렸으면 그걸 쓰고, 없으면 크레파스 AI 로 그린다(10초 넘는 일).
+        const toUpload = imageFile ?? (await requestMarketImage(enriched));
+        if (!toUpload) return;
+        const { imageUrl } = await uploadMarketImage(id, toUpload);
+        if (imageUrl) patchMarketItem(id, { imageUrl, poster: undefined });
+      } finally {
+        // 성공이든 실패든 표시는 걷는다 — 모임과 같은 판단. 실패했는데 모래시계가
+        // 남으면 영영 그리는 중인 것처럼 보인다.
+        setImagePendingIds((prev) => prev.filter((pendingId) => pendingId !== id));
+      }
+    })();
   };
 
   /*
@@ -1817,29 +1812,24 @@ export function App() {
     );
   };
 
-  const cancelMarketItem = (item: MarketItem) => {
-    const bidders = marketBids.filter((bid) => bid.itemId === item.id).map((bid) => bid.name);
-    if (bidders.length > 0) {
-      notify(marketCanceledDrafts(item, [...new Set(bidders)], today()));
-      // 부른 사람이 있는 거래를 지우면 그 기록까지 사라진다. 지우지 않고 취소로 남긴다.
-      persistMarketItems(marketItems.map((entry) => (entry.id === item.id ? { ...entry, canceled: true } : entry)));
-      return;
-    }
-    void deleteMarketItemRecord(item.id);
-    persistMarketItems(marketItems.filter((entry) => entry.id !== item.id));
-  };
-
-  // 완전 삭제. 내리기(기록 보존)와 달리 물건과 입찰 기록까지 통째로 지운다. admin@sk.com 전용.
+  // 완전 삭제. 물건과 입찰·관심 기록까지 통째로 지운다.
+  // 팀리더는 언제나, 판매자는 입찰·신청이 0건일 때만(canDeleteOwnMarketItem). 입찰·신청이
+  // 하나라도 붙으면 판매자는 지울 수 없다 — 건 사람을 보호한다(수정 가드와 같은 이유).
+  // 화면에서도 막지만 저장 직전 같은 규칙으로 한 번 더 확인한다(수정과 같은 대칭).
   const deleteMarketItem = (item: MarketItem) => {
     if (!currentUser) return;
-    if (!isAdmin(currentUser)) return;
+    if (!isAdmin(currentUser) && !canDeleteOwnMarketItem(item, marketBids, currentUser.name)) return;
     void deleteMarketItemRecord(item.id);
-    // market_bids 는 item 에 FK 가 없어 DB 에서 자동으로 안 지워진다. 명시적으로 걷어낸다.
+    // market_bids·market_favorites 는 item 에 FK 가 없어 DB 에서 자동으로 안 지워진다. 명시적으로 걷어낸다.
     void deleteMarketBidsForItem(item.id);
+    void deleteMarketFavoritesForItem(item.id);
     persistMarketItems(marketItems.filter((entry) => entry.id !== item.id));
     const nextBids = marketBids.filter((bid) => bid.itemId !== item.id);
     setMarketBids(nextBids);
     cacheMarketBids(nextBids);
+    const nextFavorites = marketFavorites.filter((fav) => fav.itemId !== item.id);
+    setMarketFavorites(nextFavorites);
+    cacheMarketFavorites(nextFavorites);
   };
 
   /*
@@ -2431,7 +2421,6 @@ export function App() {
           }
           onBid={(item, amount) => void placeMarketBid(item, amount)}
           onWithdrawBid={(item) => void withdrawMarketBid(item)}
-          onCancelItem={cancelMarketItem}
           onCreate={(draft) => void createMarketItem(draft)}
           onUpdate={(item, draft) => void updateMarketItem(item, draft)}
           onMarkDone={markMarketDone}
