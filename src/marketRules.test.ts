@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   bidBlockedReason,
+  canDeleteOwnMarketItem,
   canEditMarketItem,
   canRevealMystery,
   currentPrice,
@@ -87,6 +88,36 @@ describe('canEditMarketItem — 입찰 0건일 때만 수정 가능', () => {
 
   it('취소된 물건은 수정 불가', () => {
     expect(canEditMarketItem(auction({ canceled: true }), [], NOW, '김수정')).toBe(false);
+  });
+});
+
+describe('canDeleteOwnMarketItem — 본인 물건을 입찰·신청 0건일 때만 삭제', () => {
+  it('본인 물건 · 입찰 0 이면 삭제 가능', () => {
+    expect(canDeleteOwnMarketItem(auction(), [], '김수정')).toBe(true);
+  });
+
+  it('입찰이 하나라도 있으면 삭제 불가 (건 사람 보호)', () => {
+    const bids = [bid({ id: 'B1', name: '이관국', amount: 130000 })];
+    expect(canDeleteOwnMarketItem(auction(), bids, '김수정')).toBe(false);
+  });
+
+  it('나눔 신청이 하나라도 있으면 삭제 불가', () => {
+    const g = giveaway();
+    const bids = [bid({ id: 'B1', itemId: 'MKT-G', name: '이수현', amount: 0 })];
+    expect(canDeleteOwnMarketItem(g, bids, '김수정')).toBe(false);
+  });
+
+  it('남의 물건은 삭제 불가', () => {
+    expect(canDeleteOwnMarketItem(auction(), [], '이관국')).toBe(false);
+  });
+
+  it('수정과 달리 상태는 보지 않는다 — 내려둔(취소) 물건도 입찰 0 이면 삭제 가능', () => {
+    expect(canDeleteOwnMarketItem(auction({ canceled: true }), [], '김수정')).toBe(true);
+  });
+
+  it('수정과 달리 마감이 지나도 입찰 0 이면 삭제 가능', () => {
+    const closed = auction({ closeAt: '2026-08-04T18:00' });
+    expect(canDeleteOwnMarketItem(closed, [], '김수정')).toBe(true);
   });
 });
 

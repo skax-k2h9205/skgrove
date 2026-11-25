@@ -294,6 +294,18 @@ export async function deleteMarketFavorite(itemId: string, name: string): Promis
   return true;
 }
 
+/**
+ * 물건에 딸린 관심(찜)을 통째로 지운다. market_favorites 도 입찰과 같이 item 에 FK 가 없어
+ * 물건을 지워도 남는다. 물건 완전 삭제 때 호출해 함께 정리한다(고아 관심 행 방지).
+ */
+export async function deleteMarketFavoritesForItem(itemId: string) {
+  if (!supabase) return;
+  const { error } = await supabase.from(FAVORITES_TABLE).delete().eq('item_id', itemId);
+  if (error) {
+    console.warn('Supabase market favorites delete failed. Local fallback is still updated.', error);
+  }
+}
+
 // ── 게시글 댓글 (유머 댓글과 동일 규약) ──
 function commentFromRow(row: CommentRow): MarketComment {
   return {

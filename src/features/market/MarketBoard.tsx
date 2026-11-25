@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
-  Ban,
   Check,
   Dices,
   Gavel,
@@ -28,6 +27,7 @@ import {
   bidBlockedReason,
   bidCount,
   bidsFor,
+  canDeleteOwnMarketItem,
   canEditMarketItem,
   canRevealMystery,
   currentPrice,
@@ -106,7 +106,6 @@ type MarketBoardProps = {
   onBid: (item: MarketItem, amount: number) => void;
   /** 추첨 나눔 신청 취소(마감 전, 본인 신청). 선착순 나눔·경매에는 쓰지 않는다. */
   onWithdrawBid: (item: MarketItem) => void;
-  onCancelItem: (item: MarketItem) => void;
   onMarkDone: (item: MarketItem) => void;
   /** 팀리더 권한. 남의 물건도 삭제할 수 있다. */
   canModerate: boolean;
@@ -172,7 +171,6 @@ export function MarketBoard({
   onUpdate,
   onBid,
   onWithdrawBid,
-  onCancelItem,
   onMarkDone,
   canModerate,
   onDelete,
@@ -650,7 +648,7 @@ export function MarketBoard({
               {/*
                 수정은 아직 아무도 입찰하지 않았을 때만 연다. 입찰이 붙으면 그 사람은
                 이 조건(가격·마감·물건)을 믿고 건 것이라, 몰래 바꾸면 입찰 취소 불가
-                원칙과 어긋난다. 바꿔야 하면 '거래 내리기'(입찰자에게 알림)로 무른다.
+                원칙과 어긋난다. 입찰이 붙은 뒤엔 바꾸지도 지우지도 못한다(팀리더만 삭제).
               */}
               {canEditMarketItem(selected, bids, now, currentUser.name) && (
                 <button className="btn-ghost" onClick={() => setView('edit')} type="button">
@@ -659,25 +657,28 @@ export function MarketBoard({
                 </button>
               )}
 
-              {isSeller && !selected.canceled && status === '거래중' && (
-                <button className="btn-ghost danger" onClick={() => onCancelItem(selected)} type="button">
-                  <Ban size={16} />
-                  거래 내리기
-                </button>
-              )}
-
-              {canModerate && !confirmingDelete && (
-                <button className="btn-ghost danger" onClick={() => setConfirmingDelete(true)} type="button">
-                  <Trash2 size={16} />
-                  삭제
-                </button>
-              )}
+              {/*
+                완전 삭제. 팀리더는 언제나, 판매자는 입찰·신청이 아직 0건일 때만 — 잘못 올렸거나
+                마음이 바뀌어 치우고 싶을 때. 아무도 손대지 않은 물건이라 사라져도 억울한 사람이 없다.
+                입찰·신청이 하나라도 붙으면 판매자는 더 지울 수 없다(건 사람 보호). 그 땐 팀리더만 지운다.
+              */}
+              {(canModerate || canDeleteOwnMarketItem(selected, bids, currentUser.name)) &&
+                !confirmingDelete && (
+                  <button className="btn-ghost danger" onClick={() => setConfirmingDelete(true)} type="button">
+                    <Trash2 size={16} />
+                    삭제
+                  </button>
+                )}
             </div>
 
             {confirmingDelete && (
               <div className="agenda-close-box">
                 <AlertTriangle size={18} />
-                <p>이 물건을 삭제하면 되돌릴 수 없어요. 입찰 기록도 함께 사라집니다.</p>
+                <p>
+                  {bidCount(selected, bids) > 0
+                    ? '이 물건을 삭제하면 되돌릴 수 없어요. 입찰·신청 기록도 함께 사라집니다.'
+                    : '이 물건을 삭제하면 되돌릴 수 없어요.'}
+                </p>
                 <div className="vote-confirm-actions">
                   <button className="secondary-button" onClick={() => setConfirmingDelete(false)} type="button">
                     취소
@@ -778,21 +779,34 @@ export function MarketBoard({
     );
   }
 
-  const boards = [
-    { key: 'seller', title: '판매왕', rows: rankSellers(scopedItems, bids, now), unit: '건' },
-    { key: 'giver', title: '나눔왕', rows: rankGivers(scopedItems, bids, now), unit: '건' },
-    { key: 'buyer', title: '구매왕', rows: rankBuyers(scopedItems, bids, now), unit: '건' },
-    { key: 'spender', title: '큰손', rows: rankBigSpenders(scopedItems, bids, now), unit: '원' },
-  ];
-  const hasRanking = boards.some((board) => board.rows.length > 0);
   const scopeEvent = marketEvent(scope);
   const scopeLabel = scopeEvent?.label;
+  // 나눔왕(성사된 나눔 최다)·구매왕(낙찰 입찰 합계금액 최대) 시상 행사 여부.
+  const giverAward = Boolean(scopeEvent?.giverAward);
+  const buyerAward = Boolean(scopeEvent?.buyerAward);
+  /*
+    명예의 전당. 시상 행사(캔미팅)는 '선정하는 상(賞)만' 올린다 — 구매왕은 금액(원), 나눔왕은
+    성사 건수. 상시 장터는 재미로 네 판(판매왕·나눔왕·구매왕(건수)·큰손)을 그대로 보여준다.
+    구매왕이 행사에선 '금액', 상시에선 '건수'라 뜻이 다른데, 시상 행사에서 '가장 많이 쓴 사람'을
+    뽑으려는 요청에 맞춘 것이다(상시엔 금액 판이 큰손으로 따로 있다).
+  */
+  const boards =
+    giverAward || buyerAward
+      ? [
+          { key: 'buyer', title: '구매왕', rows: rankBigSpenders(scopedItems, bids, now), unit: '원', award: buyerAward },
+          { key: 'giver', title: '나눔왕', rows: rankGivers(scopedItems, bids, now), unit: '건', award: giverAward },
+        ].filter((board) => board.award)
+      : [
+          { key: 'seller', title: '판매왕', rows: rankSellers(scopedItems, bids, now), unit: '건', award: false },
+          { key: 'giver', title: '나눔왕', rows: rankGivers(scopedItems, bids, now), unit: '건', award: false },
+          { key: 'buyer', title: '구매왕', rows: rankBuyers(scopedItems, bids, now), unit: '건', award: false },
+          { key: 'spender', title: '큰손', rows: rankBigSpenders(scopedItems, bids, now), unit: '원', award: false },
+        ];
+  const hasRanking = boards.some((board) => board.rows.length > 0);
   // 모금 현황은 기부 행사 탭에서만. 공개 전엔 거래가 없어 0원이라 숨긴다.
   const fund = scopeEvent?.fundraiser && !preOpen ? fundraiseSummary(scopedItems, bids, now) : null;
   // 크리스마스 테마는 이 탭에만. 상시 장터·다른 화면은 그대로다.
   const xmas = Boolean(scopeEvent?.xmas);
-  // 나눔왕 시상 행사 — 안내 패널을 띄우고 명예의 전당 나눔왕에 시상 표시.
-  const giverAward = Boolean(scopeEvent?.giverAward);
 
   return (
     <section className={xmas ? 'screen market-xmas' : 'screen'}>
@@ -907,9 +921,10 @@ export function MarketBoard({
           <Trophy size={18} />
           <strong>{scopeLabel ? `${scopeLabel} 명예의 전당` : '이음장터 명예의 전당'}</strong>
         </div>
-        {giverAward && (
+        {(giverAward || buyerAward) && (
           <p className="market-hall-note">
-            🏆 성사된 나눔이 가장 많은 분을 <strong>나눔왕</strong>으로 시상해요 · 경매 판매금은 판매자 본인이 가져가요.
+            🏆 낙찰 금액이 가장 큰 분을 <strong>구매왕</strong>, 성사된 나눔이 가장 많은 분을{' '}
+            <strong>나눔왕</strong>으로 시상해요 · 경매 판매금은 판매자 본인이 가져가요.
           </p>
         )}
         {hasRanking ? (
@@ -917,7 +932,7 @@ export function MarketBoard({
             {boards.map((board) => (
               <div className="market-rank" key={board.key}>
                 <h3>
-                  {giverAward && board.key === 'giver' && <span className="rank-award">🏆 시상</span>}
+                  {board.award && <span className="rank-award">🏆 시상</span>}
                   {board.title}
                 </h3>
                 {board.rows.length === 0 ? (
@@ -940,7 +955,8 @@ export function MarketBoard({
           </div>
         ) : (
           <p className="market-hall-empty">
-            아직 성사된 거래가 없어요. 첫 거래의 주인공이 되어보세요 — 판매왕 · 나눔왕 · 구매왕 · 큰손이 여기 오릅니다.
+            아직 성사된 거래가 없어요. 첫 거래의 주인공이 되어보세요 —{' '}
+            {boards.map((board) => board.title).join(' · ')}이 여기 오릅니다.
           </p>
         )}
       </section>
