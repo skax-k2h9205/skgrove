@@ -540,6 +540,11 @@ export function App() {
       if (document.visibilityState !== 'visible') return;
       void loadHumorPosts().then(setHumorPosts);
       void loadHumorComments().then(setHumorComments);
+      // 장터도 탭으로 돌아올 때 다시 읽는다 — 다른 사람(또는 다른 기기)이 올린 물건·입찰·찜이
+      // 전체 새로고침 전까지 안 보이던 문제. 유머와 같은 전제(로그인=테넌트 확정)로 돈다.
+      void loadMarketItems().then(setMarketItems);
+      void loadMarketBids().then(setMarketBids);
+      void loadMarketFavorites().then(setMarketFavorites);
       // 다른 리더가 바꾼 공개 시각을 이어받는다(행사 당일 라이브 조정 반영).
       void loadConfig<MarketOpenOverrides>(MARKET_OPEN_KEY, {}).then(setMarketOpenOverrides);
       // 커넥셔너가 바꾼 메뉴 숨김도 탭으로 돌아올 때 이어받는다.

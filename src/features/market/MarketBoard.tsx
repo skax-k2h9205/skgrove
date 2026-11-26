@@ -1049,6 +1049,15 @@ export function MarketBoard({
                 </button>
                 <figcaption className="ig-shop-meta">
                   <strong>{publicTitle(item)}</strong>
+                  {/* 경매는 "지금 얼마인가"가 목록의 첫 질문이라 값을 띄운다(나눔은 값이 없다).
+                      입찰이 있으면 현재가/낙찰가, 아직 없으면 시작가. 이 값 노출은 행사별
+                      listPrice 가 켜진 탭(캔미팅)에서만 — 상시 장터는 팀 문법대로 값을 숨긴다. */}
+                  {item.kind === 'auction' && scopeEvent?.listPrice && (
+                    <span className="ig-shop-price">
+                      {count > 0 ? (status === '거래중' ? '현재가' : '낙찰가') : '시작가'}{' '}
+                      {formatPrice(currentPrice(item, bids))}
+                    </span>
+                  )}
                   <span>
                     {`${
                       item.kind === 'auction'

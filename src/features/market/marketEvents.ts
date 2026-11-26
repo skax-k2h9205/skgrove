@@ -45,6 +45,10 @@ export type MarketEvent = {
    *  (상시 장터·다른 이벤트의 나눔은 그대로 선착순 — 먼저 누른 사람이 가져감)
    *  당첨자는 저장하지 않고 신청 목록에서 결정적으로 계산한다([[marketRules]].raffleWinner). */
   giveawayRaffle?: boolean;
+  /** true 면 이 행사 탭의 목록 격자에서 경매 물건에 값(현재가/시작가)을 함께 띄운다.
+   *  경매가 핵심인 행사(캔미팅)는 "지금 얼마인가"가 목록의 첫 질문이라서다.
+   *  상시 장터는 팀 문법상 목록에 값을 안 띄우므로(값은 상세에서) 끈 채로 둔다. */
+  listPrice?: boolean;
 };
 
 export const MARKET_EVENTS: MarketEvent[] = [
@@ -59,6 +63,7 @@ export const MARKET_EVENTS: MarketEvent[] = [
     giverAward: true, // 나눔왕(성사된 나눔 최다) 시상
     buyerAward: true, // 구매왕(낙찰 입찰 합계금액 최대) 시상
     giveawayRaffle: true, // 나눔은 선착순이 아니라 마감(12:50) 후 무작위 1명 추첨
+    listPrice: true, // 경매가 핵심인 행사 — 목록 격자에도 현재가/시작가를 띄운다
   },
 ];
 

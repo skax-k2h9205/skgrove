@@ -10871,6 +10871,18 @@ button.notif-row {
   font-variant-numeric: tabular-nums;
 }
 
+/* 경매 현재가/시작가 — 제목 바로 아래, 값은 또렷하게. '현재가' 라벨은 한 톤 죽인다. */
+.ig-shop-meta .ig-shop-price {
+  color: var(--color-ink);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.ig-shop-cell.closed .ig-shop-meta .ig-shop-price {
+  color: var(--color-muted);
+}
+
 /* ===== 인스타 릴스 문법 (유~머게시판) =====
    짧고 소비가 빠른 콘텐츠라 세로 9:16 이 맞다. 미디어가 배경이 되고
    글과 반응이 그 위에 얹힌다. 목록에서는 플레이어를 붙이지 않는다 —
